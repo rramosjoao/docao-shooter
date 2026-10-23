@@ -1,0 +1,186 @@
+// Voz da sala: o áudio vai de navegador a navegador (WebRTC). O servidor só apresenta os jogadores.
+const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+const $ = (id) => document.getElementById(id);
+
+let hooks = { send() {}, teamMode() { return false; }, myId() { return 0; }, onChange() {} };
+let scope = 'off';
+let stream = null;
+let ptt = false;
+let roster = new Map();
+let peers = new Map();
+let muted = new Set();
+let talking = new Set();
+let actx = null;
+
+export function voiceTalking(id) { return talking.has(id); }
+export function voiceMuted(id) { return muted.has(id); }
+export function voiceToggleMute(id) {
+  if (!id) return;
+  if (muted.has(id)) muted.delete(id); else muted.add(id);
+  const rec = peers.get(id); if (rec && rec.audio) rec.audio.volume = muted.has(id) ? 0 : 1;
+  hooks.onChange();
+}
+export function voiceScope() { return scope; }
+export function voiceCycle() {
+  const order = hooks.teamMode() ? ['off', 'all', 'team'] : ['off', 'all'];
+  const i = order.indexOf(scope);
+  setScope(order[(i < 0 ? 0 : i + 1) % order.length]);
+}
+
+export function initVoice(h) {
+  hooks = h;
+  document.querySelectorAll('[data-voicebox] [data-voice]').forEach((b) => { b.addEventListener('click', () => setScope(b.dataset.voice)); });
+  const unlock = () => { resume(); for (const rec of peers.values()) if (rec.audio) rec.audio.play().catch(() => {}); };
+  document.addEventListener('pointerdown', unlock);
+  document.addEventListener('keydown', unlock);
+  setInterval(sample, 120);
+  paint();
+}
+
+export function voicePtt(down) {
+  if (scope === 'off' || !stream) { if (!down) mark(hooks.myId(), false); return; }
+  ptt = !!down;
+  const track = stream.getAudioTracks()[0];
+  if (track) track.enabled = ptt;
+  mark(hooks.myId(), ptt);
+  paint();
+}
+
+export function voiceReset() {
+  scope = 'off'; ptt = false; roster = new Map(); muted.clear(); talking.clear();
+  for (const id of [...peers.keys()]) closePeer(id);
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  paint(); hooks.onChange();
+}
+
+export function voiceRoster(list) {
+  roster = new Map((list || []).map(([id, sc, team]) => [id, { scope: sc || 'off', team }]));
+  const mine = roster.get(hooks.myId());
+  if (mine && mine.scope !== scope) scope = mine.scope;
+  if (scope === 'off') ptt = false;
+  syncPeers(); paint();
+}
+export function voiceSignal(from, kind, data) { onSignal(from, kind, data); }
+export function voiceRefresh() { paint(); syncPeers(); }
+
+async function setScope(next) {
+  if (next !== 'off' && next !== 'all' && next !== 'team') next = 'off';
+  if (next === 'team' && !hooks.teamMode()) next = 'all';
+  if (next === scope) { paint(); return; }
+  if (next !== 'off') { const ok = await ensureMic(); if (!ok) { paint(); return; } }
+  scope = next; ptt = false;
+  if (stream) stream.getAudioTracks().forEach((t) => { t.enabled = false; });
+  const mine = roster.get(hooks.myId()); if (mine) mine.scope = scope;
+  mark(hooks.myId(), false);
+  hooks.send({ t: 'voice', scope });
+  syncPeers(); paint();
+}
+async function ensureMic() {
+  if (stream) { resume(); return true; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+    stream.getAudioTracks().forEach((t) => { t.enabled = false; });
+    resume();
+    return true;
+  } catch (e) {
+    const toast = document.querySelector('#lobbyInvite [data-toast]');
+    if (toast) toast.textContent = 'Não deu para usar o microfone';
+    return false;
+  }
+}
+function resume() { const c = audio(); if (c && c.state === 'suspended') c.resume(); }
+function audio() { if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); } return actx; }
+
+function reaches(fromId, toId) {
+  const a = roster.get(fromId); if (!a || a.scope === 'off' || fromId === toId) return false;
+  if (a.scope === 'all') return true;
+  const b = roster.get(toId);
+  return a.scope === 'team' && !!b && a.team >= 0 && a.team === b.team;
+}
+function wantPeer(id) { return id !== hooks.myId() && roster.has(id) && (reaches(hooks.myId(), id) || reaches(id, hooks.myId())); }
+function iSend(id) { return reaches(hooks.myId(), id) && !!stream; }
+
+function syncPeers() {
+  const me = hooks.myId(); if (!me) return;
+  for (const id of [...peers.keys()]) {
+    const rec = peers.get(id);
+    const send = iSend(id);
+    if (!wantPeer(id) || (!!rec.sending !== !!send)) closePeer(id);
+  }
+  for (const id of roster.keys()) if (wantPeer(id) && !peers.has(id)) connect(id);
+}
+function connect(id) {
+  if (peers.has(id) || id === hooks.myId()) return;
+  const pc = new RTCPeerConnection(ICE);
+  const rec = { pc, polite: hooks.myId() > id, making: false, sending: false, audio: null, an: null };
+  peers.set(id, rec);
+  if (iSend(id)) { pc.addTrack(stream.getAudioTracks()[0], stream); rec.sending = true; }
+  else pc.addTransceiver('audio', { direction: 'recvonly' });
+  pc.onicecandidate = (ev) => { if (ev.candidate) hooks.send({ t: 'sig', to: id, kind: 'ice', data: ev.candidate.toJSON() }); };
+  pc.ontrack = (ev) => {
+    const audioEl = new Audio(); audioEl.autoplay = true; audioEl.srcObject = ev.streams[0]; audioEl.volume = muted.has(id) ? 0 : 1;
+    rec.audio = audioEl; audioEl.play().catch(() => {});
+    const c = audio(); if (c) { const src = c.createMediaStreamSource(ev.streams[0]); const an = c.createAnalyser(); an.fftSize = 512; src.connect(an); rec.an = an; }
+  };
+  pc.onnegotiationneeded = async () => {
+    try { rec.making = true; await pc.setLocalDescription(); hooks.send({ t: 'sig', to: id, kind: 'offer', data: pc.localDescription.sdp }); }
+    catch (e) { /* o outro lado oferece */ }
+    finally { rec.making = false; }
+  };
+}
+function closePeer(id) {
+  const rec = peers.get(id); if (!rec) return;
+  try { rec.pc.onicecandidate = null; rec.pc.onnegotiationneeded = null; rec.pc.close(); } catch (e) { /* já fechou */ }
+  if (rec.audio) rec.audio.srcObject = null;
+  peers.delete(id); talking.delete(id);
+}
+async function onSignal(from, kind, data) {
+  if (!peers.has(from) && (kind === 'offer' || kind === 'answer')) connect(from);
+  const rec = peers.get(from); if (!rec) return;
+  const pc = rec.pc;
+  try {
+    if (kind === 'offer') {
+      const collision = rec.making || pc.signalingState !== 'stable';
+      if (collision && !rec.polite) return;
+      if (collision) { try { await pc.setLocalDescription({ type: 'rollback' }); } catch (e) { /* estado já andou */ } }
+      await pc.setRemoteDescription({ type: 'offer', sdp: data });
+      await pc.setLocalDescription();
+      hooks.send({ t: 'sig', to: from, kind: 'answer', data: pc.localDescription.sdp });
+    } else if (kind === 'answer') {
+      if (pc.signalingState === 'stable') return;
+      await pc.setRemoteDescription({ type: 'answer', sdp: data });
+    } else if (kind === 'ice' && data && data.candidate) {
+      await pc.addIceCandidate(data);
+    }
+  } catch (e) { /* renegociação no meio do caminho */ }
+}
+function mark(id, on) {
+  if (!id) return;
+  const had = talking.has(id);
+  if (on) talking.add(id); else talking.delete(id);
+  if (had !== on) hooks.onChange();
+}
+function sample() {
+  let changed = false;
+  for (const [id, rec] of peers) {
+    if (!rec.an) continue;
+    const buf = new Uint8Array(rec.an.fftSize); rec.an.getByteTimeDomainData(buf);
+    let sum = 0; for (let i = 0; i < buf.length; i++) { const x = (buf[i] - 128) / 128; sum += x * x; }
+    const on = Math.sqrt(sum / buf.length) > 0.05 && !muted.has(id);
+    const had = talking.has(id);
+    if (on) talking.add(id); else talking.delete(id);
+    if (had !== on) changed = true;
+  }
+  if (changed) hooks.onChange();
+}
+function paint() {
+  const team = hooks.teamMode();
+  const hint = scope === 'off' ? 'J troca a voz · mudo' : scope === 'team' ? 'J troca · segure K · só o time' : 'J troca · segure K · a sala ouve';
+  document.querySelectorAll('[data-voicebox]').forEach((box) => {
+    const teamBtn = box.querySelector('[data-voice=team]');
+    if (teamBtn) teamBtn.classList.toggle('hidden', !team);
+    box.querySelectorAll('[data-voice]').forEach((b) => b.classList.toggle('on', b.dataset.voice === scope));
+    box.classList.toggle('live', ptt && scope !== 'off');
+    const h = box.querySelector('.voicehint'); if (h) h.textContent = hint;
+  });
+}

@@ -1,236 +1,394 @@
-# Docão Shooter 🐷🔫
+<div align="center">
 
-Jogo de tiro em primeira pessoa no navegador, com o Docão (mascote da Cheers) no lugar dos ovos.
-Feito do zero com Three.js (arte procedural, sons sintetizados via WebAudio). Nenhum código, arte, nome ou áudio de terceiros.
+# 🐷🔫 Docão Shooter
 
-## Rodar
-```
-cd docao-game
-python3 -m http.server 8123
-# abra http://localhost:8123
-```
-(Precisa ser servido por HTTP por causa dos módulos ES; funciona offline, o Three.js está em `vendor/`.)
+### Tiroteio na Fazendinha Cheers
 
-## Controles
-WASD mover · Mouse mirar · Espaço pular · Shift mirar/zoom (luneta no Sniper) · Clique atirar · R recarregar · 1 primária / 2 pistola (ou rodinha) · Segure Q (ou 3): Copo Bomba, solte para arremessar · Morto: 1–4 escolhe a primária do próximo renascimento · Tab placar · Esc (ou P) pausar
+**FPS no navegador em que todo mundo é o Docão, o porquinho mascote da Cheers.**
+Quem morre vira bacon 🥓 e o bacon cura quem pisar nele.
 
-## Online (multiplayer) 🌐
+[![Jogar agora](https://img.shields.io/badge/%F0%9F%90%B7_Jogar_agora-docao.mvalentim.dev-ff4d4d?style=for-the-badge)](https://docao.mvalentim.dev)
+[![Release](https://img.shields.io/github/v/release/valentimm/docao-shooter?style=for-the-badge&label=vers%C3%A3o&color=ffb36b)](https://github.com/valentimm/docao-shooter/releases/latest)
 
-No menu: **JOGAR OFFLINE (bots)** funciona como sempre; **JOGAR ONLINE** abre:
-- **Criar sala** — mapa (ou Aleatório), máximo de jogadores (2–8) e "completar com bots" (sim/não). Gera um **código de 4 letras**.
-- **Entrar na sala** — digite o código. Ou abra o link de convite `https://…/?sala=ABCD` (entra direto no lobby).
-- No lobby o **anfitrião** (★) troca mapa/máximo/bots e clica **INICIAR PARTIDA**. No fim, só o anfitrião escolhe "jogar de novo" / "próximo mapa".
-- Durante a partida: ping no canto (Sala ABCD · 35 ms), placar (Tab) com ping de cada um, kill feed do servidor. Esc não pausa o jogo online (só solta o mouse).
-- Caiu a conexão? O cliente reconecta sozinho (até 10 tentativas) e volta com o mesmo jogador/placar (token na `sessionStorage`; a vaga fica guardada 30 s).
+[![Three.js](https://img.shields.io/badge/Three.js-r169-000000?logo=threedotjs&logoColor=white)](https://threejs.org)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers_%2B_Durable_Objects-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com)
+[![Vercel](https://img.shields.io/badge/site_na-Vercel-000000?logo=vercel&logoColor=white)](https://docao.mvalentim.dev)
+[![Playwright](https://img.shields.io/badge/testes-Playwright-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
 
-### Arquitetura
-- **Servidor:** `server/` — Cloudflare Worker + **Durable Object `Room`** (SQLite-backed, plano grátis). Um objeto por código de sala (`idFromName(código)`).
-  - `POST /api/rooms` cria sala · `GET /api/rooms/ABCD` consulta · `GET /ws/ABCD?name=&skin=&primary=&token=` (WebSocket) · `GET /health`.
-  - **WebSocket Hibernation API** (`ctx.acceptWebSocket`): no lobby o objeto pode hibernar sem custo; config e jogadores são restaurados dos anexos dos sockets + storage.
-    `ping`→`pong` é resposta automática (`setWebSocketAutoResponse`): não acorda o objeto e não conta como requisição.
-  - Sala vazia: alarme de 2 min apaga tudo (`storage.deleteAll()`).
-- **Servidor autoritativo** (`server/src/game.js`, sem DOM/Three.js): acertos, dano, abates, placar, renascimento (escolha de spawn),
-  pickups, Copo Bomba e foguetes (física + explosão + empurrão), tempo de partida e fim de partida. Usa os mesmos módulos do cliente:
-  `maps.js` (dados), `nav.js` (grafo dos bots), `shared/rules.js` (armas/constantes) e `shared/physics.js` (colisão — o teste confere que as caixas são idênticas às do `world.js` em todos os mapas).
-- **Cliente** (`net.js` + seção Online do `main.js`): move o próprio Docão localmente (sem atraso) e manda a ~20 Hz posição, velocidade, mira, arma e
-  eventos (`f` tiro com origem + direções de cada bago, `r` foguete, `n` Copo Bomba, `rl` recarga, `pr` primária). Os outros Docões são desenhados com
-  **interpolação de 100 ms**, com skin, nome, arma, pose de recarga, bolha de proteção e animação de andar.
-- **Tiro:** hitscan **no servidor** contra a cópia dele das posições, com **compensação de lag "lite"** (volta no tempo `ping/2 + 100 ms`, máx. 300 ms).
-  O cliente só diz de onde e pra onde atirou; dano/abate vêm do servidor.
-- **Anti-cheat básico:** velocidade máxima por pacote (folga para empurrão de explosão/rocket jump), dentro do mapa e fora das paredes (senão o servidor devolve o jogador pra última posição válida);
-  cadência por arma (relógio do cliente + checagem de que ele não anda mais rápido que o do servidor), **munição/pente/recarga contados no servidor**,
-  origem do tiro perto do olho, Copo Bomba só se tiver e com velocidade máxima.
-- **Bots online:** simulados **no servidor** (mesma IA dos bots offline: alvo por visão, faixa de distância por arma, strafe, Copo Bomba, A* no grafo de navegação).
-  Ocupam as vagas livres; quando alguém entra no meio da partida um bot sai. Custo medido: ~0,05 ms por tick com 7 bots.
-- **Loop:** 20 Hz. Os ticks rodam "de carona" nas mensagens dos clientes (cada mensagem é uma invocação com o próprio limite de CPU) e um `setInterval`
-  completa os buracos — se nenhum cliente mandar nada por 1 s, a simulação para (nunca acumula CPU numa invocação só).
+<img src="screenshots/03-tiroteio.png" alt="Tiroteio na Arena da Fazendinha" width="860">
 
-### Configuração do cliente
-`config.js`: `SERVER_URL` (padrão `wss://docao-shooter-server.valentimm.workers.dev`). Dá pra trocar pela URL: `?server=ws://127.0.0.1:8787`.
-Também `?hz=10` muda a taxa de envio (padrão 20/s).
+</div>
 
-### Deploy do servidor
-```
-cd server
-npm install
-npx wrangler login          # uma vez
-npx wrangler deploy         # publica docao-shooter-server.<subdomínio>.workers.dev
-```
-Se o subdomínio/nome mudar, ajuste `SERVER_URL` em `config.js`. Para gerar o bundle sem publicar: `npx wrangler deploy --dry-run --outdir dist` → `server/dist/index.js`.
-Config (`server/wrangler.jsonc`): Durable Object `Room`, binding `ROOMS`, migração `v1` com `new_sqlite_classes: ["Room"]`.
-O site (Vercel) não precisa de nada: `.vercelignore` deixa `server/` e os testes de fora.
+Tudo foi feito do zero: os modelos são procedurais em Three.js, os sons são sintetizados com WebAudio e não há código, arte, nome ou áudio de terceiros. Abra o link, escolha a skin e comece a pururucar. Não precisa instalar nem criar conta.
 
-**Limites do plano grátis (estimativa):** cada mensagem recebida por WebSocket conta 1/20 de requisição (100 mil/dia). 8 humanos a 20 Hz ≈ 8 req/s → ~3,5 h de partida cheia por dia;
-2 humanos ≈ 14 h/dia. Mensagens enviadas pelo servidor não contam. Se precisar economizar, use `?hz=10` (ou mude `SEND_HZ`).
+---
 
-### Testar online localmente
-```
-cd server && npx wrangler dev --port 8787 --var ALLOW_TEST:1     # ALLOW_TEST só para o teste automatizado (aceita teleporte)
-python3 -m http.server 8124                                       # na raiz do jogo
-node test-online.mjs http://localhost:8124/ ws://127.0.0.1:8787
-node test-online-dom.mjs http://localhost:8124/ ws://127.0.0.1:8787   # Dominação online
-node test-online-idle.mjs http://localhost:8124/ ws://127.0.0.1:8787  # sala parada + entrada no meio (~3 min)
-```
-Para jogar em duas abas: `http://localhost:8124/?server=ws://127.0.0.1:8787`.
+## 📚 Sumário
 
-## Mira com zoom (Shift)
+- [🎮 Como jogar](#-como-jogar)
+- [⌨️ Controles](#️-controles)
+- [🏆 Modos de jogo](#-modos-de-jogo)
+  - [💣 Bomba · Planta o Botijão](#-bomba--planta-o-botijão)
+- [🗺️ Mapas](#️-mapas)
+- [🔫 Armas](#-armas)
+- [💣 Granadas](#-granadas)
+- [🔥 Killstreaks e camuflagens](#-killstreaks-e-camuflagens)
+- [❤️ Mecânicas](#️-mecânicas)
+- [🎭 Skins](#-skins)
+- [📸 Galeria](#-galeria)
+- [💻 Rodando localmente](#-rodando-localmente)
+- [🧪 Testes](#-testes)
+- [🗂️ Estrutura do projeto](#️-estrutura-do-projeto)
+- [⚙️ Por dentro do online](#️-por-dentro-do-online)
+- [🤝 Como contribuir](#-como-contribuir)
+- [⚠️ Limitações conhecidas](#️-limitações-conhecidas)
+- [🙌 Créditos](#-créditos)
 
-- **Segure Shift** para mirar; solte para voltar ao normal. Shift não faz mais nada no jogo (não há corrida).
-- O zoom entra suave em ~0,15 s: FOV 75° → **40°** Fuzil Pururuca, **55°** Calibre 12, **15°** Sniper Torresmo (luneta), **55°** Bazuca do Chiqueiro, **50°** Pistolinha Leitão.
-- Mirando: sensibilidade do mouse cai na proporção do FOV, dispersão bem menor (fuzil ~12% da normal, Calibre 12 ~60%, pistola ~40%), andar a 60% da velocidade, arma vai para o centro/levantada, vinheta suave nas bordas e mira menor.
-- **Recarregar ou trocar de arma cancela o zoom**; se Shift continuar pressionado, o zoom volta sozinho quando termina.
-- Dá para segurar Q (Copo Bomba) junto com Shift normalmente. Bots não são afetados.
+---
 
-## Armas e loadout (estilo "uma primária + pistola")
+## 🎮 Como jogar
 
-Escolha **uma arma primária** no menu (ao lado das skins; fica salva no navegador). Morreu? Na tela de morte aperte **1–4**
-(ou clique) para trocar a primária — vale no próximo renascimento. Todo mundo leva a **Pistolinha Leitão** como secundária
-e o **Copo Bomba** (tecla Q ou 3). **1** = primária, **2** = pistola, a rodinha alterna entre as duas.
+1. Abra **https://docao.mvalentim.dev**.
+2. Escreva **seu nome** (até 16 caracteres) e escolha a **skin** do Docão.
+3. Monte o loadout: **uma arma de cada categoria** (primária, secundária e corpo a corpo). Se for de Sabre de Luz, escolha a cor dele também.
+4. Escolha o **mapa** (ou **Aleatório**, que sorteia um mapa a cada partida) e o **modo**.
+5. Clique em **JOGAR OFFLINE** ou em **JOGAR ONLINE**.
 
-| Arma | Tipo | Pente/reserva | Dano | Cadência | Recarga | Zoom |
-|---|---|---|---|---|---|---|
-| **Fuzil Pururuca** | automático | 30/120 | 20 (cabeça 40) | 0,1 s | 1,6 s | 40° |
-| **Escopeta Chiqueiro · Calibre 12** | pump, 8 bagos | 8/32 | 8×15 de perto (cabeça ×1,5), cai até 30% a 30 m | 0,8 s (pump) | cartucho a cartucho (0,45 s cada) — **atirar interrompe** | 55° |
-| **Sniper Torresmo** | ferrolho | 5/20 | 115 corpo / 250 cabeça (1 tiro mata) | 1,4 s (ferrolho) | 2,4 s | **luneta 15°** |
-| **Bazuca do Chiqueiro** | foguete lento (24 m/s) com fumaça | 1/4 | até 120 em área (raio 5 m), 40% em si mesmo, empurrão | — | 2,5 s | 55° |
-| **Pistolinha Leitão** (secundária) | semiautomática | 12/60 | 25 (cabeça 50) | 0,16 s | 1,1 s | 50° |
+O nome, a skin, as armas, o mapa, o modo, a dificuldade dos bots e a sensibilidade ficam salvos no navegador.
 
-- **Sniper:** sem mira e andando é muito impreciso; com a luneta (Shift) **parado** é perfeito (andando com luneta, quase).
-  A luneta é um overlay preto com retícula e a arma some da tela. Tiro alto com rastro grosso.
-- **Bazuca:** o foguete tem ponta de focinho de porquinho e faixa “C!”; explode ao bater em parede, chão ou Docão.
-  Atire no chão embaixo de você para um **rocket jump** (~2,5 m de altura, perde ~40 de vida).
-- **Caixas de munição** enchem a reserva da primária e da pistola; para a bazuca dão só **+1 foguete** (munição escassa).
-- **Bots** recebem uma primária aleatória (às vezes trocam ao renascer) + pistola e escolhem pela distância:
-  Calibre 12 de perto (<14 m), Sniper de longe (≥9 m, com atraso extra de ~0,8 s pra mirar e remira a cada tiro, mirando no corpo),
-  Bazuca a média distância (6–28 m, mira no pé com antecipação, nunca atira colado), pistola no resto.
-- Nomes no feed de abates: Fuzil Pururuca, Calibre 12, Sniper Torresmo, Bazuca, Pistolinha, Copo Bomba.
+### 🤖 Offline (contra bots)
 
-## Copo Bomba (granada)
+- De **4 a 6 bots**, cada um com nome de comida: Farofa, Pipoca, Trufa, Bolota, Torresmo, Paçoca, Linguiça, Quindim, Coxinha e Pururuca.
+- Os bots ganham uma primária aleatória, escolhem a arma pela distância, pegam vida e Copo Bomba, arremessam granadas e sobem e descem andares pelas rampas.
+- A **Dificuldade** (Leitão, Ceva, Javali ou Cachaço) muda como eles miram, reagem e se movem. A Ceva é o jeito antigo. A vida e o dano das armas não mudam. Na Invasão a mesma escolha mexe no cuspe e no cerco da horda, sem aumentar a vida das waves. A preferência fica salva no navegador.
+- No menu também dá pra escolher o **Tempo** da partida e a **Sensibilidade** do mouse (normal e mirando).
 
-- Um copo de festa vermelho com o logo "C!" que explode em confete vermelho/ciano, espuma e cerveja.
-- **Segure Q** para carregar a força (barra enche em ~1,2 s; um arco tracejado mostra a trajetória) e **solte Q** para arremessar.
-- O copo voa em arco com gravidade, quica nas paredes/chão e explode ~2,5 s após o arremesso.
-- Dano em área (raio 6 m, até 130 de dano com queda pela distância), empurrão e tremida de tela; pode matar. Dano em si mesmo é reduzido (40%).
-- Máximo de 3 copos; você nasce com 1. Coletáveis de copo (flutuando, anel ciano) dão +1 e reaparecem após ~20 s.
-- O HUD mostra 3 ícones de copo ao lado da munição. No feed de abates aparece como **[Copo Bomba]**.
-- Bots também pegam copos e arremessam em alvos a média distância.
+### 🌐 Online (com a galera)
 
+- **Criar sala:** escolha mapa, modo (Mata-mata, Dominação, Treino ou Bomba), **máximo de jogadores (2 a 10)**, se quer **completar com bots**, a **dificuldade** deles (Leitão, Ceva, Javali ou Cachaço) e o **tempo** (Padrão, 3, 5, 7, 10, 15 ou 20 min). Sai um **código de 4 letras**.
+- **Entrar na sala:** digite o código ou abra o link de convite `https://docao.mvalentim.dev/?sala=ABCD`, que já cai direto no lobby.
+- **Convite:** no lobby e na pausa tem Copiar link, Copiar código, WhatsApp, Telegram, Slack e Compartilhar.
+- **Anfitrião (★):** troca mapa, máximo, bots, dificuldade, modo, tempo e **chat (liga/desliga)**, e clica em **INICIAR PARTIDA**. No fim, ele escolhe **JOGAR DE NOVO** ou **PRÓXIMO MAPA ▸**.
+- **Nomes repetidos:** o servidor ajusta sozinho, então o segundo "Matheus" vira "Matheus (2)".
+- **Caiu a conexão?** O jogo reconecta sozinho e você volta com o mesmo jogador e o mesmo placar.
 
-## Mapas (7)
-Escolha no menu (cartão **Mapa** → grade com miniaturas aéreas, ou **Aleatório**: sorteia um mapa diferente a cada partida). A escolha fica salva no navegador. No fim da partida há **PRÓXIMO MAPA ▸** (segue a ordem da lista).
+---
 
-Mapas v2: tudo foi refeito para parecer mapa de FPS de verdade. São prédios com interior, portas e janelas, vários andares ligados por rampas, telhados e sacadas onde dá pra subir, becos, gargalos e flancos, e nenhum campo aberto (todo ponto fica a ≤ 7 m de uma cobertura). Cada mapa tem pelo menos uma linha longa de Sniper.
+## ⌨️ Controles
 
-| Mapa | Inspiração (só layout) | Destaques |
+| Tecla | O que faz |
+|---|---|
+| **W A S D** (ou setas) | andar |
+| **Mouse** | mirar |
+| **Espaço** | pular |
+| **Shift** (segurar, esquerdo ou direito) | agachar: câmera e corpo abaixam, anda mais devagar; só levanta quando há espaço |
+| **Clique esquerdo** | atirar · golpe da faca · corte do sabre · segurar = puxar a corda do arco |
+| **Botão direito** | mirar com zoom (luneta nas snipers) · **com a faca na mão: estocada** |
+| **R** | recarregar |
+| **1** / **2** / **3** | primária / secundária / corpo a corpo |
+| **Rodinha do mouse** | gira entre as três armas |
+| **V** | troca rápida: faca ↔ última arma |
+| **I** | inspecionar a arma (segure pra ficar olhando) · mostra camuflagem e abates |
+| **Q** (segurar e soltar) | carrega e arremessa o **Copo Bomba** |
+| **4** | granada de **fumaça** (só offline) |
+| **5** | granada de **atordoamento** (só offline) |
+| **F** | usa o **killstreak** pronto (o mais antigo primeiro) |
+| **E** (segurar) | Modo Bomba: **planta** o Botijão (Ataque, dentro do site) ou **desarma** (Defesa, perto dele) |
+| **Tab** (segurar) | placar |
+| **Esc** ou **P** | pausa |
+
+**Na tela de morte**
+
+| Tecla | O que faz |
+|---|---|
+| **1 – 9** (ou clique no cartão) | escolhe a primária do próximo renascimento: 1 Fuzil Pururuca · 2 Mini Uzi · 3 P90 · 4 Calibre 12 · 5 Sniper Torresmo · 6 Canhão do Barril · 7 Carabina da Granja · 8 Bazuca · 9 Escopeta Semi |
+| **Espaço** / **Enter** ou botão **RENASCER** | volta pro jogo (liberado depois de 5 s) |
+
+**Online: chat e voz**
+
+| Tecla | O que faz |
+|---|---|
+| **T** | abre o chat para **todos** |
+| **Y** / **U** | abre o chat do **time** (na Dominação) |
+| **Enter** | abre o chat (com o Docão vivo) |
+| **Esc** | fecha o chat |
+| **J** | troca a voz: Mudo → Todos → Time |
+| **K** (segurar) | fala no microfone (push-to-talk) |
+
+**Modos especiais**
+
+| Modo | Tecla | O que faz |
 |---|---|---|
-| **Arena da Fazendinha** | 3 corredores, estilo Shipment / Rust | bases de 2 andares nas pontas com terraço no telhado; celeiro no meio com portões largos e jirau com janelas pros dois lados; galinheiro-túnel no corredor norte; caixa d'água alta no sul (linha de Sniper por baixo); galpões com rampa até o telhado |
-| **Duas Pocilgas** | Dust2 | túneis do B cobertos, com parede em zigue-zague; túnel de baixo até o meio; portas do meio e caixote; catwalk alto até o A; longo com portões; casa do meio de 2 andares com janelas pro meio e pro longo; casa do A e janela do B com terraço; casa do CT olhando o meio inteiro |
-| **Celeiro Industrial** | Rust / Office | galpão com vão central de pé-direito duplo, mezanino em volta com escritórios e guarda-corpo, rampas e telhado com casas de máquina; ponte do mezanino até a torre de contêineres; pátio de contêineres com pilha e rampa; guarita de 2 andares; silos |
-| **Mercadão** | Mirage / Inferno | palácio de 2 andares com sacada e rampa sobre o A; beco da rampa; conector (jungle); sala da janela de 2 andares no fim do meio; apartamentos de 2 andares com corredor em cima e sacada pro B; mercearia (B curto); beco de flanco; fonte no B; quiosque com rampa até o telhado |
-| **Torres Gêmeas do Barril** | mapa comprido de Sniper (Blood Gulch / Facing Worlds) em 3 corredores | torres de 3 níveis com muretas; ruínas de 2 andares sem telhado e trincheira no oeste; planaltos com ruínas e ponte com pilares no meio; paredões de pedra e casamata com telhado (rampas nas pontas) no leste |
-| **Vizinhança Cheers** | Nuketown | duas casas de 2 andares com divisórias, portas e sacada; garagem com telhado ligado ao 1º andar; rampa até o telhado da casa; quintais cercados; galpão com rampa de caixotes; ônibus e caminhões na rua |
-| **Bar Cheers Noturno** | Office (+ Shell Shockers) | ala norte de 2 andares (cozinha, corredor e depósito embaixo; VIP com janelões e sacada em cima; terraço no telhado); banheiros com cabines; escritório; sala de sinuca; camarotes; corredores laterais compridos (linha de Sniper); balcão em U, palco com DJ e neon |
+| Treino | **B** | próxima primária, na hora e com pente cheio |
+| Treino | **N** | próxima secundária |
+| Treino | **M** | alterna faca ↔ sabre |
+| Exploração | **,** e **.** (ou **[** e **]**) | primária anterior / próxima |
 
-Toda a geometria, os nomes e a arte são originais (nada copiado dos jogos citados).
+---
 
-**Como funciona**
-- `maps.js` é só dados. Cada mapa tem:
-  - `id`, `name`, `desc` e `size`;
-  - `wallH`/`wallColor` e `palette` (céu, neblina, luz, chão, xadrez, nuvens/estrelas, luzes pontuais);
-  - `boxes` e `props`;
-  - `spawns`, `pickups` (`health`, `ammo` e `grenade` = Copo Bomba) e `waypoints` extras;
-  - `showcase`/`view` e `test`.
-- Para montar o layout há helpers: `B()` caixa, `R()` rampa, `wallX`/`wallZ` (paredes com `door()`/`win()`), `mirrorZ`/`rot180` (espelhar bases) e o kit v2:
-  - `building(x0, z0, x1, z1, { floors, H, ops, stairs, inner, roofGaps, floorHoles, parapet })` monta um prédio com paredes por andar, portas, janelas e portões largos (`ops`), lajes com vão das rampas (`stairs`), divisórias internas com portas (`inner`), telhado com mureta e vãos (`roofGaps`) e vãos extras na laje (`floorHoles`, para mezanino).
-  - Cada porta gera waypoints (dentro, na porta e fora) para os bots passarem por portas estreitas.
-  - `slab()` (laje com furos), `crate()`, `balcony()` e `fin()` (separa caixas de waypoints).
-  - Dica: comece a rampa a ≥ 1 m da parede, senão não dá pra subir; se o topo encostar na parede, saia pelo lado.
-- `world.js` monta o mapa:
-  - caixas mescladas em **uma malha por cor** e uma malha de contornos;
-  - props: barril, copão, ônibus, caminhão, árvore, silo, barraca, toldo, placa, neon, estandarte, rua…;
-  - a colisão dos props é AABB, com um proxy invisível para os tiros;
-  - também gera as miniaturas do menu.
-- Colisão: AABB completo com **teto**. Dá pra andar debaixo de lajes, mezaninos e pontes; quem pula ali bate a cabeça.
-  - Grade de broadphase de 4 m.
-  - O limite do mapa tem colisão alta, então ninguém sai nem com rocket jump.
-- Bots (`nav.js`):
-  - Um grafo de navegação é **gerado automaticamente** a partir da colisão, com amostragem a cada 2 m no chão e no topo de caixas/rampas e linha central das rampas.
-  - Cada aresta é testada com uma "caminhada" simulada: degraus, quedas e pulos de até 1,25 m.
-  - Os bots usam A* até o objetivo (vida, copo, último inimigo visto ou ponto aleatório), pegam atalhos quando dá pra ir reto e replanejam se travarem.
-  - Se o alvo está em outro andar, eles vão pelas rampas.
-- Spawns: o jogo escolhe o ponto mais longe dos vivos e penaliza spawns que estejam na linha de visão de alguém.
-- Limitações conhecidas:
-  - A colisão é feita de caixas alinhadas aos eixos. Por isso não há escadas de mão nem paredes inclinadas: os andares são ligados por rampas.
-  - Os props redondos (barril, silo, copão) colidem como quadrados.
-  - Os bots às vezes desviam do objetivo para pegar vida ou Copo Bomba.
-  - Os bots não usam rocket jump nem pulam entre telhados.
-  - Alguns telhados ficam fora do alcance de propósito (quarteirões maciços, celeiro do meio, galinheiro, palácio).
-- Novo mapa: copie um bloco em `maps.js`, ajuste `boxes`/`props`/`spawns`/`pickups` e rode:
-  - `node test-map-audit.mjs [ids]` (sem navegador): andares no grafo, nós altos e cobertos, "sem campo aberto", linha longa de Sniper, exposição, spawns e itens alcançáveis, zonas da Dominação, e uma partida simulada no servidor em que os bots precisam subir e descer andares. Com `DUMP=/tmp/audit` dá pra gerar a planta: `python3 tools/planta.py /tmp/audit/<id>.json planta.png`.
-  - `node test-maps.mjs` (navegador): carrega, bots andam, escadas, telhados e lajes; falha se algum item falhar.
-  - `node tools/screenshots-mapas.mjs`: gera `screenshots/18-mapa-<id>-{visao-geral,predio,telhado}.png` (câmera livre via `window.__cam`).
+## 🏆 Modos de jogo
 
-## Regras e modos
-Escolha o modo no menu (offline) ou ao criar a sala (online; o anfitrião pode trocar no lobby).
+### ⚔️ Mata-mata (offline e online)
+Todos contra todos. Vence quem fizer **20 abates** primeiro ou quem estiver liderando quando o tempo acabar (**5 min** no padrão).
 
-- **Mata-mata** (todos contra todos): vence quem chegar a 20 abates ou quem liderar ao fim de 5 minutos.
-- **Dominação** (times Vermelho × Azul): regras em `shared/domination.js`, as mesmas offline e no servidor.
-  - Uma **zona de captura** (anel + coluna de luz, raio 4 m) aparece num ponto andável aleatório; barra de progresso no topo e seta na borda da tela quando ela está fora de vista.
-  - **Velocidade:** 1/8 por segundo por jogador dentro, até **3** contando (1 → 8 s, 2 → 4 s, 3+ → 2,7 s).
-  - **Contestada** (os dois times dentro): o progresso **para**. Time adversário sozinho primeiro **neutraliza** o progresso do outro, depois começa o seu.
-  - **Vazia:** o progresso **decai** 0,1/s até zerar (zona volta a neutra).
-  - Cada captura = **1 ponto** pro time; a zona reaparece em outro lugar (≥ 18 m da anterior, quando dá). **Primeiro a 5 vence**; tempo limite 7 min (empate se igual).
-  - Placar individual na Dominação: abates + 2 × zonas capturadas.
-  - **Sem fogo amigo** (tiro, Bazuca e Copo Bomba); dano da explosão em si mesmo continua (40%).
-  - Contorno, anel no pé e plaquinha de nome na cor do time.
-  - **Escolha de time** (Vermelho / Azul / Automático) no lobby, no menu offline e ao entrar no meio da partida (antes de nascer).
-    Automático = time com menos gente. Uma escolha é **recusada se deixaria aquele time com 2+ humanos a mais** que o outro; aí você vai pro Automático e aparece um aviso.
-    Trocar de time no meio da partida conta como morte (sem pontuar pra ninguém) e você renasce no time novo.
-  - Bots completam os dois times (e são remanejados se um time ficar 2+ maior), vão pra zona, contestam e só miram em inimigos.
-- **Placar ao vivo** sempre no canto superior esquerdo (até 8 linhas, você destacado; na Dominação com o placar dos times).
+### 🚩 Dominação (offline e online)
+Time **Vermelho × Azul**. Uma **zona de captura** (anel com coluna de luz, raio 4 m) aparece num ponto aleatório do mapa.
 
-## Explosões (Bazuca e Copo Bomba)
-Regra única em `shared/combat.js` (cliente offline e servidor):
-- O dano usa a distância até o **ponto mais próximo do corpo** (cápsula do Docão, raio 0,58 m), não até o centro: `dano = máx × (0,2 + 0,8 × (1 − d/raio))`.
-- **Linha de visão** testada de 2 pontos da explosão até 4 pontos do corpo (ponto mais próximo, pé, peito, cabeça): basta um livre. Atrás de mureta com a cabeça de fora ainda pega.
-- O foguete colide com o **casco** do Docão (cápsula + 0,15 m); **acerto direto = dano máximo** em quem foi atingido.
-- O anel/clarão da explosão tem o mesmo tamanho do raio de dano (5 m Bazuca, 6 m Copo Bomba).
+- **Tempo de captura:** `26 − n` segundos, onde *n* é o número de jogadores do time dentro da zona (1 → 25 s, 2 → 24 s … 10 → 16 s).
+- **Contestada** (os dois times dentro): o progresso congela.
+- **Time adversário sozinho:** primeiro neutraliza o progresso do outro, depois começa o dele.
+- **Zona vazia:** o progresso cai 0,1 por segundo até zerar.
+- Cada captura vale **1 ponto** e a zona reaparece longe da anterior. **Primeiro a 5 vence**, e o tempo padrão é **7 min**.
+- Placar individual: abates + 2 × zonas capturadas.
+- **Sem fogo amigo**, mas a sua própria explosão ainda te machuca.
+- **Escolha de time:** Vermelho, Azul ou Automático. A troca é recusada se deixar um time com 2 humanos a mais que o outro.
 
-## Sniper Torresmo (precisão)
-- Com a **luneta aberta** (o overlay aparece) e **parado ou quase** (< 1,5 m/s): dispersão **zero**. Andando com luneta: 0,012; no ar: 0,02. Sem luneta: 0,025 parado, 0,045 andando.
-- O tiro sai **exatamente do centro da câmera**; a Sniper não desloca a mira com coice (só efeito visual).
-- Online, o cliente manda o tempo do servidor que estava vendo na tela (interpolação) e o servidor volta os alvos exatamente pra esse instante (até 400 ms), com a mesma altura de olho (1,6 m) do cliente.
+### 🧭 Exploração (só offline)
+O mapa vazio, só pra você. Sem bots e sem relógio, com munição infinita e renascimento em 1 s. Use **,** **.** **[** **]** pra trocar a primária. É ideal pra conhecer os mapas.
 
-## Tela de morte
-Os cartões de arma são **clicáveis** (as teclas 1–4 continuam valendo), e dá pra marcar “renascer com a pistola na mão”.
-Ao morrer o mouse é solto (sem pausar); clique na tela ou em **VOLTAR AO JOGO** para mirar de novo.
+### 🎯 Treino · Estande do Docão (offline e online)
+Um estande de tiro no estilo The Range, que abre sempre no mapa **Estande do Docão**.
 
-## Morte = BACON 🥓
-Quando qualquer Docão morre (você, outro jogador ou bot), ele dá um "pop" (achata), some numa nuvem de fumaça e vira uma **tira de bacon** ondulada (carne vermelha/rosada com listras de gordura, cel-shading com contorno). O bacon pula, quica no chão chiando (som WebAudio + faíscas de gordura), fica ~3 s e encolhe.
-- **Câmera da morte**: você vê o seu bacon em 3ª pessoa (órbita lenta, encurta se tiver parede) por 1,1 s; depois aparecem os cartões de arma.
-- Tudo no cliente (`bacon.js`): geometria/materiais únicos, pool de 14 bacons + fumaça + faíscas (nada é criado durante a partida). Online usa os eventos de morte que o servidor já manda — sem mudança no Worker.
-- Teste: `node test-bacon.mjs` (offline, gera `screenshots/19-bacon-*.png`); `test-online.mjs` confere bacon de remoto, do próprio jogador e de bots.
+- Os alvos **não atacam**, levam dano normal e **voltam em 2 s**.
+- Números de dano sobem em cima do alvo (amarelo = cabeça).
+- **B / N / M** trocam a arma na hora, a reserva de munição é infinita e o Copo Bomba volta sozinho. Não tem limite de tempo.
+- Online, os jogadores se dão dano normalmente, então dá pra fazer X1 com a galera.
 
-## Nome do jogador
-Campo "Seu nome" no menu, na janela "Jogar online" e no lobby (botão **Trocar**). É o mesmo valor nos três, salvo no navegador (`docao.name`).
-- Regras em `shared/names.js` (cliente e servidor): tira tags/controles/caracteres invisíveis, junta espaços, máximo **16** caracteres, padrão "Docão".
-- O servidor evita nomes repetidos na sala: o segundo "Matheus" vira **"Matheus (2)"** (o lobby avisa como você aparece). Bots não pegam nome de humano.
-- Troca de nome vale no lobby/entre partidas (durante a partida muda na próxima).
-- Teste: `node test-online-names.mjs http://localhost:8124/ ws://127.0.0.1:8787` (gera `screenshots/19-nomes-*.png`).
+### 💣 Bomba · Planta o Botijão
 
-## Arquivos
-- `index.html`, `style.css`: UI (menu com seletor de skin, HUD, pausa, placar)
-- `main.js`: jogo (física, armas, bots, áudio, fluxo, seletor de mapas)
-- `maps.js`: **mapas (só dados)** · `world.js`: construção do mundo/miniaturas · `nav.js`: grafo de navegação + A* dos bots
-- `docao.js`: modelo 3D procedural do Docão (fiel à arte oficial), braços em 1ª pessoa e peças básicas (`PARTS`)
-- `costumes.js`: peças de fantasia (chapéus, jaquetas, capuz, etc.)
-- `skins.js`: **registro de skins (só dados)**
-- `render.html`: renderiza um Docão isolado (`?skin=clube&rot=0.6&frame=face`) para conferir skins
-- `vendor/`: Three.js r169 + BufferGeometryUtils
-- `shared/domination.js` (zona, times) · `shared/combat.js` (explosões, colisão do foguete, dispersão da Sniper): regras usadas pelo cliente e pelo servidor
-- `test.mjs` / `test-maps.mjs` / `test-dom.mjs` / `compare.mjs` / `skingrid.mjs`: testes headless com Playwright (geram `screenshots/`) · `test-shared.mjs`: testes das regras sem navegador · `test-map-audit.mjs`: auditoria de layout dos mapas + partida simulada (sem navegador) · `tools/planta.py` e `tools/screenshots-mapas.mjs`: planta e fotos dos mapas
+Estilo Valorant, com o Docão. Time **Vermelho × Azul**, um lado **ataca** e o outro **defende**.
 
-## Como adicionar uma skin
+| | |
+|---|---|
+| 🎯 **Objetivo do Ataque** | levar o **Botijão do Churrasco** até o site **A** ou **B** e plantar |
+| 🛡️ **Objetivo da Defesa** | impedir a plantação ou **desarmar** o Botijão |
+| 🔁 **Rodadas** | **10 s** de preparação (todo mundo parado no spawn, ninguém leva dano) e depois **100 s** pra plantar |
+| 🏁 **Vitória** | **primeiro a 13 rodadas**. Depois da **12ª**, os lados trocam (faixa **"Troca de lado!"**) |
+| ♻️ **Renascimento** | **normal** (5 s + RENASCER), sempre no spawn do seu lado. A rodada **não** acaba por eliminação |
+
+- **Instruções na tela:** um aviso grande no meio da tela diz o que fazer agora e com qual tecla: *"Leve o botijão até o A ou o B"* com a distância de cada site, *"Segure **E** para plantar o botijão"* quando você está dentro do site, *"Segure **E** para desarmar"* quando é da Defesa e está perto do Botijão plantado, e a barra com os segundos que faltam. A faixa do começo da rodada explica o objetivo do seu lado.
+- **Troca de arma a cada rodada:** na preparação aparece um painel compacto embaixo da tela, com as miniaturas das armas (primária, secundária e corpo a corpo), a sua escolha destacada e uma barra até a rodada começar. **1–9** ou a **rodinha** trocam a primária na hora (com pente cheio), **N** troca a secundária, **M** alterna faca/sabre, **G** solta o mouse se quiser clicar e **B** fecha/reabre (só na preparação). Dá pra olhar em volta com ele aberto, e ele some sozinho no VALENDO. Online, o servidor só aceita a troca na preparação.
+- **Plantar:** um atacante carrega o Botijão (aparece nas costas dele). Dentro do site, segure **E** por **4 s**, parado. Se o carregador morrer, o Botijão **cai no chão** e qualquer atacante pega passando por cima.
+- **Plantado:** o Botijão **bipa cada vez mais rápido** e **explode em 45 s**, matando todo mundo a até **16 m**.
+- **Desarmar:** o defensor segura **E** perto do Botijão por **7 s**. Passou da metade (**3,5 s**), o progresso fica salvo se soltar.
+- **Ponto da rodada:** explodiu → **Ataque**. Desarmou ou o tempo acabou sem plantar → **Defesa**. Depois de 5 s de faixa com o resultado, todo mundo volta pro spawn com vida cheia.
+- **Killstreaks:** a sequência e os streaks guardados **passam de uma rodada pra outra**, porque trocar de rodada não é morrer. O que estiver no ar acaba na virada: o Gavião vai embora, e o míssil pilotado ou o Fim da chapa ainda na contagem **voltam pro F**. Na preparação o **F não funciona**.
+- **Na tela:** placar **Ataque × Defesa**, relógio da rodada (vira a contagem do Botijão quando plantado), quem está com o Botijão, o seu lado e a barra de plantar/desarmar. Setas **A/B** com a distância em metros. No chão, anel amarelo e letra gigante em cada site.
+- **Bots:** o carregador vai pro site e planta, os outros escoltam ou pegam o Botijão caído, e a Defesa guarda o A e o B e corre pra desarmar.
+- **Placar individual:** abates + 2 × objetivos (plantou ou desarmou).
+
+**Mapas do modo Bomba.** O padrão é o **Rodízio do Docão**, feito pra ele. Os outros têm sites e spawns colocados à mão, com o Ataque nascendo longe dos sites. Tempo médio a pé até um site:
+
+| Mapa | Ataque → A / B | Defesa → A / B |
+|---|---|---|
+| 🍖 **Rodízio do Docão** *(padrão)* | 21 s / 22 s | 8 s / 8 s |
+| 🥛 **HOTMILK** | 18 s / 17 s | 8 s / 7 s |
+| 🛢️ **Torres Gêmeas do Barril** | 18 s / 18 s | 6 s / 5 s |
+| 🏭 **Celeiro Industrial** | 12 s / 12 s | 4 s / 6 s |
+| 🐖 **Duas Pocilgas** | 11 s / 12 s | 6 s / 7 s |
+| 🏪 **Mercadão** | 9 s / 12 s | 6 s / 5 s |
+| 🏡 **Arena da Fazendinha** | 9 s / 10 s | 4 s / 4 s |
+| 🍻 **Bar Cheers Noturno** | 8 s / 7 s | 4 s / 5 s |
+| 🏘️ **Vizinhança Cheers** | 8 s / 10 s | 3 s / 4 s |
+
+O **Pátio Ferrugem** fica fora porque é pequeno demais, e o **Estande** é só do Treino. Escolher um deles (ou **Aleatório**) no modo Bomba cai num mapa da lista. Pra conferir as distâncias: `node tools/bomb-walk.mjs`.
+
+---
+
+## 🗺️ Mapas
+
+São **10 mapas** de partida, mais o Estande do Docão, que só abre no modo Treino. Todos têm prédios com interior, vários andares ligados por rampas, telhados onde dá pra subir e pelo menos uma linha longa pra Sniper. A geometria, os nomes e a arte são originais. Quando o mapa cita um jogo, foi só a inspiração de layout.
+
+| Mapa | Como é |
+|---|---|
+| 🏡 **Arena da Fazendinha** | Três corredores, com bases de dois andares e terraço, celeiro com jirau no meio, galinheiro-túnel ao norte e caixa d'água ao sul. |
+| 🐖 **Duas Pocilgas** | Estilo Dust2: túneis cobertos até o B, meio com portas e linha de Sniper, catwalk alto pro A, longo com portões e casas de dois andares. |
+| 🏭 **Celeiro Industrial** | Estilo Rust/Office: galpão com vão central, mezanino e escritórios, ponte até a torre de contêineres, telhado com casas de máquina e guarita. |
+| 🏪 **Mercadão** | Estilo Mirage: palácio com sacada sobre a rampa do A, apartamentos de dois andares até o B, conector, mercearia e a sala da janela olhando o meio. |
+| 🛢️ **Torres Gêmeas do Barril** | O mapa comprido de Sniper: torres de três andares, ruínas com trincheira, planaltos com ponte e casamata com telhado. |
+| 🏘️ **Vizinhança Cheers** | Estilo Nuketown: duas casas de dois andares frente a frente, garagens com telhado, sacadas, quintais e o ônibus no meio da rua. |
+| 🍻 **Bar Cheers Noturno** | Estilo Office: salão com balcão e palco, VIP com sacada no andar de cima, terraço, banheiros, escritório, sinuca e corredores compridos. |
+| 🥛 **HOTMILK** | O campus inteiro: Bloco 01 ao norte, Bloco 02 ao sul, estacionamento com catraca atrás, praça entre os blocos e portão na frente. |
+| 🍖 **Rodízio do Docão** *(Bomba)* | Feito pro modo Bomba: o Ataque nasce num curral ao norte e tem três rotas (Rua do Espeto, Avenida da Linguiça e Beco da Farofa) até o Quintal do Espeto (A) e a Varanda da Costela (B). A Defesa nasce no pátio sul. |
+| 🔩 **Pátio Ferrugem** | Pátio pequeno no estilo do Rust. A torre do meio é a mais alta, com rampa do chão até o topo. |
+| 🎯 **Estande do Docão** *(Treino)* | Raias de 10, 20, 30 e 50 m, alvos andando, área de explosivos e arco, cercadinho da faca e do sabre e arena X1. |
+
+No fim da partida, **PRÓXIMO MAPA ▸** segue a ordem da lista.
+
+---
+
+## 🔫 Armas
+
+Você leva **uma primária + uma secundária + uma arma corpo a corpo**, escolhidas por categoria no menu. Todo Docão tem **100 de vida**. Os valores abaixo são os mesmos no cliente e no servidor (`shared/rules.js`).
+
+> **Como ler:** *Dano* é por tiro (por bago nas escopetas) e *Cabeça* é o multiplicador do tiro na cabeça ("direto no focinho!"). *Cadência* é o tempo entre tiros e *Queda* mostra até onde o dano é cheio, até onde cai e o mínimo que sobra.
+
+### 🔥 Rajada (primária)
+
+| Arma | Pente / reserva | Dano | Cabeça | Cadência | Recarga | Alcance | Queda | Zoom |
+|---|---|---|---|---|---|---|---|---|
+| **Fuzil Pururuca** (automático) | 30 / 120 | 20 | ×2 | 0,1 s | 1,6 s | 140 m | — | 40° |
+| **Mini Uzi do Leitão** (automática) | 25 / 100 | 11 | ×1,6 | 0,055 s | 1,35 s | 70 m | 8 → 28 m, até 35% | 55° |
+| **P90 da Granja** (automática) | 50 / 150 | 14 | ×1,5 | 0,07 s | 1,7 s | 110 m | 16 → 48 m, até 45% | 48° |
+| **FAMAS da Pocilga** (rajada de 3) | 30 / 120 | 34 | ×1,5 | 0,065 s na rajada · 0,3 s entre rajadas | 2,1 s | 150 m | 16 → 50 m, até 60% | 46° |
+
+Na **FAMAS** um clique dispara 3 tiros, com o recuo subindo reto.
+
+### 💥 Escopeta (primária)
+
+| Arma | Pente / reserva | Dano | Cabeça | Cadência | Recarga | Alcance | Queda | Zoom |
+|---|---|---|---|---|---|---|---|---|
+| **Escopeta Chiqueiro · Calibre 12** (pump) | 8 / 32 | 8 bagos × 18 | ×1,5 | 0,8 s | 0,25 s + 0,45 s por cartucho (atirar interrompe) | 45 m | 7 → 30 m, até 30% | 55° |
+| **Escopeta Semi do Leitão** | 8 / 32 | 8 bagos × 13 | ×1,5 | 0,36 s | 1,4 s | 40 m | 6 → 22 m, até 25% | 58° |
+
+### 🎯 Precisão (primária, com luneta)
+
+| Arma | Pente / reserva | Dano | Cabeça | Cadência (ferrolho) | Recarga | Alcance | Luneta |
+|---|---|---|---|---|---|---|---|
+| **Sniper Torresmo** | 5 / 20 | 100 (1 tiro no corpo mata) | ×1,5 | 1,15 s | 2,3 s | 220 m | 13° |
+| **Canhão do Barril** | 3 / 6 | 180 (mata em qualquer lugar) | ×1 | 1,85 s | 3,1 s | 260 m | 8° |
+| **Carabina da Granja** | 10 / 40 | 55 (2 no corpo, 1 na cabeça) | ×2,2 | 0,58 s | 1,9 s | 180 m | 24° |
+
+- Com a **luneta aberta e parado** (menos de 1,5 m/s), o tiro vai exatamente no centro. Andando ou no ar ele espalha um pouco, e sem luneta espalha mais. A Torresmo é a que mais espalha sem luneta.
+- Cada uma tem a sua luneta, e o ferrolho fecha a luneta depois de cada tiro.
+
+### 🚀 Explosivo (primária)
+
+| Arma | Pente / reserva | Dano | Cadência | Recarga | Zoom |
+|---|---|---|---|---|---|
+| **Bazuca do Chiqueiro** | 1 / 4 | até 120 em área (raio 5 m), 40% em você mesmo | 0,6 s | 2,5 s | 55° |
+
+O foguete voa a 24 m/s e explode ao bater em parede, chão ou Docão (acerto direto dá o dano máximo). Atire no chão embaixo de você pra dar um **rocket jump**. A caixa de munição dá só **+1 foguete**.
+
+| Arma | Pente / reserva | Dano | Cadência | Recarga | Zoom |
+|---|---|---|---|---|---|
+| **Lança-Milho da Quermesse** | 6 / 24 | 3 grãos por tiro; cada grão estoura **3 vezes** em pipoca (até 18 por estouro, raio 2 m, 30% em você) | 0,7 s | 2,3 s | 58° |
+
+### 🛸 Especial (primária)
+
+| Arma | Pente / reserva | Dano | Cabeça | Cadência | Recarga | Zoom |
+|---|---|---|---|---|---|---|
+| **Disco Voador** | 4 / 16 | 60 | ×1,5 | 0,6 s | 1,7 s | 55° |
+
+O disco voa a 22 m/s, **quica 3 vezes** nas paredes e se desfaz no 4º contato.
+
+### 🔪 Corpo a corpo
+
+| Arma | Golpe | Detalhes |
+|---|---|---|
+| **Faca de churrasqueiro** | clique: **40** de dano, 1,6 m, a cada 0,42 s · botão direito: estocada de **75**, 1,8 m, a cada 1 s | **pelas costas mata na hora**, e com ela na mão você corre **15% mais rápido** |
+| **Sabre de Luz** | **100** de dano por corte, 2,5 m, a cada 0,48 s | um corte na frente mata · em guarda de cavaleiro, você anda **15% mais devagar** · 6 cores: vermelho, azul, verde, roxo, amarelo e branco |
+| **Sabre Duplo** | **100** de dano por corte, 2,5 m, a cada 0,36 s, alternando as mãos | um sabre em cada mão · você anda **30% mais devagar** |
+
+Quem é esfaqueado vê o carimbo **MOGGADO!**, e no feed aparece "X moggou Y [Faca]".
+
+### 🔧 Secundária
+
+| Arma | Pente / reserva | Dano | Cabeça | Cadência | Recarga | Alcance | Queda | Zoom |
+|---|---|---|---|---|---|---|---|---|
+| **Pistolinha Leitão** (semi) | 12 / 60 | 25 | ×2 | 0,16 s | 1,1 s | 110 m | — | 50° |
+| **Furadeira de Prego** | 16 / 64 | 18 | ×1,4 | 0,11 s | 1,25 s | 40 m | 6 → 22 m, até 25% | 58° |
+| **Besta do Leitão** | 1 / 10 | 38 | ×1,35 | 0,45 s | 1,35 s (arma a corda) | 80 m | 12 → 40 m, até 45% | 58° |
+| **Arco da Granja** | 1 / 16 | 26 × força da corda | ×1,4 | 0,35 s | 0,85 s | 65 m | 10 → 36 m, até 40% | 62° |
+| **Estilingue de Ovo** (quase silencioso) | 1 / 14 | 34 × força (de 70% a 100%) | ×1,5 | 0,3 s | 0,7 s | arco de tiro | — | 62° |
+
+No **arco**, segure o clique pra puxar a corda: em 0,7 s ela chega no talo, e a força vai de 0,35× (soltando na hora) até 1,3× (no talo). A besta e o arco são fracos de propósito, então um tiro no corpo não mata. No **estilingue**, segure o clique pra esticar o elástico (0,55 s até o talo). O ovo **suja a tela** de quem leva por 2 s.
+
+### 🧱 Penetração e collateral
+
+- A bala **atravessa paredes finas, muretas e caixotes**, perdendo dano conforme a espessura. Chão, laje, muro grosso, contêiner e ônibus seguram a bala.
+- Limite de parede por arma: Canhão 1,6 m · Sniper 0,9 m · Carabina 0,6 m · Fuzil e FAMAS 0,35 m · P90 0,25 m · Pistola e Uzi 0,2 m. As escopetas, a Furadeira, a besta, o arco e os projéteis não atravessam.
+- **Collateral** nas snipers: a bala atravessa corpos. Sniper até 2 extras (×0,75 a cada um), Canhão até 3 (×0,85) e Carabina 1 (×0,6).
+- A regra é a mesma no cliente e no servidor (`shared/penetration.js`).
+
+### 🔍 Inspecionar
+
+Segure **I** pra girar a arma na mão e ver um cartão com a camuflagem e os abates com ela.
+
+---
+
+## 💣 Granadas
+
+| Granada | Tecla | Quantidade | Estoura em | Raio | Efeito |
+|---|---|---|---|---|---|
+| 🥤 **Copo Bomba** | **Q** (segura e solta) | nasce com 1, máx. 3 | 2,5 s | 6 m | até **130** de dano em área, 40% em você mesmo, com empurrão |
+| 🌫️ **Fumaça** | **4** | 1 por vida | 1,15 s | 5,6 m | nuvem que tampa a visão por **12 s** |
+| ⚡ **Atordoamento** | **5** | 1 por vida | 1,0 s | 7,2 m | por **3,4 s**, quem estiver no raio (até você) fica lento (35% da velocidade), com a tela ofuscada, e não atira |
+
+- O **Copo Bomba** é um copo de festa vermelho com o logo "C!" que explode em confete, espuma e cerveja. A barra de força enche em 1,2 s, um arco tracejado mostra a trajetória e o copo quica nas paredes.
+- Os copos que flutuam no mapa dão +1 e reaparecem depois de 20 s.
+- A fumaça e o atordoamento **só funcionam offline** e não causam dano.
+
+---
+
+## 🔥 Killstreaks e camuflagens
+
+Abates seguidos sem morrer enchem a barra da direita. Quando um prêmio fica pronto aparece **"F · nome do prêmio"**, e é só apertar **F** pra usar. Com mais de um guardado, o F usa o mais antigo.
+
+| Abates | Prêmio | O que faz |
+|---|---|---|
+| **3** | 👁️ **Olho da granja** | minimapa que mostra os inimigos por **10 s** |
+| **5** | 🚀 **Míssil da granja** | abre o laptop e você **pilota um míssil em primeira pessoa**, que sai do alto do céu e vai pra onde o mouse aponta: até **460** de dano num raio de **26 m** (40% em você) |
+| **7** | 🚁 **Gavião da granja** | helicóptero que fica até **30 s** atirando nos inimigos (16 de dano por tiro). Ele tem 280 de vida e dá pra derrubar |
+| **10** | 🚁 **Chopper da granja** | você vai pra porta de um helicóptero que roda o mapa por **60 s** e escolhe entre a **metralhadora giratória** (20 por tiro, esquenta) e a **sniper** com luneta (140 por tiro). Ele tem **560** de vida e dá pra derrubar |
+| **15** | ☢️ **Fim da chapa** *(secreto)* | puxa o rádio, roda uma contagem de **5 s** e **todo mundo morre, menos você** (e o seu time na Dominação). Morrer depois de puxar o rádio não cancela |
+
+- Depois do 15º abate a sequência recomeça. O prêmio ganho **fica guardado mesmo se você morrer**.
+- O Olho da granja, o Gavião e o Chopper chegam por uma **chamada no rádio** de 1 s. O Gavião erra 30% dos tiros.
+- No kill feed cada abate mostra o **ícone da arma** ou do killstreak.
+- Os abates do Gavião e da nuke não contam pra sequência. Cada abate do Gavião vale 25 pontos.
+- **Online** quem manda é o servidor: ele conta a sequência, confere o prêmio e aplica o dano do míssil, do Gavião e do Fim da chapa, e todo mundo vê o efeito. Os outros jogadores podem derrubar o Gavião.
+- **Pontos:** +10 por acerto, +100 por abate e +150 por abate na cabeça.
+
+### 🎨 Camuflagens (valem pra partida)
+
+Abates com a **mesma arma** na mesma partida mudam a cor dela. Tudo zera na partida seguinte.
+
+| Abates com a arma | Camuflagem |
+|---|---|
+| **5** | 🟫 Camuflagem de chiqueiro |
+| **10** | 🥓 Camuflagem de bacon |
+| **15** | 🏆 Dourada |
+
+---
+
+## ❤️ Mecânicas
+
+- **Morte = BACON 🥓:** o Docão dá um "pop", some numa nuvem de fumaça e vira uma tira de bacon que quica chiando no chão. A câmera da morte fica olhando pra quem te matou.
+- **Bacon que cura:** qualquer Docão vivo que pisar no bacon (menos o próprio morto) ganha **+10 de vida**, até 100. O bacon fica no chão por uns 3,45 s.
+- **Regeneração:** se você levou dano de **outro** Docão e ficou **5 s** sem apanhar, a vida volta a **+10 por segundo** até 100, com a barra brilhando em verde. Se o último dano foi seu (bazuca no pé, o seu Copo Bomba, o seu míssil), não regenera.
+- **Pickups:** o pickup de vida dá **+50**, a caixa de munição enche a reserva e o copo dá +1 Copo Bomba.
+- **Renascimento:** depois de **5 s** o botão vira **RENASCER**, e você volta clicando nele ou apertando Espaço/Enter. Ao nascer, você fica **2 s protegido**.
+- **Kill feed** no canto de baixo à esquerda, com frases de porco: *pururucou*, *fritou*, *transformou em torresmo*, *mandou pra chapa*, *defumou*, *fez virar bacon*, *serviu no café da manhã*, *botou no espeto*, *temperou com chumbo*… O tiro na cabeça aparece como **"direto no focinho!"**, e quem morre leva o carimbo **PURURUCADO!**.
+- **Placar ao vivo** no canto de cima à esquerda, e o placar completo fica no **Tab**.
+- **Fim da partida:** o resultado fecha as regras na hora e aparece uma plaquinha com **VITÓRIA!**, **DERROTA** ou **EMPATE!**. A cena continua por **1,5 s em câmera lenta** na sua visão (mesma posição, direção e zoom), sem comandos, dano, capturas nem renascimento. Aos **0,8 s** o placar entra por cima, e se você venceu a **dança da vitória** começa quando a câmera lenta acaba. Se você já estava na câmera de morte, ela fica parada. Com "movimento reduzido" ligado no sistema, o placar abre direto. Vale offline e online; pacotes que chegam depois do resultado são ignorados até a próxima partida.
+
+---
+
+## 🎭 Skins
+
+São **17 skins**. A identidade do Docão (corpo de porquinho, focinho, orelhas, bochechas, olhos) não muda de propósito, só a roupa.
+
+| | | | |
+|---|---|---|---|
+| Clássico | Clube Cheers | Rei do Pop | Rapper da Hora |
+| Bruxinho | Mestre do Kung Fu | Cabeludo | Pescador |
+| Choquinho | Boné da Firma | Fantasminha | Esqueletão |
+| Cavaleiro Galáctico | Nômade do Deserto | Boi Caprichoso | Docão Felipe |
+| Docão Matheus | | | |
+
+As fantasias são só *inspiradas*. O Docão Felipe e o Docão Matheus são homenagens do time, feitas a pedido. Os bots usam skins aleatórias.
+
+<details>
+<summary>🖼️ Ver as skins (imagem com as 14 primeiras)</summary>
+
+<img src="screenshots/skins-grid.png" alt="Grade de skins" width="900">
+
+</details>
+
+<details>
+<summary>🧵 Como adicionar uma skin</summary>
+
 Abra `skins.js` e acrescente um objeto no array `SKINS`:
 
 ```js
@@ -252,27 +410,203 @@ Abra `skins.js` e acrescente um objeto no array `SKINS`:
 },
 ```
 
-Campos extras da camiseta: `sleeves: 'short' | 'long' | 'puffy'`, `sleeveColor`, `logo.size / logo.x / logo.y`,
+Campos extras da camiseta: `sleeves: 'short' | 'long' | 'puffy'`, `sleeveColor`, `logo.size / logo.x / logo.y` e
 `details: [{ type: 'military' | 'frogs' | 'clouds' | 'tie' | 'zipper' | 'backStripes' | 'bones' | 'tunicWrap' | 'stillsuit', ... }]`.
-Outros campos opcionais da skin: `face: { paint: 'skull' }` (pintura leve no rosto), `eyes: { iris: '#hex' }` (tom da íris) e `float: true` (flutua e deixa rastro no jogo).
+Outros campos opcionais: `face: { paint: 'skull' }`, `eyes: { iris: '#hex' }` e `float: true` (flutua e deixa rastro).
 
 Peças 3D disponíveis (`parts`):
-- chapéus: `cap`, `fedora`, `bucketHat`, `roundCap`, `hood` (capuz com orelhas de fantasia)
-- cabelo: `longHair` (com `headband` opcional)
-- rosto: `glasses`, `sunglasses`
-- mãos/pés: `glove` (`hand: 'right' | 'left' | 'both'`, brilho), `shoes`, `socks`
-- corpo: `epaulettes`, `puffer`, `chain`, `robe`, `scarf`, `wand`, `mandarinCollar`, `vest`, `fish`, `boltTail`, `bandana`, `headphones`
-- fantasias: `ghostSheet` (lençol com capuz, barra ondulada e brilho ciano), `boneLimbs` (ossos nas mangas/pernas), `sash` (faixa/cinto),
-  `laserSword` (espada laser no cinto), `armWraps` (faixas nas mangas, também em 1ª pessoa), `hoodDown` (capuz abaixado nas costas),
-  `noseTube` (tubo do traje até o lado do focinho), `desertScarf`
+- **chapéus:** `cap`, `fedora`, `bucketHat`, `roundCap`, `hood`
+- **cabelo:** `longHair` (com `headband` opcional)
+- **rosto:** `glasses`, `sunglasses`
+- **mãos e pés:** `glove` (`hand: 'right' | 'left' | 'both'`), `shoes`, `socks`
+- **corpo:** `epaulettes`, `puffer`, `chain`, `robe`, `scarf`, `wand`, `mandarinCollar`, `vest`, `fish`, `boltTail`, `bandana`, `headphones`
+- **fantasias:** `ghostSheet`, `boneLimbs`, `sash`, `laserSword`, `armWraps`, `hoodDown`, `noseTube`, `desertScarf`
 
-Os braços em 1ª pessoa usam automaticamente manga, punho, luva, faixas (`armWraps`) e ossos (`boneLimbs`) da skin.
-Para um tipo novo de peça, crie uma função em `PARTS` no `costumes.js`: ela recebe `(opções, rig)` e devolve um `THREE.Object3D`
-(`userData.anchor = 'head'` para prender na cabeça) ou altera o rig (ex.: trocar o material da mão).
+Pra criar um tipo novo de peça, crie uma função em `PARTS` no `costumes.js`. Ela recebe `(opções, rig)` e devolve um `THREE.Object3D` (use `userData.anchor = 'head'` pra prender na cabeça). Pra conferir a skin isolada, abra `render.html?skin=<id>&rot=0.6&frame=face`.
 
-Skins atuais (14): Clássico, Clube Cheers, Rei do Pop, Rapper da Hora, Bruxinho, Mestre do Kung Fu, Cabeludo, Pescador, Choquinho, Boné da Firma,
-Fantasminha, Esqueletão, Cavaleiro Galáctico, Nômade do Deserto.
-São fantasias *inspiradas*: sem nomes, rostos ou logos de pessoas/personagens reais.
-A identidade (corpo de porquinho, focinho, orelhas, bochechas, olhos, contorno) não é configurável de propósito.
+</details>
 
-A skin escolhida fica salva em `localStorage['docao.skin']`; os bots recebem skins aleatórias.
+---
+
+## 📸 Galeria
+
+| | |
+|---|---|
+| <img src="screenshots/18-mapa-mercadao-visao-geral.png" alt="Mercadão visto de cima"><br>**Mercadão** visto de cima | <img src="screenshots/17-online-zona-contestada.png" alt="Zona contestada na Dominação"><br>**Dominação** online: zona contestada |
+| <img src="screenshots/12-sniper-scope.png" alt="Luneta da Sniper Torresmo"><br>Luneta da **Sniper Torresmo** | <img src="screenshots/20-faca-primeira-pessoa.png" alt="Faca de churrasqueiro"><br>**Faca de churrasqueiro** na cara do Farofa |
+| <img src="screenshots/19-bacon-4-fritando.png" alt="Bacon fritando no chão"><br>Morreu, virou **bacon** 🥓 | <img src="screenshots/15-online-lobby.png" alt="Lobby online"><br>**Lobby** da sala online |
+
+<sub>Algumas capturas são de versões anteriores, então o menu e o HUD de hoje podem estar um pouco diferentes.</sub>
+
+---
+
+## 💻 Rodando localmente
+
+O jogo é um site estático com módulos ES, e o Three.js já vem em `vendor/`. Só precisa ser servido por HTTP:
+
+```bash
+git clone https://github.com/valentimm/docao-shooter.git
+cd docao-shooter
+python3 -m http.server 8124
+# abra http://localhost:8124
+```
+
+### Servidor online local
+
+O servidor é um Cloudflare Worker com Durable Objects, que fica em `server/`:
+
+```bash
+cd server
+npm install
+npx wrangler dev --port 8787
+```
+
+Depois abra o jogo apontando pro servidor local, inclusive em duas abas pra testar o multiplayer:
+
+```
+http://localhost:8124/?server=ws://127.0.0.1:8787
+```
+
+Parâmetros de URL úteis:
+- `?server=` troca o servidor (o padrão está em `config.js`)
+- `?sala=ABCD` entra direto no lobby
+- `?hz=10` muda a taxa de envio pro servidor (padrão 20/s)
+
+### Deploy
+
+- **Site:** a Vercel publica a `main` sozinha. O `.vercelignore` deixa `server/` e os testes de fora.
+- **Servidor:** `cd server && npx wrangler deploy`. Para só gerar o bundle, use `npx wrangler deploy --dry-run --outdir dist`. Se mudar a URL do Worker, ajuste `SERVER_URL` em `config.js`. Publique o Worker **antes** do site quando o protocolo mudar.
+
+---
+
+## 🧪 Testes
+
+Os testes de navegador usam **Playwright** em modo headless, e vários deles salvam capturas em `screenshots/`. Instale as dependências na raiz com `npm install` e suba o servidor estático. A maioria espera o jogo em `http://localhost:8124/`. `test.mjs`, `test-maps.mjs` e `test-streaks.mjs` usam a porta 8123 (o `test-streaks` aceita `SITE=`).
+
+| Sem navegador | Offline (navegador) | Online (precisa do `wrangler dev`) |
+|---|---|---|
+| `test-shared.mjs`: regras compartilhadas | `test.mjs`: fluxo geral | `test-online.mjs` |
+| `test-crouch.mjs`: postura, colisão, hitboxes e histórico online | `test-crouch-browser.mjs`: Shift, câmera e animação | |
+| `test-map-audit.mjs`: auditoria dos mapas + partida simulada | `test-maps.mjs`: mapas, escadas e telhados | `test-online-dom.mjs` |
+| `test-social.mjs`: protocolo do chat e da voz | `test-dom.mjs`: Dominação | `test-online-idle.mjs` |
+| `test-chat-voice.mjs`: chat e voz numa sala falsa | `test-streaks.mjs`: granadas e killstreaks | `test-online-names.mjs` |
+| `tools/stuck-repro.mjs`: ninguém fica preso na parede | `test-treino.mjs`, `test-faca.mjs`, `test-bacon.mjs` | `test-online-nextmap.mjs` |
+| `tools/bomb-walk.mjs`: sites e tempo a pé no modo Bomba | `test-bomb.mjs`: modo Bomba (aceita `SITE=`) | `test-online-bomb.mjs`: modo Bomba online (`MAP=` troca o mapa) |
+| | `test-mira.mjs`, `test-reload.mjs`, `test-respawn.mjs` | `test-faca-online.mjs`, `test-treino-online.mjs` |
+| | `test-nextmap.mjs`, `test-skin-start.mjs` | `test-prod.mjs`, `test-prod-dom.mjs` |
+| | `test-match-end.mjs`: fim de partida (câmera lenta, resultado, zoom, online com WebSocket controlado; aceita `SITE=`) | |
+| | | `tools/test-killstreak-online.mjs`: míssil, Gavião e nuke online |
+
+Exemplo do online:
+
+```bash
+cd server && npx wrangler dev --port 8787 --var ALLOW_TEST:1   # ALLOW_TEST só pros testes automáticos
+node test-online.mjs http://localhost:8124/ ws://127.0.0.1:8787
+```
+
+---
+
+## 🗂️ Estrutura do projeto
+
+```
+docao-shooter/
+├── index.html · style.css     # menu, HUD, lobby, pausa e placar
+├── main.js                    # o jogo: física, armas, bots, áudio, fluxo e online
+├── maps.js                    # os mapas (só dados) + PLAY_MAPS
+├── world.js · world-offsets.js  # monta o mundo e as miniaturas dos mapas
+├── nav.js                     # grafo de navegação + A* dos bots
+├── docao.js · costumes.js     # modelo 3D do Docão e peças de fantasia
+├── skins.js                   # registro das skins (só dados)
+├── killstreak-ui.js · uav.js  # barra de prêmios e minimapa
+├── bomb-gfx.js                # Modo Bomba: o Botijão e as marcas dos sites
+├── tactical-nades.js          # fumaça e atordoamento
+├── weapon-camo.js · weapon-thumbs.js   # camuflagens e miniaturas das armas
+├── sniper-view.js · bow-view.js · saber-view.js · fp-gear.js  # modelos em 1ª pessoa
+├── bacon.js · feedback.js     # bacon da morte, medalhas e pontos
+├── chat.js · voice.js · net.js · config.js   # chat, voz (WebRTC), rede e URL do servidor
+├── shared/                    # regras usadas pelo cliente e pelo servidor
+│   ├── rules.js               # armas, Copo Bomba, física, tempos, bots
+│   ├── combat.js · melee.js   # explosões, dispersão da sniper, faca
+│   ├── domination.js · training.js   # Dominação e Treino
+│   ├── bomb.js                     # Modo Bomba: rodadas, sites, plantar/desarmar, bots
+│   └── physics.js · names.js  # colisão e nomes
+├── server/                    # Cloudflare Worker + Durable Object "Room"
+│   └── src/index.js · src/game.js
+├── tools/                     # planta dos mapas, screenshots, auditorias
+├── vendor/                    # Three.js r169 + BufferGeometryUtils
+├── test*.mjs                  # testes (Playwright e Node)
+└── PATCH_NOTES.md             # histórico de versões
+```
+
+---
+
+## ⚙️ Por dentro do online
+
+<details>
+<summary>Arquitetura do servidor e do cliente</summary>
+
+- **Servidor:** fica em `server/`. É um Cloudflare Worker com um **Durable Object `Room`** (SQLite, plano grátis) por código de sala.
+  - `POST /api/rooms` cria a sala e `GET /api/rooms/ABCD` consulta.
+  - `GET /ws/ABCD?name=&skin=&primary=&token=` abre o WebSocket e `GET /health` responde a checagem.
+  - Usa a WebSocket Hibernation API, então no lobby o objeto hiberna sem custo, e o `ping`/`pong` é resposta automática.
+  - Sala vazia é apagada depois de 2 min.
+- **Autoritativo:** `server/src/game.js` não tem DOM nem Three.js e decide acertos, dano, abates, placar, renascimento, pickups, Copo Bomba, foguetes, faca, bacon, regeneração e o fim da partida. Usa os mesmos `maps.js`, `nav.js` e `shared/` do cliente.
+- **Cliente:** `net.js` e a seção Online do `main.js`. O seu Docão anda localmente, sem atraso, e manda posição, mira, arma e eventos ~20 vezes por segundo. Os outros aparecem com **interpolação de 100 ms**.
+- **Tiro:** é hitscan no servidor com compensação de lag (o servidor volta no tempo até o instante que você via na tela).
+- **Anti-cheat básico:** o servidor confere velocidade máxima, posição dentro do mapa e fora das paredes, cadência por arma, munição, pente e recarga, e se o tiro sai perto do olho.
+- **Bots online:** rodam no servidor com a mesma IA dos bots offline. Ocupam as vagas livres e saem quando alguém entra.
+- **Reconexão:** o token fica na `sessionStorage` e a vaga fica guardada por 30 s.
+- **Voz:** o áudio vai de navegador a navegador (WebRTC). O servidor só apresenta os jogadores.
+- **Custo:** cada mensagem recebida por WebSocket conta 1/20 de requisição no plano grátis (100 mil por dia). Se precisar economizar, use `?hz=10`.
+
+</details>
+
+<details>
+<summary>Como criar um mapa novo</summary>
+
+- `maps.js` é só dados. Cada mapa tem `id`, `name`, `desc`, `size`, `palette`, `boxes`, `props`, `spawns`, `pickups` e `waypoints`.
+- Helpers: `B()` (caixa), `R()` (rampa), `wallX`/`wallZ` com `door()`/`win()`, `mirrorZ`/`rot180` e `building(...)`, que monta um prédio com andares, portas, janelas, lajes, rampas e telhado.
+- Dica: comece a rampa a pelo menos 1 m da parede, senão não dá pra subir.
+- Depois rode:
+  - `node test-map-audit.mjs [ids]`
+  - `node tools/stuck-repro.mjs [ids]` (tem que dar 0 / 0 / 0)
+  - `node test-maps.mjs`
+- Pra gerar fotos, use `node tools/screenshots-mapas.mjs`, e pra ver a planta, `python3 tools/planta.py`.
+
+</details>
+
+---
+
+## 🤝 Como contribuir
+
+1. Faça um **fork** (ou crie uma branch, se você for colaborador) a partir da `main`.
+2. Rode o jogo localmente e os testes da área que você mexeu.
+3. Abra um **Pull Request para a `main`**. A `main` é protegida e precisa de **1 aprovação** pra entrar.
+4. Escreva o que mudou em **[`PATCH_NOTES.md`](PATCH_NOTES.md)**, num item da próxima versão, em linguagem de jogador. Use esse arquivo, **não** o `PATCHNOTES.md`.
+5. Se mexeu no protocolo online, avise no PR, porque o Worker precisa ir pro ar antes do site.
+
+Ideias, bugs e sugestões de mapa ou skin são bem-vindos nas issues. 🐷
+
+---
+
+## ⚠️ Limitações conhecidas
+
+- A **fumaça** e o **atordoamento** só funcionam offline.
+- Online o **Olho da granja** (minimapa) é calculado no seu próprio jogo. O míssil, o Gavião e o Fim da chapa são decididos pelo servidor.
+- A colisão é feita de caixas alinhadas, por isso os andares são ligados por rampas (não há escada de mão) e barris e silos colidem como quadrados.
+- Os bots não fazem rocket jump nem pulam entre telhados.
+
+---
+
+## 🙌 Créditos
+
+- **Matheus Valentim** ([@valentimm](https://github.com/valentimm)): criador do jogo e da maior parte do código, dos mapas e das skins
+- **João** ([@rramosjoao](https://github.com/rramosjoao)): mira, snipers, granadas táticas, killstreaks, Arsenal do Chiqueiro, Gavião, míssil pilotado e camuflagens
+- **Janor** ([@Janor-Neto-Cheers](https://github.com/Janor-Neto-Cheers)): chat, voz e convite da sala
+- **Paulo** ([@paulo-cheers](https://github.com/paulo-cheers)): campus HOTMILK e modo Exploração
+
+O Docão é o mascote da **Cheers** 🧡
+
+📜 **[Patch notes](PATCH_NOTES.md)** · 🏷️ **[Releases](https://github.com/valentimm/docao-shooter/releases)** · 🎮 **[Jogar agora](https://docao.mvalentim.dev)**
+
+<div align="center"><sub>Feito com muito torresmo e zero ovos. Oink! 🐽</sub></div>

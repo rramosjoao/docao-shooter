@@ -33,15 +33,16 @@ ok(dh.dmg < 120 && Math.abs(dh2.dmg - 120) < 1e-6, 'foguete que bateu no casco (
 // sniper
 ok(sniperSpread(true, 0, false) === 0 && sniperSpread(true, 1.2, false) === 0, 'Sniper com luneta parado/quase parado: dispersão 0');
 ok(sniperSpread(true, 6, false) > 0 && sniperSpread(true, 6, false) < 0.02 && sniperSpread(false, 0, false) <= 0.03, 'Sniper andando / sem luneta: dispersão pequena');
+ok(sniperSpread(false, 0, false, true) >= 0.1 && sniperSpread(true, 0, false, true) === 0, 'Torresmo sem luneta abre; com luneta parado continua reto');
 // zona
 const z1 = newZoneState({ x: 0, y: 0, z: 0 }); stepZone(z1, [1, 0], 1); const z2 = newZoneState({ x: 0, y: 0, z: 0 }); stepZone(z2, [2, 0], 1);
-ok(Math.abs(z2.progress - 2 * z1.progress) < 1e-9 && Math.abs(z1.progress - DOM.RATE) < 1e-9, `progresso com 2 = 2× com 1 (${z1.progress.toFixed(3)} → ${z2.progress.toFixed(3)}/s)`);
-const z5 = newZoneState({ x: 0, y: 0, z: 0 }); stepZone(z5, [5, 0], 1); ok(Math.abs(z5.progress - DOM.RATE * DOM.MAX_COUNT) < 1e-9, `limite de ${DOM.MAX_COUNT} jogadores contando`);
+ok(Math.abs(z1.progress - 1 / 25) < 1e-9 && Math.abs(z2.progress - 1 / 24) < 1e-9, `progresso com 1 = 1/25 e com 2 = 1/24 por s (${z1.progress.toFixed(4)} → ${z2.progress.toFixed(4)}/s)`);
+const z5 = newZoneState({ x: 0, y: 0, z: 0 }); stepZone(z5, [5, 0], 1); ok(Math.abs(z5.progress - 1 / 21) < 1e-9, '5 jogadores: 1/21 por s');
 const pz = z2.progress; stepZone(z2, [1, 1], 2); ok(z2.progress === pz && z2.contested, 'contestada: congela');
 stepZone(z2, [0, 1], 1); ok(z2.progress < pz && z2.team === 0, 'inimigo sozinho neutraliza primeiro');
-stepZone(z2, [0, 0], 1); ok(z2.progress < pz - DOM.RATE, 'vazia: decai');
+stepZone(z2, [0, 0], 1); ok(z2.progress < pz, 'vazia: decai');
 const zc = newZoneState({ x: 0, y: 0, z: 0 }); let got = -1, t = 0; while (got < 0 && t < 30) { got = stepZone(zc, [1, 0], 0.05); t += 0.05; }
-ok(got === 0 && Math.abs(t - 1 / DOM.RATE) < 0.11, `1 jogador captura em ${t.toFixed(2)} s`);
+ok(got === 0 && Math.abs(t - 25) < 0.11, `1 jogador captura em ${t.toFixed(2)} s`);
 ok(inZone(zc, { x: DOM.RADIUS - 0.1, y: 0, z: 0 }) && !inZone(zc, { x: DOM.RADIUS + 0.1, y: 0, z: 0 }) && !inZone(zc, { x: 0, y: 4, z: 0 }), 'dentro/fora da zona (raio e altura)');
 ok(canJoinTeam(0, [1, 1]) && !canJoinTeam(0, [2, 1]) && canJoinTeam(1, [2, 1]), 'escolha de time bloqueada só se ficar 2+ a mais');
 console.log(fails.length ? `\n${fails.length} FALHA(S)` : '\nTUDO OK'); process.exit(fails.length ? 1 : 0);
