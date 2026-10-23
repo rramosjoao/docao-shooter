@@ -9,14 +9,14 @@ Público: João, Head de Produto e Design. As decisões de UX estão fechadas o 
 Mockups estáticos (não são o jogo):
 
 - [Bancada no Arsenal, aprovada](mockups/acessorios/index.html) e a captura [01-arsenal.png](mockups/acessorios/01-arsenal.png). Essa tela fica.
-- [In-game, fichas](mockups/acessorios/ingame.html), com as capturas novas: [morte](mockups/acessorios/02-morte.png), [pausa](mockups/acessorios/04-pausa.png), [preparação da Bomba](mockups/acessorios/05-bomba.png), [tela estreita](mockups/acessorios/03-estreita.png).
-- As outras duas saídas, na mesma página: [temperos](mockups/acessorios/06-alt-temperos.png) e [roda](mockups/acessorios/07-alt-roda.png).
+- [In-game no estilo Create-a-Class](mockups/acessorios/cod.html). Capturas: [lista e Gunsmith](mockups/acessorios/08-cod-lista.png), [faixa de fotos](mockups/acessorios/09-cod-faixa.png), [arma em destaque](mockups/acessorios/10-cod-hero.png), [tela estreita](mockups/acessorios/11-cod-estreita.png).
+- Fotos reais das armas, uma por chave: [docs/mockups/acessorios/armas/](mockups/acessorios/armas/). Saíram de `renderWeaponThumb` em `weapon-thumbs.js`, no modelo de primeira pessoa, sem as mãos.
 
 ---
 
 ## Decisão em uma frase
 
-A bancada do Arsenal tempera a arma, uma peça por lugar, e grava isso numa de três fichas. Na partida a bancada não abre: escolhe-se a ficha com um toque ou com 1, 2 e 3. A última fica armada, e nascer sem tocar nada usa ela. A folha fica no fundo da tela, com o cronômetro na borda, e quem matou continua visível. Escolher ficha na pausa espera a próxima vida. O ato de derrubar para trocar arma, com 10 s de cooldown, continua no protocolo para o cliente antigo.
+A bancada do Arsenal tempera a arma, uma peça por lugar, e grava isso numa de cinco classes. Na partida a bancada não abre: uma lista vertical escolhe a classe, e o painel ao lado mostra a foto real da primária, cinco barras e as peças em volta da arma. A última classe já vem destacada. Nascer sem tocar usa ela. O cronômetro fica pregado no topo, fora do painel, e quem matou continua acima dele. Escolher classe na pausa espera a próxima vida. O ato de derrubar para trocar arma, com 10 s de cooldown, continua no protocolo para o cliente antigo.
 
 ---
 
@@ -37,7 +37,7 @@ O loadout é três índices: primária, secundária, corpo a corpo.
 - Invasão, pausa entre waves: `#iLoad`, tecla B. No meio da wave a pausa avisa e não troca (`main.js`, por volta da troca `px`).
 - Treino: B / N / M ciclam e equipam na hora (`trainSwap`).
 
-São 14 primárias, 5 secundárias e 3 corpos a corpo. Hoje a ordem de `PRIMARIES` é a ordem do teclado 1–9 na morte: Fuzil, Commando, Metralhadora, MP5K, P90, FAMAS, Calibre 12, Sniper Torresmo, Canhão. Carabina, Bazuca, Semi, Disco e Lança-Milho ficam só no clique (`main.js`, `Digit1`–`Digit9` sobre `pool(PRIMARIES)`). O README ainda descreve a escada antiga (1 Fuzil, 2 Mini Uzi…). A seção 4 troca esse atalho: na partida, 1, 2 e 3 passam a ser as fichas. A bancada não copia a tabela do README.
+São 14 primárias, 5 secundárias e 3 corpos a corpo. Hoje a ordem de `PRIMARIES` é a ordem do teclado 1–9 na morte: Fuzil, Commando, Metralhadora, MP5K, P90, FAMAS, Calibre 12, Sniper Torresmo, Canhão. Carabina, Bazuca, Semi, Disco e Lança-Milho ficam só no clique (`main.js`, `Digit1`–`Digit9` sobre `pool(PRIMARIES)`). O README ainda descreve a escada antiga (1 Fuzil, 2 Mini Uzi…). A seção 4 troca esse atalho: na partida, 1 a 5 passam a ser as classes salvas. A bancada não copia a tabela do README.
 
 ### Stats que já existem
 
@@ -110,7 +110,7 @@ O kit de hoje cabe no mesmo lugar das armas: `localStorage`. Levar o kit para a 
 
 - A home já desenha o mapa de fundo, a prévia do provador, as sombras da dança e as miniaturas das armas (uma por quadro, em `makeWeaponThumbs`).
 - A miniatura é uma foto da malha de primeira pessoa. Refazê-la a cada clique de peça custa quadro e não ajuda a ler o stat.
-- A morte reconstrói a lista com `innerHTML` em `buildDeathPrimaries` / `syncLoadoutUi`. A ficha troca três cartões prontos. Não refaz as 14 armas nem a miniatura a cada toque.
+- A morte reconstrói a lista com `innerHTML` em `buildDeathPrimaries` / `syncLoadoutUi`. A classe troca cinco linhas e reusa a miniatura que `makeWeaponThumbs` já tirou. Não refaz a malha a cada toque.
 - Camuflagem usa textura de 64 px, filtro nearest, duas texturas no módulo. Peça nova não pede textura nova no MVP.
 
 ---
@@ -123,8 +123,8 @@ O kit de hoje cabe no mesmo lugar das armas: `localStorage`. Levar o kit para a 
 4. **Cone, recuo, zoom e “andar mais rápido” são honestidade do cliente.** O servidor não recalcula o `spread` humano nem o `move` do jogador. Uma peça que só fecha o cone não é garantia competitiva online, do mesmo jeito que o cone de hoje já não é. O que o servidor passa a garantir: pente, tempo de recarga, queda, alcance do raio e penetração, porque isso já entra em `canShoot`, `progressReload` e `traceShot`.
 5. **Sniper não usa a fórmula geral de dispersão.** `sniperSpread` ignora `w.spread`. Peça nas três de precisão tem de entrar nessa função, senão o número da bancada mente.
 6. **Fuzil, Commando e as snipers não têm `falloff`.** Cano curto nelas, se for “menos alcance”, precisa criar uma queda explícita. Nas snipers isso não entra: um tiro no corpo continua um tiro no corpo.
-7. **Tela de morte já enche 720p.** Folha embaixo, grade de 6 colunas, secundária, faca, botão grande (`hud-death.css`). A bancada inteira não cabe ali. Uma faixa de quatro lugares com popover também não: o alvo fica pequeno, o popover cobre a grade, e 1–9 só alcançam as nove primeiras de 14 primárias. A escolha sob o relógio passa a ser a ficha, e a grade sai da folha.
-8. **Pausa pequena, e trocar arma é fuga.** `PX_COOLDOWN` de 10 s existe para a pausa não virar saída do tiroteio. A ficha na pausa enfileira a próxima vida. Ela não usa o ato de morrer, senão o jogador se derruba para ganhar pente.
+7. **Tela de morte já enche 720p.** Folha embaixo, grade de 6 colunas, secundária, faca, botão grande (`hud-death.css`). A bancada inteira não cabe ali. Uma faixa de quatro lugares com popover também não: o alvo fica pequeno, o popover cobre a grade, e 1–9 só alcançam as nove primeiras de 14 primárias. A escolha sob o relógio passa a ser a classe, com a foto e as barras num painel que começa abaixo de quem matou. O cronômetro fica numa barra própria, no topo. A grade sai da folha.
+8. **Pausa pequena, e trocar arma é fuga.** `PX_COOLDOWN` de 10 s existe para a pausa não virar saída do tiroteio. A classe na pausa enfileira a próxima vida. Ela não usa o ato de morrer, senão o jogador se derruba para ganhar pente.
 9. **Minigun, disco, milho, ovo, arco e besta têm regra própria** (`shared/disc.js`, `corn.js`, `egg.js`, spin da minigun). Encaixar peça nelas é outro sistema.
 10. **Malha de primeira pessoa é manual.** Cada arma é um grupo de caixas em `main.js` (o pente do fuzil é `rMag` e sai na recarga; a Calibre 12 tem telha, tubo e coronha dobrada). Terceira pessoa repete o trabalho em `docao.js`. Uma peça visível que reparenta isso quebra a recarga.
 11. **Camuflagem é da partida, conta só guarda skin, convidado é de primeira classe.** Lacre de poder atrás de login quebra a promessa da v1.17.
@@ -252,7 +252,7 @@ Fuzil: 30 → 45 na fita, ou 18 no bolso. Recarga 1,6 s → 2,16 s ou 1,2 s. Met
 
 ### Desbloqueio
 
-MVP: tudo aberto, salvo no navegador. `docao.fichas` é um JSON com três fichas. `docao.ficha` é o índice da ficha armada (0, 1 ou 2). Cada ficha tem `name`, `primary`, `secondary`, `melee`, `hand` e `kits`, e `kits` é um mapa pela chave da arma (`rifle`, `sniper`…), com os quatro ids. Quem já tem `docao.primary`, `docao.secondary` e `docao.melee` ganha a ficha 1 com esse loadout; as outras duas nascem cópia dela, peladas, com nome editável. JSON corrompido ou ausente vira três fichas de fábrica, sem aviso de erro. `docao.kit` solto deixa de ser a fonte: o kit mora dentro da ficha.
+MVP: tudo aberto, salvo no navegador. `docao.classes` é um JSON com cinco classes. `docao.classe` é o índice da última classe usada (0 a 4). Cada classe tem `name`, `primary`, `secondary`, `melee`, `hand` e `kits`, e `kits` é um mapa pela chave da arma (`rifle`, `sniper`…), com os quatro ids. Quem já tem `docao.primary`, `docao.secondary` e `docao.melee` ganha a classe 1 com esse loadout; as outras quatro nascem cópia dela, peladas, com nome editável. JSON corrompido ou ausente vira cinco classes de fábrica, sem aviso de erro. `docao.kit` solto deixa de ser a fonte: o kit mora dentro da classe.
 
 Fase posterior, se o João quiser memória entre computadores: coluna na conta, convidado segue no `localStorage`, os dois com o mesmo catálogo aberto. Lacre de poder fica desenhado (o mockup tem o estado) e desligado. Se um dia ligar, o lacre é cosmético ou é um teto que o servidor confere na conta. Abate só no `localStorage` é trapaça de uma linha no F12, e abate que dá dano quebra o convidado.
 
@@ -262,10 +262,10 @@ O estado “lacrado” do mockup existe para a UI não nascer sem ele: peça vis
 
 1. O cliente manda ids. O servidor chama `clampKit` e guarda `nextKit`. No `spawn`, copia para `kit` e zera pente e reserva com `resolveWeapon`, não com `WEAPONS` cru.
 2. `canShoot`, `progressReload` e `hitscan` usam a cópia resolvida da arma que está na mão. Dano, queda, `pen`, `range`, tamanho de pente e tempo de recarga saem dali.
-3. `pr` e `px` ganham um quinto campo: o conteúdo da ficha armada, três índices e o kit de cada uma, chaves curtas. O nome da ficha fica no navegador. O servidor passa o trio por `clampLoadout` e cada kit por `clampKit`. Arma proibida na sala cai no fallback que o loadout já tem, e o cartão mostra esse fallback antes de nascer. Cliente velho omite o campo: de fábrica. Servidor velho ignora o campo: a partida segue sem peça até o Worker atualizar. Ordem de publicação: Worker, depois o site.
+3. `pr` e `px` ganham um quinto campo: o conteúdo da classe destacada, três índices e o kit de cada uma, chaves curtas. O nome da classe fica no navegador. O servidor passa o trio por `clampLoadout` e cada kit por `clampKit`. Arma proibida na sala cai no fallback que o loadout já tem, e a linha mostra a foto e o nome desse fallback antes de nascer. Cliente velho omite o campo: de fábrica. Servidor velho ignora o campo: a partida segue sem peça até o Worker atualizar. Ordem de publicação: Worker, depois o site.
 4. O kit não entra na query do WebSocket. O cliente manda `{t:'kit', kit}` junto do primeiro `prof`, que já existe. Quem entra no lugar de um bot espera até 0,5 s (`respawnAt`). O `spawn` usa o `nextKit` que tiver chegado. Teste de corrida: kit que chega depois do spawn só vale na vida seguinte, nunca reenche o pente no meio do tiro.
 5. Trocar peça com a vida já rolando (Treino, preparação da Bomba, pausa da Invasão) não completa pente. `mag = min(atual, mag novo)`. Bala a mais só entra na próxima recarga, tirando da reserva. Pente menor derruba o excedente no chão da conta, sem devolver para a reserva. Isso fecha o “equipar a fita para ganhar 15 balas”.
-6. Pausa comum: escolher ficha manda `pr` (a próxima vida), com o trio e os kits. Não dispara `px`. Não mata. Não gasta o cooldown de 10 s. O `px` continua no servidor para o cliente antigo e para os modos que já equipam na hora. A pausa nova não oferece o botão de se derrubar.
+6. Pausa comum: escolher classe manda `pr` (a próxima vida), com o trio e os kits. Não dispara `px`. Não mata. Não gasta o cooldown de 10 s. O `px` continua no servidor para o cliente antigo e para os modos que já equipam na hora. A pausa nova não oferece o botão de se derrubar.
 7. Minigun de chat ignora o kit até a morte. O nascimento devolve a primária com o kit dela.
 8. Cone, recuo e zoom ficam no cliente nesta leva, com a frase da bancada honesta no single player e no feeling. Uma leva seguinte pode recusar direção fora do cone do yaw/pitch que o servidor já guarda, com folga para o recuo aleatório. Sem isso, vender “fecha o tiro” como vantagem de ranked é mentira: hoje qualquer cliente já manda a direção que quiser.
 9. Andar mais rápido ou mais devagar também fica no cliente enquanto o teto for `SPEED * 1,35` sem `move`. Não apertar esse teto no MVP: 35% de folga engole a Metralhadora (5%) e um passo de sabugo (3%), e apertar o teto mexe em knock, escada e lag de quem nem usa peça. A frase da peça de passo diz o feeling. O número que o servidor garante é o outro (pente, recarga, queda, parede).
@@ -280,48 +280,74 @@ Bots nascem de fábrica. Eles não rolam kit. O pool de primária da sala contin
 
 | Lugar | O que é | Por quê |
 |---|---|---|
-| Home, dentro da caixa, um nível abaixo do Arsenal | A bancada completa, gravando a ficha que está aberta | É o lugar sem relógio. A doca de 168 px não cresce. A captura 01 continua valendo |
-| Tela de morte | Três fichas grandes, folha no fundo, cronômetro na borda | O relógio é de poucos segundos. A última ficha já está armada |
-| Preparação da Bomba e pausa entre waves da Invasão | As mesmas três fichas, numa faixa no fundo (`#bLoad`, `#iLoad`) | O site e o centro da tela continuam livres. A ficha entra agora, com a regra do pente |
-| Pausa comum | As mesmas três fichas, painel no centro | A partida já está parada. A ficha espera a próxima vida |
-| Lobby | As três fichas no lugar da linha de selects | O lobby não tem a caixa 3D. Levar o jogador para a home no meio da sala perde o código da sala |
+| Home, dentro da caixa, um nível abaixo do Arsenal | A bancada completa, gravando a classe que está aberta | É o lugar sem relógio. A doca de 168 px não cresce. A captura 01 continua valendo |
+| Tela de morte | Lista de cinco classes à esquerda e Gunsmith à direita. O cronômetro é uma barra no topo da tela | O relógio é de poucos segundos. A última classe já está destacada. Quem matou fica acima do painel |
+| Preparação da Bomba e pausa entre waves da Invasão | A mesma lista e o mesmo Gunsmith, no fundo (`#bLoad`, `#iLoad`) | O site e o centro da tela continuam livres. A classe entra agora, com a regra do pente |
+| Pausa comum | A mesma lista e o mesmo Gunsmith, painel no centro | A partida já está parada. A classe espera a próxima vida |
+| Lobby | As cinco classes no lugar da linha de selects, com a foto da primária | O lobby não tem a caixa 3D. Levar o jogador para a home no meio da sala perde o código da sala |
 | Vivo, mira travada | Nada | I continua a inspeção. Esc continua a pausa. Não há tecla nova no tiroteio |
 | Arma sem lugar | Estado vazio dentro da bancada | Faca, sabre, bazuca e o resto não ganham cartão fantasma |
 
-Treino abre as mesmas três fichas, com a frase “no estande a ficha entra agora e o pente não enche sozinho”. O servidor aplica na hora, como a arma.
+Treino abre a mesma lista, com a frase “no estande a classe entra agora e o pente não enche sozinho”. O servidor aplica na hora, como a arma.
 
-### In-game: três saídas, uma recomendada
+### In-game: três saídas no estilo CoD, uma recomendada
 
-O Arsenal continua a oficina. Montar a alça, o cano e o pente é decisão de bancada, com tempo. Sob o relógio de nascer, a decisão é outra: qual conjunto já salvo entra nesta vida. Três saídas foram desenhadas em cima disso. A recomendada é a primeira.
+O Arsenal continua a oficina. Montar a alça, o cano e o pente é decisão de bancada, com tempo. Sob o relógio de nascer, a decisão é qual classe já salva entra nesta vida. As três saídas abaixo seguem o Create-a-Class e o Gunsmith: lista de loadout, foto da arma, barras e peças em volta do modelo. A recomendada é a primeira.
 
-**A · Fichas de chapa.** Recomendada. Três classes salvas, no espírito da classe customizada e da troca de loadout no respawn. Cada ficha é um cartão grande: nome, primária em tipo grande, secundária e faca, quatro selos das peças, e uma frase de relance. A última ficha usada nasce com o filete dourado e o texto “Vai nascer com esta”. Espaço, quando a barra zera, usa essa ficha. 1, 2 e 3 (e as setas) trocam na hora, sem segundo carimbo. Toque no cartão faz o mesmo. A folha senta no fundo. O cronômetro é a barra dourada na borda da folha e o texto do botão (“Renascer em 3,2s”). Quem matou e o porco ficam na metade de cima.
+Uma passada anterior, com três cartões de texto e sem foto, ficou em `ingame.html`. Esta rodada substitui essa recomendação.
 
-As três fichas do mockup, para a captura e o texto baterem:
+**A · Lista e Gunsmith.** Recomendada. Captura `08-cod-lista.png`. À esquerda, cinco linhas grandes. Cada linha tem a tecla, a foto real da primária, o nome da classe e a arma. A última usada traz o selo “ÚLTIMO” e o filete dourado. À direita, o painel da classe destacada: o nome da primária, a mesma foto em grande, quatro slots em volta (mira em cima, cano à direita, pente embaixo, mão à esquerda), a foto da secundária e da faca, e cinco barras. O cronômetro é uma barra dourada no topo da tela, fora do painel, e o botão repete “Nascer em 3,2s”. Quem matou fica na faixa entre o cronômetro e o painel.
 
-| Tecla | Nome | Armas | Peças da primária | Relance |
-|---|---|---|---|---|
-| 1 | Pelada | Fuzil, Pistolinha, Faca | Massa de milho, Cano da casa, Lata, Cabo da casa | Mira 40 · pente 30 · o fuzil de hoje |
-| 2 | Arame, armada | as mesmas | Alça de arame, Cano de bica, Lata, Sabugo | Mira 34 · fecha no direito · abre no quadril |
-| 3 | Torresmo | Sniper Torresmo, Pistolinha, Faca | Luneta curta, Cano da casa, Lata, Tripé | 1 tiro no corpo · anda um pouco menos |
+W, S, setas e 1–5 destacam e já armam. Enter faz o mesmo e leva o foco ao botão de nascer. U volta para a última. Espaço, quando a barra zera, nasce com a destacada. Se ninguém mexer, a destacada já é a última: nascer sem tocar usa ela. Toque na linha ou no slot faz o mesmo verbo. O slot no respawn só mostra a peça; trocar a peça continua sendo na bancada.
 
-A conta da frase cabe no catálogo: Alça de arame no Fuzil é `adsFov` 34. Luneta curta (`move × 1,03`) com Tripé (`move × 0,88`) anda um pouco menos, e o tiro no corpo da sniper continua um, porque o cano dela não cria queda.
+As cinco classes do mockup:
 
-Por que a ficha de chapa:
+| Tecla | Nome | Primária | Peças da primária |
+|---|---|---|---|
+| 1 | Pelada | Fuzil Pururuca | de fábrica |
+| 2 | Arame, última | Fuzil Pururuca | Alça de arame, Cano de bica, Pente de lata, Sabugo |
+| 3 | Torresmo | Sniper Torresmo | Luneta curta, Cano da casa, Pente de lata, Tripé |
+| 4 | Chiqueiro | Calibre 12 | de fábrica |
+| 5 | Granja | Commando da Granja | de fábrica |
 
-- Em poucos segundos a escolha útil é o conjunto, e três opções cabem na memória de trabalho. Fazer nada também é válido: a última ficha já está armada.
-- Um toque ou uma tecla. O alvo é o cartão inteiro, bem acima de 44 px.
-- A frase de relance cabe num olhar. A comparação completa, com as réguas, continua na bancada, onde há tempo de ler.
-- A grade de 14 primárias sai da folha. A folha fica mais baixa, e o cronômetro e a câmera de quem matou continuam na tela. As cinco primárias que o 1–9 de hoje não alcança passam a existir porque alguém as pôs numa ficha no Arsenal.
-- A sala continua mandando. `clampLoadout` e `clampKit` correm no servidor. Se a ficha pede uma arma proibida, o cartão mostra o fallback antes do nascimento.
-- Teclado, mouse e toque disparam o mesmo verbo. O estado armado está escrito (“Vai nascer com esta”), além do dourado.
+Secundária e faca dessas cinco, no mockup: Pistolinha e Faca de churrasqueiro.
 
-**B · Temperos da arma.** A grade de primárias fica, e embaixo há três temperos grandes da arma aberta (Z Pelado, X Arame, C Bolso). Serve quem quer trocar só o fuzil e manter o hábito da grade. Custa dois passos (arma, depois tempero), a folha continua alta, e 1–9 seguem sem alcançar Carabina, Bazuca, Semi, Disco e Lança-Milho. O cronômetro cabe. O meio da tela encolhe. Captura: `06-alt-temperos.png`.
+Por que a lista com Gunsmith:
 
-**C · Roda.** Quatro gomos (mira, cano, pente, mão) em volta do nome da arma, no centro da tela. Um gesto de mouse escolhe o gomo. A roda senta em cima de quem matou, do texto da morte e do cronômetro. No teclado os quatro gomos não têm uma tecla óbvia. No toque o gomo é pequeno. Leitor de tela lê um círculo sem ordem clara. A morte já soltou o pointer lock, então a roda não aproveita a mira travada que esse gesto costuma pedir. Captura: `07-alt-roda.png`.
+- A foto da arma é o que se reconhece em um segundo. O nome sozinho, na passada anterior, pedia leitura.
+- Cinco classes cabem em 1–5, que é o pedido. A última já está armada, então as outras quatro são atalho, não obrigação.
+- As barras comparam a classe com a arma de fábrica no mesmo olhar. O tracinho branco é o valor de fábrica.
+- O painel começa abaixo de quem matou. O cronômetro não mora dentro do painel, então a lista não o cobre.
+- A sala continua mandando. `clampLoadout` e `clampKit` correm no servidor. Se a classe pede uma arma proibida, a linha troca a foto e o nome para o fallback antes do nascimento.
+- Teclado, mouse e toque disparam o mesmo verbo. “ÚLTIMO” está escrito, além do dourado.
 
-A pausa usa o painel no centro porque a ação já está congelada e não há cronômetro de nascer. Morte, Bomba e pausa entre waves usam a faixa no fundo, para o mundo e o relógio ficarem livres. Na Bomba a faixa diz “Na mão agora” e lembra que o pente não enche sozinho. B fecha a faixa e devolve a mira. Entre waves da Invasão, a mesma faixa.
+**B · Faixa de fotos.** Captura `09-cod-faixa.png`. As cinco classes viram cartões lado a lado, cada um quase só a foto e o nome. A classe dourada abre uma linha de slots embaixo. A faixa senta no fundo, e sobra mais tela para quem matou. As cinco barras grandes não cabem nessa altura: a comparação de stat fica para a bancada. Serve quem quer ver as cinco armas de uma vez e aceita um Gunsmith mais curto.
 
-### Forma da ficha
+**C · Arma em destaque.** Captura `10-cod-hero.png`. A foto ocupa o centro, no tamanho de vitrine, e a lista vira uma coluna de nomes, sem foto. As barras ficam numa faixa no fundo. O cronômetro continua no topo. A foto cobre quem matou. É o Gunsmith de oficina, grande demais para os segundos de respawn.
+
+A pausa usa o painel no centro porque a ação já está congelada e não há cronômetro de nascer. Morte, Bomba e pausa entre waves mantêm o cronômetro (ou o tempo da rodada) numa barra no topo, e o painel abaixo. Na Bomba a classe entra agora e o pente não enche sozinho. B fecha o painel e devolve a mira. Entre waves da Invasão, o mesmo painel.
+
+Na tela estreita (`11-cod-estreita.png`) as cinco classes deitam numa faixa de fotos. Abaixo ficam a foto grande, os quatro slots em volta, as cinco barras e o botão “Usar último”, preso no fim. O cronômetro continua no topo.
+
+### As barras
+
+As cinco barras leem stats que o jogo já tem. Não existe um campo “controle” em `WEAPONS`. A conta fica em `compare`, para a UI não inventar número.
+
+| Barra | Conta | O que a classe Arame mostra |
+|---|---|---|
+| Dano | `min(100, dmg × max(pellets, 1))`. A barra enche numa vida de 100. O número ao lado é o dano do gatilho, de perto | 20. A Calibre 12 seria 153, barra no talo |
+| Alcance | `range / 260`, o Canhão. Arma sem `range` (bazuca, disco, milho, ovo) deixa a barra vazia e o texto diz que o verbo é outro. Se a peça cria queda, a barra vai até `n0 / 260` e o tracinho marca o alcance de fábrica | 63 m, tracinho em 140 m. O Cano de bica cria queda `[0,45×140, 0,8×140, 0,72]` |
+| Cadência | `(1 / rate) / 12`, com teto 100. O número é tiros por segundo. FAMAS usa o ciclo `burstDelay + rate × (burst − 1)`, não o `rate` interno sozinho | 10/s |
+| Mobilidade | `(move − 0,70) / 0,45`. Sem `move`, vale 1. Faca usa `MELEE.speedMul` 1,15. O teto do resolve continua 0,75–1,08 | anda mais. `1 × 1,04 × 1,03 = 1,07` (bica e sabugo). Tracinho no passo normal |
+| Controle | `1 − recoil / 0,10`, entre 0 e 100. O número é o recuo | 0,017. `0,018 × 0,8 × 1,15` |
+
+Alça de arame no Fuzil continua `adsFov` 34. Isso não muda as cinco barras: o zoom mora no slot e na comparação da bancada. Luneta curta com Tripé, na classe Torresmo, anda um pouco menos (`1,03 × 0,88`) e o tiro no corpo continua um, porque o cano da sniper não cria queda.
+
+### A foto
+
+Cada arquivo em `docs/mockups/acessorios/armas/<chave>.png` é o grupo de primeira pessoa daquela arma (`fp.guns`, o mesmo índice de `WEAPONS`), passado por `renderWeaponThumb` (`weapon-thumbs.js`) em 960×540, com fundo transparente. A função já tira mãos e antebraços (`userData.noCamo`) e enquadra a caixa visível. O jogo, na home, usa a mesma função em 256×160. A implementação reusa esse render. Não desenha arma nova e não refaz a malha a cada clique: a miniatura pronta entra na lista e no painel.
+
+### Forma da classe
 
 ```json
 {
@@ -336,37 +362,37 @@ A pausa usa o painel no centro porque a ação já está congelada e não há cr
 }
 ```
 
-Os índices do exemplo são os de hoje (`shared/rules.js`); o código lê a chave, e o índice viaja porque o loadout atual já é índice. `kits` só precisa das armas que a ficha equipa. Arma sem lugar vai com kit vazio. Três fichas, teto duro: a UI não oferece uma quarta. Renomear é na bancada, num campo de texto ao lado dos três chips. Nome vazio volta para “Ficha 1”.
+Os índices do exemplo são os de hoje (`shared/rules.js`): 0 é o Fuzil, 4 é a Pistolinha, 7 é a Faca. O código lê a chave, e o índice viaja porque o loadout atual já é índice. `kits` só precisa das armas que a classe equipa. Arma sem lugar vai com kit vazio. Cinco classes, teto duro: a UI não oferece uma sexta. Renomear é na bancada, num campo de texto ao lado dos cinco chips. Nome vazio volta para “Classe 1”.
 
-A linha dos chips entra acima do título da bancada aprovada. A captura 01 não foi refeita: o miolo (lugares, olhar, carimbar, comparação) fica. O chip aberto é a ficha que “Por na arma” grava. Trocar de chip na bancada não manda nada para a partida; só muda qual ficha a oficina está editando.
+A linha dos chips entra acima do título da bancada aprovada. A captura 01 não foi refeita: o miolo (lugares, olhar, carimbar, comparação) fica. O chip aberto é a classe que “Por na arma” grava. Trocar de chip na bancada não manda nada para a partida; só muda qual classe a oficina está editando.
 
 ### Fluxo da home
 
 1. Comanda. O jogador abre o Arsenal pela caixa, como hoje. Movimento reduzido corta a viagem.
 2. Arsenal. Uma arma de cada grupo, como hoje. A arma selecionada ganha um segundo clique, ou o botão “Temperar” no cartão, e vira a arma aberta.
-3. A grade dos outros grupos sai. No lugar fica a bandeja daquela família à esquerda e a bancada à direita. Acima do título, três chips e o nome dizem qual ficha a bancada grava. Esc ou “← Arsenal” volta à grade, sem fechar a caixa. O segundo Esc fecha a caixa, como hoje.
+3. A grade dos outros grupos sai. No lugar fica a bandeja daquela família à esquerda e a bancada à direita. Acima do título, cinco chips e o nome dizem qual classe a bancada grava. Esc ou “← Arsenal” volta à grade, sem fechar a caixa. O segundo Esc fecha a caixa, como hoje.
 4. Quatro lugares (ou três, na escopeta). Um está em foco.
 5. As peças daquele lugar são botões. Uma está “Na arma”. Outra pode estar “Olhando”.
 6. Olhar atualiza a comparação. Não equipa.
 7. “Por na arma” carimba a peça olhada. Se ela já está na arma, o botão fica “Já está na arma” e não faz nada.
-8. A escolha cai na ficha aberta, no `localStorage`, na hora. Online, segue no próximo `prof` / `pr`. A frase de confirmação: “Alça de arame no Fuzil, na ficha Arame. Vale quando você nascer.”
+8. A escolha cai na classe aberta, no `localStorage`, na hora. Online, segue no próximo `prof` / `pr`. A frase de confirmação: “Alça de arame no Fuzil, na classe Arame. Vale quando você nascer.”
 
 Mouse, teclado e toque usam o mesmo verbo. Passar o mouse não muda número. Número muda ao olhar (foco, seta ou toque). Isso evita comparação que só existe no hover e some no celular e no leitor de tela.
 
-Na home, sem relógio, olhar e carimbar continuam separados. Na partida o toque na ficha já é o carimbo: a ficha dourada é a que vai nascer, e um segundo botão “Por na arma” não existe ali. Desfazer é tocar a ficha anterior, ou apertar o número dela.
+Na home, sem relógio, olhar e carimbar continuam separados. Na partida o toque na classe já arma ela: a linha dourada é a que vai nascer, e um segundo botão “Por na arma” não existe ali. Desfazer é tocar a classe anterior, apertar o número dela, ou U para voltar à última.
 
 ### Hierarquia da bancada
 
 ```
 Comanda
   └─ Arsenal
-       └─ Bancada, com a ficha aberta (1, 2 ou 3)
+       └─ Bancada, com a classe aberta (1 a 5)
             ├─ Lugares (mira, cano, pente, mão)
             ├─ Peças do lugar em foco
             ├─ Comparação (só o que muda)
-            └─ Carimbar, na ficha aberta
+            └─ Carimbar, na classe aberta
 Partida (morte, pausa, Bomba, entre waves, lobby)
-  └─ Três fichas
+  └─ Lista de cinco classes + foto, barras e slots
        └─ A dourada entra nesta vida, ou na próxima
 ```
 
@@ -380,10 +406,10 @@ Home, bancada aberta, foco dentro dela:
 
 | Tecla | Ato |
 |---|---|
-| 1 2 3 | troca a ficha que a bancada grava. Com o foco no nome, o número digita |
+| 1–5 | troca a classe que a bancada grava. Com o foco no nome, o número digita |
 | ← → | troca o lugar |
 | ↑ ↓ | olha a peça anterior ou a próxima |
-| Enter | carimba a peça olhada na ficha aberta |
+| Enter | carimba a peça olhada na classe aberta |
 | Esc | volta ao Arsenal. De novo, volta à comanda |
 
 Tab segue a ordem natural: voltar, armas da família, lugares, peças, carimbar. Cada lugar é `role="tab"`. As peças são `role="radio"` num `radiogroup` com o nome da arma. O botão carimbar é o commit.
@@ -392,19 +418,21 @@ Morte, Bomba, entre waves e pausa, mouse solto. O mesmo verbo no clique, na tecl
 
 | Tecla | Ato |
 |---|---|
-| 1, 2, 3 | arma essa ficha na hora |
-| ← → ou ↑ ↓ | a ficha vizinha, também na hora |
-| Espaço, ou Enter no botão | nascer, quando o tempo acabou, com a ficha dourada |
-| Esc, na pausa | continuar. A ficha dourada espera a próxima vida |
-| B, na Bomba e entre waves | fecha a faixa e devolve a mira |
+| 1–5 | arma essa classe na hora |
+| W S, ou ↑ ↓ | a classe vizinha, também na hora. Na faixa horizontal, A D ou ← → |
+| U | volta para a última classe usada |
+| Enter | arma a classe em foco e leva o foco ao botão de nascer |
+| Espaço, ou Enter no botão | nascer, quando o tempo acabou, com a classe dourada |
+| Esc, na pausa | continuar. A classe dourada espera a próxima vida |
+| B, na Bomba e entre waves | fecha o painel e devolve a mira |
 
-Espaço não troca ficha. Trocar é 1, 2, 3 ou o toque no cartão. Enter no botão de nascer nasce; Enter com o foco num cartão arma essa ficha, do mesmo jeito que o número. Os dois atos ficam em controles diferentes, e o botão de nascer anuncia a ficha (“Nasce com a Arame”).
+Espaço não troca classe. Trocar é 1–5, W/S ou o toque na linha. O botão de nascer anuncia a classe (“Nasce com a Arame”). Se ninguém mexeu, essa classe é a última.
 
 Não usar `,` e `.`: na Exploração elas trocam a primária.
 
-Toque: o cartão inteiro é o alvo, acima de 44 px. Abaixo de 720 px os três cartões empilham na largura da tela, o cronômetro fica preso no topo da folha e o botão de nascer fica preso embaixo. Não há segundo carimbo. A bancada da home, sem relógio, continua um lugar por vez, com “Por na arma” grudado no fim do painel: lá a decisão é a peça, e cabe ler.
+Toque: a linha inteira é o alvo, acima de 44 px. Abaixo de 720 px as cinco classes deitam numa faixa de fotos, o Gunsmith fica embaixo com a foto e os quatro slots, o cronômetro fica preso no topo e o botão de nascer fica preso no fim. Não há segundo carimbo. A bancada da home, sem relógio, continua um lugar por vez, com “Por na arma” grudado no fim do painel: lá a decisão é a peça, e cabe ler.
 
-Pointer lock vivo: nenhum destes atalhos. A pausa é o caminho, e lá a ficha só enfileira.
+Pointer lock vivo: nenhum destes atalhos. A pausa é o caminho, e lá a classe só enfileira.
 
 ### Estados
 
@@ -426,16 +454,16 @@ Arma proibida não apaga a memória. Se o anfitrião devolver o grupo, o kit vol
 
 - Carimbar: a frase de uma linha, em região `aria-live="polite"`. Uma batida curta de madeira no WebAudio que o jogo já sintetiza, respeitando o mudo da home. Sem arquivo novo.
 - Os números que mudam trocam no ato. Com `prefers-reduced-motion`, sem deslize.
-- No nascimento, o aviso que já existe (“Nasceu de novo com o equipamento novo”) ganha o nome da ficha quando a troca foi na pausa. Na morte, o cartão dourado já mostrou. Não empilhar toast.
+- No nascimento, o aviso que já existe (“Nasceu de novo com o equipamento novo”) ganha o nome da classe quando a troca foi na pausa. Na morte, a linha dourada já mostrou. Não empilhar toast.
 - Erro de rede não tem peça: o servidor corrigiu em silêncio e o cliente, ao receber o `spawn`, alinha a UI ao kit aceito. Se o jogador carimbou uma luneta num fuzil por cliente adulterado, a UI volta para Massa de milho sem modal.
 
 ### Acessibilidade
 
-- Contraste da caixa: creme em madeira escura, dourado em marrom. Contraste da morte: tinta `#34402e` em `#f6e4bd`, carimbo com creme. Sem letra marrom em madeira clara.
+- Contraste da caixa e do painel de respawn: creme em madeira escura, dourado em marrom. O tempo do cronômetro é tinta escura em dourado. Sem letra marrom em madeira clara.
 - Foco sempre visível, 3 px, na cor que a caixa já usa.
-- Nome acessível em texto. A miniatura é `alt=""` / `aria-hidden`.
-- A comparação tem frase. A régua é decorativa (`aria-hidden`) para o leitor não ouvir três barras e depois a mesma oração.
-- Alvo de 44 px no toque. Na partida o alvo é o cartão, bem maior. O estado armado tem texto, além da cor. A barra do cronômetro é `aria-hidden`; o tempo está no botão e na frase.
+- Nome acessível em texto. A foto grande tem o nome da arma no `alt`. A miniatura da lista é `alt=""`, porque o nome está ao lado.
+- A comparação da bancada tem frase. A régua é decorativa (`aria-hidden`). No respawn, cada barra tem o nome e o número em texto. O leitor não depende da cor do preenchimento.
+- Alvo de 44 px no toque. Na partida o alvo é a linha da classe. O estado “ÚLTIMO” tem texto, além do dourado. A barra do cronômetro é `aria-hidden`; o tempo está no botão e na frase.
 - A viagem da caixa continua cancelável por Esc e por movimento reduzido. A bancada funciona nos dois.
 - Não depender de arrastar. Não há ordem de peça para o jogador ordenar.
 
@@ -448,7 +476,7 @@ Bancada, home. A captura 01. A linha dos chips é o acréscimo; o miolo da captu
 │ [← Arsenal]   [1 Pelada] [2 Arame · aberta] [3 Torresmo]      │
 │               EQUIPAMENTO DA CASA                              │
 │               Temperar o Fuzil Pururuca                        │
-│               Uma peça por lugar. Grava na ficha Arame.        │
+│               Uma peça por lugar. Grava na classe Arame.       │
 │ ┌ Rajada ──────────┐ ┌ Bancada ─────────────────────────────┐ │
 │ │ ■ Fuzil          │ │ [Mira·olhando] [Cano] [Pente] [Mão] │ │
 │ │   Commando       │ │ ( ) Massa de milho      Na arma      │ │
@@ -465,46 +493,24 @@ Bancada, home. A captura 01. A linha dos chips é o acréscimo; o miolo da captu
 └────────────────────────────────────────────────────────────────┘
 ```
 
-Morte. Captura `02-morte.png`. Folha no fundo. A metade de cima fica com quem matou.
+Morte. Captura `08-cod-lista.png`. O cronômetro é a primeira faixa. O painel começa abaixo de quem matou.
 
 ```
+════ Renasce em 3,2s ═══════════════════════════════════════════
         Você foi pururucado por Torresmo
-        a ficha dourada já está armada
-════════════════════════════════════════  barra · Renasce em 3,2s
-[1 Pelada]  [2 Arame · vai nascer]  [3 Torresmo]   [ Renascer em 3,2s ]
- Fuzil        Fuzil · mira 34          Sniper         Espaço, com a Arame
- mira 40      fecha no direito         1 no corpo
+[1 Pelada  foto]   Fuzil Pururuca          [mira]
+[2 Arame   foto]   (foto grande)           [mão] [cano]
+   ÚLTIMO          pistolinha · faca       [pente]
+[3 Torresmo foto]  dano alcance cadência mobilidade controle
+[4 Chiqueiro foto]
+[5 Granja   foto]                          [ Nascer em 3,2s ]
 ```
 
-Pausa. Captura `04-pausa.png`. Painel no centro, ação já parada.
+Pausa. O mesmo painel, no centro. A ação já está parada. Continuar não derruba.
 
-```
-Pausa na chapa
-Escolhe a ficha da próxima vida. Continuar não te derruba.
-[1 Pelada]  [2 Arame · na próxima vida]  [3 Torresmo]
-[ Continuar · Esc ]
-```
+Preparação da Bomba, e a pausa entre waves. O mesmo painel no fundo. O site fica no centro. A barra de cima diz o tempo da rodada. B fecha e devolve a mira.
 
-Preparação da Bomba, e a pausa entre waves. Captura `05-bomba.png`. O site fica no centro.
-
-```
-                         SITE A
-
-════ Rodada em 8s · a ficha entra agora ════
-[1 Pelada] [2 Arame · na mão agora] [3 Torresmo]
-1 2 3 troca na hora · B fecha e devolve a mira
-```
-
-Tela estreita. Captura `03-estreita.png`. Cartões empilhados, cronômetro preso em cima, nascer preso embaixo.
-
-```
-Você foi pururucado por Torresmo
-════ 3,2s ════
-[ 1 Pelada · Fuzil · mira 40 ]
-[ 2 Arame · vai nascer com esta ]
-[ 3 Torresmo · Sniper ]
-[ Renascer em 3,2s ]
-```
+Tela estreita. Captura `11-cod-estreita.png`. Faixa de cinco fotos, Gunsmith embaixo, nascer preso no fim.
 
 Arma sem lugar, só na bancada:
 
@@ -528,9 +534,9 @@ Nenhuma fase abaixo está feita. Porte é o tamanho da mudança, não um prazo.
 |---|---|---|
 | `shared/attachments.js` | 0 | Catálogo, `clampKit`, `resolveWeapon`, `compare`, frases |
 | `test-acessorios.mjs` | 0 | Contas do Fuzil, da Calibre 12, da sniper, tetos, kit sujo, arma sem lugar |
-| `index.html` | 1 e 3 | Bancada dentro de `#menu-arsenal`, com a linha das três fichas. Cartões em `#deathpick`, `#pause`, `#bLoad`, `#iLoad` e no lobby |
-| `style.css`, `hud-death.css` | 1 e 3 | Bandeja, estados, folha de madeira no fundo, cartão armado, 720 px, foco |
-| `main.js` | 1–4 | Abrir/fechar bancada, Esc em dois passos, `docao.fichas`, tiro/recarga/HUD/zoom/passo com a cópia resolvida, três cartões no lugar da grade |
+| `index.html` | 1 e 3 | Bancada dentro de `#menu-arsenal`, com a linha das cinco classes. Lista e Gunsmith em `#deathpick`, `#pause`, `#bLoad`, `#iLoad` e no lobby |
+| `style.css`, `hud-death.css` | 1 e 3 | Bandeja, estados, painel de madeira, linha armada, barras, 720 px, foco |
+| `main.js` | 1–4 | Abrir/fechar bancada, Esc em dois passos, `docao.classes`, tiro/recarga/HUD/zoom/passo com a cópia resolvida, lista no lugar da grade |
 | `server/src/game.js` | 2 | `nextKit` / `kit`, `pr`/`px`/`prof`, `spawn`, `canShoot`, `progressReload`, `hitscan` |
 | `server/src/index.js` | 2 | Mensagem `kit` no mesmo caminho do `prof` |
 | `shared/combat.js` | 2 | `sniperSpread` lê `hipMul` e `swayMul` com padrão 1, para o jogo de hoje não mudar |
@@ -538,19 +544,20 @@ Nenhuma fase abaixo está feita. Porte é o tamanho da mudança, não um prazo.
 | `main.js` (malha) e `docao.js` | 4 | Grupos opcionais de mira, cano, pente, cabo, com `noCamo` no vidro |
 | `weapon-camo.js` | 4 | Só se a lente nova não herdar `noCamo` sozinha. A pintura não ganha stat |
 | `server/migrations`, `account.js` | 5, opcional | Kit na conta, convidado intacto |
-| `README.md`, `PATCH_NOTES.md` | quando for versão | Controles e a frase de jogador. O README de 1–9 já está velho; na leva da ficha, 1, 2 e 3 passam a ser as fichas |
+| `README.md`, `PATCH_NOTES.md` | quando for versão | Controles e a frase de jogador. O README de 1–9 já está velho; na leva da classe, 1 a 5 passam a ser as classes |
+| `weapon-thumbs.js` | 3 | O mesmo `renderWeaponThumb`, também no tamanho do Gunsmith. Uma vez por arma |
 
-`weapon-thumbs.js` fica. A miniatura não muda no MVP. Um selo de uma letra na doca (“temperado”) basta para a home fechada mostrar que o fuzil não está pelado.
+Um selo de uma letra na doca (“temperado”) basta para a home fechada mostrar que o fuzil não está pelado. A lista do respawn usa a miniatura já pronta.
 
 ### Fases
 
-**Fase 0 — contrato.** Porte pequeno. Módulo compartilhado e teste node, sem UI. Critério: o Fuzil com Alça de arame resolve 34 / 0,09 / 0,012; Canhão com Vidro de conserva permanece em fov 8 e a frase diz que o zoom não desce mais; Calibre 12 com boca não ganha nem perde `knock`; kit com luneta no fuzil volta vazio; `WEAPONS[0].adsFov` continua 40 depois do resolve.
+**Fase 0 — contrato.** Porte pequeno. Módulo compartilhado e teste node, sem UI. Critério: o Fuzil com Alça de arame resolve 34 / 0,09 / 0,012; Canhão com Vidro de conserva permanece em fov 8 e a frase diz que o zoom não desce mais; Calibre 12 com boca não ganha nem perde `knock`; kit com luneta no fuzil volta vazio; `WEAPONS[0].adsFov` continua 40 depois do resolve. As cinco barras da classe Arame batem com a tabela da seção 4: dano 20, alcance firme 63 m com tracinho em 140, cadência 10/s, mobilidade acima do passo normal, recuo 0,017.
 
-**Fase 1 — bancada na home, offline.** Porte grande, concentrado em `main.js` e no CSS da caixa. O tiro local, a recarga, o HUD de munição, o zoom e o passo usam `resolveWeapon` da ficha aberta. A linha das três fichas grava em `docao.fichas`. Bots continuam de fábrica. Esc em dois níveis. Movimento reduzido. 720 px com um lugar por vez. Ainda não há servidor. Critério: carimbar na ficha 2, recarregar a página, ver a mesma peça nessa ficha e a ficha 1 intacta; comparar só mostra linha que mudou; faca mostra o estado vazio; leitor de tela ouve a frase ao mover a seta.
+**Fase 1 — bancada na home, offline.** Porte grande, concentrado em `main.js` e no CSS da caixa. O tiro local, a recarga, o HUD de munição, o zoom e o passo usam `resolveWeapon` da classe aberta. A linha das cinco classes grava em `docao.classes`. Bots continuam de fábrica. Esc em dois níveis. Movimento reduzido. 720 px com um lugar por vez. Ainda não há servidor. Critério: carimbar na classe 2, recarregar a página, ver a mesma peça nessa classe e a classe 1 intacta; comparar só mostra linha que mudou; faca mostra o estado vazio; leitor de tela ouve a frase ao mover a seta.
 
 **Fase 2 — servidor.** Porte médio, risco no protocolo. Worker primeiro. Cliente velho entra e joga de fábrica. Pente e queda conferidos com dois clientes de teste, no modelo de `test-online.mjs`. Corrida do join. Troca viva não cria bala. Pausa comum não mata. Critério: um cliente adulterado que manda `mag: 999` ou luneta no fuzil nasce com o clamp; o dano a 30 m com Cano de bica no MP5K bate com `falloffMul` da cópia, nos dois lados.
 
-**Fase 3 — morte, pausa, lobby, Bomba, Invasão.** Porte médio. Três cartões no lugar da grade de `#deathpick` e da lista de `#pause`, `#bLoad`, `#iLoad` e do lobby. 1, 2 e 3 armam a ficha. Espaço nasce com a dourada quando a barra zera. A pausa manda `pr`. Bomba e entre waves aplicam na hora com a regra do pente, faixa no fundo, B devolve a mira. Abaixo de 720 px os cartões empilham, o cronômetro fica preso em cima e o nascer embaixo. Critério em 1280×720 e em 390×844: a mensagem de quem matou e o cronômetro continuam visíveis, um toque troca a ficha, e nascer sem tocar usa a última. Suíte existente de respawn e de bomba continua verde.
+**Fase 3 — morte, pausa, lobby, Bomba, Invasão.** Porte médio. Lista e Gunsmith no lugar da grade de `#deathpick` e da lista de `#pause`, `#bLoad`, `#iLoad` e do lobby. 1–5 e W/S armam a classe. U volta à última. Espaço nasce com a dourada quando a barra zera. A pausa manda `pr`. Bomba e entre waves aplicam na hora com a regra do pente, painel abaixo do tempo da rodada, B devolve a mira. Abaixo de 720 px a lista vira faixa de fotos e o Gunsmith fica embaixo. Critério em 1280×720 e em 390×844: a mensagem de quem matou e o cronômetro continuam visíveis, um toque troca a classe, a foto é a miniatura real, e nascer sem tocar usa a última. Suíte existente de respawn e de bomba continua verde.
 
 **Fase 4 — malha.** Porte grande. Só primeira pessoa, e só três silhuetas reaproveitadas (alça, cano mais longo, pente mais alto), ligadas por visibilidade, sem geometria nova por quadro. Não reparentar `rMag` nem a telha da pump. Terceira pessoa fica para o fim desta fase e pode sair do corte se a malha de `docao.js` não tiver um grupo óbvio. Vidro com `noCamo`. Miniatura não é refeita. Critério: recarga do fuzil e da pump iguais às de hoje com a peça de fábrica; com a fita, o pente visível é mais alto e a animação ainda acha o mesh.
 
@@ -563,10 +570,10 @@ Nenhuma fase abaixo está feita. Porte é o tamanho da mudança, não um prazo.
 | A bancada mente um número que o servidor não aplica | Cone, recuo, zoom e passo são do cliente | A frase e este plano separam feeling de stat garantido. Dano de perto não entra no MVP |
 | Pente grátis no meio da vida | `equipNow` hoje enche arma nova | `min(atual, novo)` e o teste online |
 | Esc fecha a caixa inteira no meio da escolha | Hoje Esc na caixa volta à comanda | Primeiro Esc só sai da bancada, coberto por teste de teclado |
-| Folha da morte cobre quem matou ou o cronômetro | 14 primárias mais uma faixa de peças | A grade sai. Três cartões no fundo. Barra e botão dizem o tempo. Captura em 1280×720 e em 390 px |
-| Enter nasce em vez de armar a ficha | Espaço e Enter já são o RENASCER | Espaço e o botão nascem. 1, 2, 3 e o toque no cartão armam. O botão anuncia o nome da ficha |
-| O hábito do 1–9 na morte quebra | Hoje 1 é Fuzil e 9 é Canhão, e cinco armas ficam de fora | O nome da arma vai grande no cartão. A sniper mora na ficha 3, montada no Arsenal. O README velho se corrige nesta leva |
-| Ficha pede arma que a sala proibiu | O anfitrião marca grupos, não peças | `clampLoadout` devolve o fallback e o cartão mostra essa arma antes de nascer |
+| O painel cobre quem matou ou o cronômetro | A foto grande pede área | O cronômetro é uma barra no topo, fora do painel. O painel começa abaixo da mensagem. A saída C, com a arma no centro, fica de fora por isso. Captura em 1280×720 e em 390 px |
+| Enter nasce em vez de armar a classe | Espaço e Enter já são o RENASCER | Espaço e o botão nascem. 1–5, W/S e o toque na linha armam. U volta à última. O botão anuncia o nome da classe |
+| O hábito do 1–9 na morte quebra | Hoje 1 é Fuzil e 9 é Canhão, e cinco armas ficam de fora | A foto e o nome da arma vão na linha. A sniper mora na classe 3, montada no Arsenal. O README velho se corrige nesta leva |
+| Classe pede arma que a sala proibiu | O anfitrião marca grupos, não peças | `clampLoadout` devolve o fallback e a linha mostra a foto dessa arma antes de nascer |
 | Cliente novo, Worker velho | Campo extra ignorado | Jogo segue sem peça. Site só depois do Worker |
 | Cliente velho, Worker novo | Sem quinto campo | De fábrica. Sem queda de protocolo |
 | Recarga da pump quebra ao mostrar a peça | A telha é um grupo com posição animada | Fase 4 não mexe nesse grupo. Peça é irmão, não pai |
@@ -588,7 +595,7 @@ Nenhuma fase abaixo está feita. Porte é o tamanho da mudança, não um prazo.
 ## 6. O que ainda é decisão do João
 
 1. **MVP com tudo aberto**, memória só no navegador. Recomendado. A alternativa é a fase 5, ainda sem lacre.
-2. **Ficha na pausa não derruba.** Ela espera a próxima vida. O `px` fica no servidor para o cliente antigo. A pausa nova não tem o botão de se derrubar. Recomendado, para a ficha não virar fuga nem pente grátis.
+2. **Classe na pausa não derruba.** Ela espera a próxima vida. O `px` fica no servidor para o cliente antigo. A pausa nova não tem o botão de se derrubar. Recomendado, para a classe não virar fuga nem pente grátis.
 3. **Sem peça nas armas de regra própria** (lista da seção 3). Recomendado para a primeira leva caber na bancada sem mentir o stat.
 4. **Malha só depois do stat e do menu** (fase 4). A primeira versão da bancada usa a miniatura que já existe e os números. Recomendado: o jogador entende a troca pela frase, e a malha não segura o resto.
 5. **Cano de bica cria queda leve nas armas que hoje não têm**, exceto nas três de precisão. É o único lugar em que um stat novo aparece. Se isso parecer aumento de escopo, o cano dessas armas fica só em penetração, recuo e passo, e a frase não promete alcance.

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — classes no respawn · Docão Shooter</title>
+<style>
+  :root {
+    --cream: #fff0d1; --gold: #e8bc67; --gold-2: #e2bd7e;
+    --wood: #58371f; --wood-2: #3e281a; --tray: #6d5033;
+    --ink: #2d1b11; --muted: #dfc49a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #1a120c; color: var(--cream); font-family: "Trebuchet MS", "Segoe UI", sans-serif; }
+  header.page { max-width: 1280px; margin: 0 auto; padding: 28px 8px 8px; }
+  header.page h1 { margin: 0 0 6px; font-size: 22px; }
+  header.page p { margin: 0 0 18px; color: var(--muted); font-size: 14px; max-width: 82ch; }
+  .label-shot {
+    max-width: 1280px; margin: 18px auto 8px; padding: 0 4px;
+    font: 800 12px/1.3 "Trebuchet MS", sans-serif; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--gold-2);
+  }
+  .label-shot small { display: block; letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--muted); margin-top: 4px; }
+  .world { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 28%, #6a5340 0%, #2c241c 42%, #14110e 100%); }
+  .world::after {
+    content: ""; position: absolute; left: 50%; top: 22%; width: 92px; height: 70px;
+    transform: translate(-50%, -50%);
+    background:
+      radial-gradient(circle at 32% 42%, #1a120c 5px, transparent 6px),
+      radial-gradient(circle at 68% 42%, #1a120c 5px, transparent 6px),
+      #c47a7a;
+    border-radius: 46% 46% 42% 42%; box-shadow: 0 18px 0 -8px #8d4a4a;
+  }
+  .kill {
+    position: absolute; left: 0; right: 0; top: 40px; text-align: center; color: #fff;
+    text-shadow: 0 2px 0 #000; font: 800 22px/1.3 "Trebuchet MS", sans-serif; z-index: 2;
+  }
+  .kill small { display: block; margin-top: 4px; font-size: 13px; color: #ffe3a5; }
+  .timer {
+    position: absolute; left: 0; right: 0; top: 0; height: 32px; z-index: 5;
+    background: #2d1b11;
+  }
+  .timer i { position: absolute; left: 0; top: 0; bottom: 0; width: 64%; background: #e8bc67; }
+  .timer span {
+    position: relative; margin-left: 12px; display: inline-block; margin-top: 4px;
+    font: 800 14px "Trebuchet MS", sans-serif; color: #2d1b11; background: #e8bc67; padding: 2px 8px;
+  }
+  kbd { border: 1px solid #d6bc8d; background: #30281e80; padding: 1px 5px; font: 11px "Trebuchet MS", sans-serif; color: #fff0d1; }
+
+  .cls {
+    display: grid; grid-template-columns: 36px 92px 1fr; gap: 8px; align-items: center;
+    width: 100%; text-align: left; min-height: 84px; padding: 8px 10px;
+    background: #6d5033; color: #fff0d1; border: 1px solid #a07b4c; box-shadow: 0 2px #21170f;
+    font: 800 14px/1.2 "Trebuchet MS", sans-serif;
+  }
+  .cls .n { width: 28px; height: 28px; display: grid; place-items: center; background: #2d1b11; color: #e8bc67; }
+  .cls img { width: 92px; height: 56px; object-fit: contain; background: #2d1b11; }
+  .cls b { display: block; font-family: Georgia, serif; font-size: 18px; font-weight: 700; color: #ffe3a5; }
+  .cls em { font-style: normal; color: #e2bd7e; font-size: 12px; }
+  .cls.on { background: #856039; border: 2px solid #e8bc67; box-shadow: inset 5px 0 #e8bc67, 0 2px #21170f; }
+  .tag { display: inline-block; margin-top: 3px; background: #e8bc67; color: #2d1b11; font-size: 10px; letter-spacing: .08em; padding: 2px 6px; }
+
+  .gunsmith { display: flex; flex-direction: column; min-width: 0; gap: 8px; }
+  .gs-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .gs-head h2 { margin: 0; font-family: Georgia, serif; font-size: 28px; color: #ffe3a5; text-shadow: 2px 3px #2d1b11; }
+  .gs-head p { margin: 0; color: #dfc49a; font-size: 13px; font-weight: 700; }
+  .stage { position: relative; height: 232px; background: #3e281a; border: 1px solid #a07b4c; }
+  .stage .hero { position: absolute; left: 124px; right: 124px; top: 48px; bottom: 48px; width: calc(100% - 248px); height: 136px; object-fit: contain; }
+  .slot {
+    position: absolute; width: 108px; min-height: 44px; padding: 4px 6px; text-align: left;
+    background: #58371f; color: #fff0d1; border: 1px solid #e8bc67;
+    font: 800 11px/1.15 "Trebuchet MS", sans-serif;
+  }
+  .slot em { display: block; font-style: normal; letter-spacing: .12em; font-size: 9px; color: #e8bc67; }
+  .slot.mira { top: 6px; left: 50%; transform: translateX(-50%); }
+  .slot.cano { right: 6px; top: 50%; transform: translateY(-50%); }
+  .slot.pente { bottom: 6px; left: 50%; transform: translateX(-50%); }
+  .slot.mao { left: 6px; top: 50%; transform: translateY(-50%); }
+  .sides { display: flex; gap: 8px; }
+  .sides div { display: flex; gap: 8px; align-items: center; background: #3e281a; border: 1px solid #a07b4c; padding: 4px 8px; font-size: 12px; font-weight: 800; }
+  .sides img { width: 72px; height: 40px; object-fit: contain; background: #2d1b11; }
+  .bars { display: grid; gap: 4px; }
+  .bar { display: grid; grid-template-columns: 92px 1fr 118px; gap: 8px; align-items: center; font-size: 12px; font-weight: 800; color: #fff0d1; }
+  .track { position: relative; height: 12px; background: #2d1b11; }
+  .track i { position: absolute; left: 0; top: 0; bottom: 0; background: #e8bc67; }
+  .track s { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; }
+  .bar em { font-style: normal; text-align: right; color: #e2bd7e; font-size: 11px; }
+  .hint { margin: 0; color: #e2bd7e; font-size: 12px; font-weight: 700; }
+  .go {
+    min-height: 64px; background: #a52e26; color: #fff0cc; border: 0;
+    font: 900 18px/1.15 "Trebuchet MS", sans-serif; box-shadow: 0 4px #2a1410; padding: 8px;
+  }
+  .go small { display: block; margin-top: 4px; font: 700 12px "Trebuchet MS", sans-serif; color: #ffe3a5; }
+
+  #a-morte, #b-morte, #c-morte { width: 1280px; height: 720px; margin: 0 auto; position: relative; overflow: hidden; }
+  #a-morte .panel {
+    position: absolute; left: 16px; right: 16px; top: 196px; bottom: 12px;
+    display: grid; grid-template-columns: 400px 1fr; gap: 12px;
+    background: #58371f; border: 10px solid #3e281a; padding: 12px;
+    box-shadow: 0 18px 40px #000a;
+  }
+  #a-morte .list { display: flex; flex-direction: column; gap: 6px; }
+  #a-morte .foot { display: grid; grid-template-columns: 1fr 220px; gap: 8px; align-items: stretch; }
+
+  /* B — faixa horizontal, mais mundo livre */
+  #b-morte .band {
+    position: absolute; left: 16px; right: 16px; bottom: 12px;
+    background: #58371f; border: 10px solid #3e281a; padding: 10px 12px 8px;
+    box-shadow: 0 12px 30px #0008;
+  }
+  #b-morte .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  #b-morte .card {
+    min-height: 168px; text-align: left; padding: 8px; background: #6d5033; color: #fff0d1;
+    border: 1px solid #a07b4c; font: 800 13px/1.2 "Trebuchet MS", sans-serif;
+  }
+  #b-morte .card img { width: 100%; height: 78px; object-fit: contain; background: #2d1b11; }
+  #b-morte .card b { display: block; margin-top: 4px; font-family: Georgia, serif; font-size: 16px; color: #ffe3a5; }
+  #b-morte .card.on { border: 2px solid #e8bc67; background: #856039; box-shadow: inset 0 4px #e8bc67; }
+  #b-morte .detail { display: grid; grid-template-columns: 220px 1fr 200px; gap: 10px; align-items: center; margin-top: 8px; }
+  #b-morte .detail img.hero { width: 220px; height: 88px; object-fit: contain; background: #2d1b11; }
+  #b-morte .slots-row { display: flex; gap: 6px; }
+  #b-morte .slots-row span { flex: 1; background: #3e281a; border: 1px solid #e8bc67; padding: 6px; font-size: 11px; font-weight: 800; }
+  #b-morte .slots-row em { display: block; font-style: normal; color: #e8bc67; font-size: 9px; letter-spacing: .1em; }
+
+  /* C — arma enorme, come a câmera */
+  #c-morte .rail {
+    position: absolute; left: 16px; top: 196px; bottom: 12px; width: 230px;
+    background: #58371f; border: 8px solid #3e281a; padding: 8px;
+    display: flex; flex-direction: column; gap: 6px; z-index: 3;
+  }
+  #c-morte .rail button {
+    flex: 1; text-align: left; background: #6d5033; color: #fff0d1; border: 1px solid #a07b4c;
+    font: 800 14px/1.2 "Trebuchet MS", sans-serif; padding: 8px;
+  }
+  #c-morte .rail button.on { border: 2px solid #e8bc67; background: #856039; }
+  #c-morte .hero-wrap {
+    position: absolute; left: 250px; right: 24px; top: 78px; bottom: 150px; z-index: 3;
+    display: grid; place-items: center;
+  }
+  #c-morte .hero-wrap img { width: 92%; height: 92%; object-fit: contain; filter: drop-shadow(0 12px 0 #0008); }
+  #c-morte .stats {
+    position: absolute; left: 262px; right: 24px; bottom: 12px; z-index: 3;
+    background: #58371fcc; border: 8px solid #3e281a; padding: 8px 12px;
+  }
+
+  #estreita-wrap { width: 390px; margin: 0 auto 28px; }
+  #estreita { width: 390px; height: 844px; position: relative; overflow: hidden; background: #14110e; }
+  #estreita .kill { top: 44px; font-size: 16px; padding: 0 12px; }
+  #estreita .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; top: 168px;
+    background: #58371f; border-top: 8px solid #3e281a; padding: 8px 8px 10px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  #estreita .strip { display: flex; gap: 6px; overflow: hidden; }
+  #estreita .chip {
+    flex: 1; min-height: 78px; background: #6d5033; color: #fff0d1; border: 1px solid #a07b4c;
+    font: 800 11px/1.15 "Trebuchet MS", sans-serif; padding: 4px;
+  }
+  #estreita .chip img { width: 100%; height: 36px; object-fit: contain; background: #2d1b11; }
+  #estreita .chip.on { border: 2px solid #e8bc67; background: #856039; }
+  #estreita .stage { height: 210px; }
+  #estreita .stage .hero { left: 96px; right: 96px; top: 48px; bottom: 48px; width: calc(100% - 192px); height: 114px; }
+  #estreita .slot { width: 76px; }
+  #estreita .bar { grid-template-columns: 78px 1fr 92px; }
+  #estreita .go { width: 100%; }
+</style>
+</head>
+<body>
+<header class="page">
+  <h1>Mockups in-game — classe à esquerda, Gunsmith à direita</h1>
+  <p>As fotos são o modelo de primeira pessoa do jogo, renderizado sem as mãos. A classe 2 já é a última: nascer sem tocar usa ela. O cronômetro fica pregado no topo, fora do painel.</p>
+</header>
+
+<p class="label-shot">Recomendada · A · lista e Gunsmith <small>Cinco classes, foto grande da primária, barras do stat que o jogo já tem, peças em volta da arma. Quem matou fica acima do painel.</small></p>
+<section id="a-morte" aria-label="Morte com lista e gunsmith">
+  <div class="world"></div>
+  <div class="timer"><i></i><span>Renasce em 3,2s</span></div>
+  <div class="kill">Você foi pururucado por Torresmo<small>a classe dourada é a última · U volta nela</small></div>
+  <div class="panel">
+    <div class="list">
+      <button class="cls" type="button"><span class="n">1</span><img src="armas/rifle.png" alt=""><span><b>Pelada</b><em>Fuzil Pururuca · de fábrica</em></span></button>
+      <button class="cls on" type="button"><span class="n">2</span><img src="armas/rifle.png" alt=""><span><b>Arame</b><em>Fuzil Pururuca</em><span class="tag">ÚLTIMO</span></span></button>
+      <button class="cls" type="button"><span class="n">3</span><img src="armas/sniper.png" alt=""><span><b>Torresmo</b><em>Sniper Torresmo · luneta curta</em></span></button>
+      <button class="cls" type="button"><span class="n">4</span><img src="armas/shotgun.png" alt=""><span><b>Chiqueiro</b><em>Calibre 12 · de fábrica</em></span></button>
+      <button class="cls" type="button"><span class="n">5</span><img src="armas/commando.png" alt=""><span><b>Granja</b><em>Commando · recuo quase zero</em></span></button>
+    </div>
+    <div class="gunsmith">
+      <div class="gs-head">
+        <h2>Fuzil Pururuca</h2>
+        <p>Classe Arame · Pistolinha · Faca</p>
+      </div>
+      <div class="stage">
+        <img class="hero" src="armas/rifle.png" alt="Fuzil Pururuca, modelo do jogo">
+        <button class="slot mira" type="button"><em>MIRA</em>Alça de arame</button>
+        <button class="slot cano" type="button"><em>CANO</em>Cano de bica</button>
+        <button class="slot pente" type="button"><em>PENTE</em>Pente de lata</button>
+        <button class="slot mao" type="button"><em>MÃO</em>Sabugo</button>
+      </div>
+      <div class="sides">
+        <div><img src="armas/pistol.png" alt=""><span>Pistolinha<br>de fábrica</span></div>
+        <div><img src="armas/knife.png" alt=""><span>Faca<br>sem peça</span></div>
+      </div>
+      <div class="bars" aria-label="Stats do fuzil com a classe Arame">
+        <div class="bar"><span>Dano</span><div class="track"><i style="width:20%"></i></div><em>20</em></div>
+        <div class="bar"><span>Alcance</span><div class="track"><i style="width:24%"></i><s style="left:54%"></s></div><em>cai aos 63 m</em></div>
+        <div class="bar"><span>Cadência</span><div class="track"><i style="width:83%"></i></div><em>10/s</em></div>
+        <div class="bar"><span>Mobilidade</span><div class="track"><i style="width:83%"></i><s style="left:67%"></s></div><em>anda mais</em></div>
+        <div class="bar"><span>Controle</span><div class="track"><i style="width:83%"></i></div><em>recuo 0,017</em></div>
+      </div>
+      <div class="foot">
+        <p class="hint"><kbd>W</kbd><kbd>S</kbd> <kbd>↑</kbd><kbd>↓</kbd> <kbd>1</kbd>–<kbd>5</kbd> arma na hora · <kbd>Enter</kbd> confirma · <kbd>U</kbd> usar último · <kbd>Espaço</kbd> nasce com a dourada. O tracinho branco é a arma de fábrica.</p>
+        <button class="go" type="button">Nascer em 3,2s<small>Espaço · classe Arame, a última</small></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<p class="label-shot">B · faixa de fotos <small>As cinco armas aparecem juntas. O Gunsmith vira uma linha. Sobra mais tela para quem matou, e o slot fica menor.</small></p>
+<section id="b-morte" aria-label="Morte com faixa de classes">
+  <div class="world"></div>
+  <div class="timer"><i></i><span>Renasce em 3,2s</span></div>
+  <div class="kill">Você foi pururucado por Torresmo<small>cinco fotos de uma vez · a dourada é a última</small></div>
+  <div class="band">
+    <div class="cards">
+      <button class="card" type="button"><img src="armas/rifle.png" alt=""><b>1 · Pelada</b>Fuzil de fábrica</button>
+      <button class="card on" type="button"><img src="armas/rifle.png" alt=""><b>2 · Arame</b><span class="tag">ÚLTIMO</span></button>
+      <button class="card" type="button"><img src="armas/sniper.png" alt=""><b>3 · Torresmo</b>Sniper</button>
+      <button class="card" type="button"><img src="armas/shotgun.png" alt=""><b>4 · Chiqueiro</b>Calibre 12</button>
+      <button class="card" type="button"><img src="armas/commando.png" alt=""><b>5 · Granja</b>Commando</button>
+    </div>
+    <div class="detail">
+      <img class="hero" src="armas/rifle.png" alt="Fuzil Pururuca">
+      <div class="slots-row">
+        <span><em>MIRA</em>Alça de arame</span>
+        <span><em>CANO</em>Cano de bica</span>
+        <span><em>PENTE</em>Lata</span>
+        <span><em>MÃO</em>Sabugo</span>
+      </div>
+      <button class="go" type="button">Nascer em 3,2s<small>Espaço · Arame</small></button>
+    </div>
+    <p class="hint"><kbd>A</kbd><kbd>D</kbd> <kbd>←</kbd><kbd>→</kbd> <kbd>1</kbd>–<kbd>5</kbd> · as barras grandes ficam de fora desta faixa</p>
+  </div>
+</section>
+
+<p class="label-shot">C · arma em destaque <small>A foto ocupa o centro e cobre quem matou. O cronômetro continua no topo. A lista vira nome, sem foto.</small></p>
+<section id="c-morte" aria-label="Morte com arma em destaque">
+  <div class="world"></div>
+  <div class="timer"><i></i><span>Renasce em 3,2s</span></div>
+  <div class="kill" style="opacity:.4">Você foi pururucado por Torresmo</div>
+  <div class="hero-wrap"><img src="armas/rifle.png" alt="Fuzil Pururuca em destaque"></div>
+  <div class="rail">
+    <button type="button">1 · Pelada</button>
+    <button class="on" type="button">2 · Arame<br><span class="tag">ÚLTIMO</span></button>
+    <button type="button">3 · Torresmo</button>
+    <button type="button">4 · Chiqueiro</button>
+    <button type="button">5 · Granja</button>
+  </div>
+  <div class="stats">
+    <div class="bars">
+      <div class="bar"><span>Dano</span><div class="track"><i style="width:20%"></i></div><em>20</em></div>
+      <div class="bar"><span>Alcance</span><div class="track"><i style="width:24%"></i><s style="left:54%"></s></div><em>cai aos 63 m</em></div>
+      <div class="bar"><span>Cadência</span><div class="track"><i style="width:83%"></i></div><em>10/s</em></div>
+      <div class="bar"><span>Mobilidade</span><div class="track"><i style="width:83%"></i><s style="left:67%"></s></div><em>anda mais</em></div>
+      <div class="bar"><span>Controle</span><div class="track"><i style="width:83%"></i></div><em>recuo 0,017</em></div>
+    </div>
+  </div>
+</section>
+
+<p class="label-shot" style="max-width:390px">Recomendada · tela estreita <small>A lista deita numa faixa de fotos. A arma e os quatro slots continuam, e o nascer fica preso embaixo.</small></p>
+<div id="estreita-wrap">
+<section id="estreita" aria-label="Morte estreita com gunsmith">
+  <div class="world"></div>
+  <div class="timer"><i></i><span>3,2s</span></div>
+  <div class="kill">Você foi pururucado por Torresmo</div>
+  <div class="sheet">
+    <div class="strip">
+      <button class="chip" type="button"><img src="armas/rifle.png" alt=""><b>1 Pelada</b></button>
+      <button class="chip on" type="button"><img src="armas/rifle.png" alt=""><b>2 Arame</b></button>
+      <button class="chip" type="button"><img src="armas/sniper.png" alt=""><b>3 Torresmo</b></button>
+      <button class="chip" type="button"><img src="armas/shotgun.png" alt=""><b>4 Chiqueiro</b></button>
+      <button class="chip" type="button"><img src="armas/commando.png" alt=""><b>5 Granja</b></button>
+    </div>
+    <div class="gs-head"><h2 style="font-size:22px">Fuzil Pururuca</h2><p>último</p></div>
+    <div class="stage">
+      <img class="hero" src="armas/rifle.png" alt="Fuzil Pururuca">
+      <button class="slot mira" type="button"><em>MIRA</em>Arame</button>
+      <button class="slot cano" type="button"><em>CANO</em>Bica</button>
+      <button class="slot pente" type="button"><em>PENTE</em>Lata</button>
+      <button class="slot mao" type="button"><em>MÃO</em>Sabugo</button>
+    </div>
+    <div class="bars">
+      <div class="bar"><span>Dano</span><div class="track"><i style="width:20%"></i></div><em>20</em></div>
+      <div class="bar"><span>Alcance</span><div class="track"><i style="width:24%"></i><s style="left:54%"></s></div><em>63 m</em></div>
+      <div class="bar"><span>Cadência</span><div class="track"><i style="width:83%"></i></div><em>10/s</em></div>
+      <div class="bar"><span>Mobilidade</span><div class="track"><i style="width:83%"></i><s style="left:67%"></s></div><em>mais</em></div>
+      <div class="bar"><span>Controle</span><div class="track"><i style="width:83%"></i></div><em>0,017</em></div>
+    </div>
+    <button class="go" type="button">Usar último · 3,2s<small>Espaço nasce com a Arame</small></button>
+  </div>
+</section>
+</div>
+</body>
+</html>
