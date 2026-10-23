@@ -54,6 +54,8 @@ import { getAccount, onAccount, loadMe, saveSkin as saveAcctSkin, dropSession } 
 import { initAccountUI } from './account-ui.js';
 import { bindGrenadeVoice, playGrenadeVoice, grenadeVoiceEnabled, setGrenadeVoiceEnabled } from './grenade-voice.js';
 import { POWER_UPS, normHand, clampLoadout, botPool, powerOn, savedToLimits, limitsToSaved } from './shared/loadout.js';
+import { CLASS_COUNT, clampClassIndex, clampKit, classLoad, compare, familyOf, normalizeClasses, pieceBlurb, pieceInfo, piecesOf, resolveWeapon, slotsOf, statBars } from './shared/attachments.js';
+import { fillBench, fillChips, fillSheet } from './classes-ui.js';
 
 const V3 = THREE.Vector3;
 const $ = (id) => document.getElementById(id);
@@ -315,13 +317,25 @@ function pickSpawn(e) {
   }
   return best;
 }
+function gunOf(e, idx) {
+  const base = WEAPONS[idx] || WEAPONS[0];
+  if (!e || !e.isPlayer) return base;
+  return resolveWeapon(idx, e.kit && e.kit[base.key]) || base;
+}
 function respawn(e) {
   e.pos.copy(pickSpawn(e)); e.vel.set(0, 0, 0); e.crouch = 0; e.hp = 100; e.alive = true; e.invulnUntil = gameTime + INVULN; resetRegen(e);
   if (e.isPlayer) keys.Space = false;
   if (!e.isPlayer && (Math.random() < 0.3 || !weaponAllowed(e.nextPrimary))) e.nextPrimary = pickBotPrimary(); // bots às vezes trocam de primária, e nunca ficam com arma banida na sala
   e.primary = e.nextPrimary; e.secondary = e.nextSecondary ?? PISTOL; e.melee = e.nextMelee ?? KNIFE;
   e.slots = [e.primary, e.secondary, e.melee]; e.knifeMode = false; e.prevWeapon = e.primary;
-  e.mag = WEAPONS.map((w) => w.mag); e.reserve = WEAPONS.map((w) => w.reserve); e.reloadEnd = 0; e.switchEnd = 0; e.actionEnd = 0; e.burstLeft = 0; e.nades = NADE.spawnWith; e.smokeNades = clientPower('smoke') ? 1 : 0; e.stunNades = clientPower('stun') ? SHOCK.spawnWith : 0; e.lastShockT = -99; e.stunUntil = 0; e.charging = false;
+  if (e.isPlayer) {
+    const pack = kitsNow();
+    e.primary = pack.load.primary; e.secondary = pack.load.secondary; e.melee = pack.load.melee;
+    e.slots = [e.primary, e.secondary, e.melee]; e.kit = pack.kits; spawnedClass = classIndex;
+  }
+  e.mag = WEAPONS.map((w) => w.mag); e.reserve = WEAPONS.map((w) => w.reserve);
+  if (e.isPlayer) for (const i of e.slots) e.mag[i] = gunOf(e, i).mag;
+  e.reloadEnd = 0; e.switchEnd = 0; e.actionEnd = 0; e.burstLeft = 0; e.nades = NADE.spawnWith; e.smokeNades = clientPower('smoke') ? 1 : 0; e.stunNades = clientPower('stun') ? SHOCK.spawnWith : 0; e.lastShockT = -99; e.stunUntil = 0; e.charging = false;
   e.mgSpin = 0; e.mgHeat = 0; e.mgHot = false; e.mgWant = false; e.mgFiring = false; // minigun: renasce fria e parada
   const hand = !e.isPlayer ? e.primary : spawnHold === 'melee' ? e.melee : spawnHold === 'secondary' ? e.secondary : e.primary;
   setWeapon(e, e.slots.includes(hand) ? hand : e.primary);
@@ -1192,7 +1206,7 @@ function rocketSmoke(r, R) {
 // ---------------- Combate ----------------
 // bala: traceShot (shared/penetration.js) nas caixas de PHYS, a mesma regra do servidor: atravessa parede leve e corpos (collateral)
 function fire(shooter, origin, dir, wIdx, spread, muzzle, mul = 1) {
-  const w = WEAPONS[wIdx]; const res = { hit: false, kill: false, kills: 0, wall: false };
+  const w = shooter && shooter.isPlayer ? gunOf(shooter, wIdx) : WEAPONS[wIdx]; const res = { hit: false, kill: false, kills: 0, wall: false };
   if (shooter && shooter.model) setExpression(shooter.model, 'angry', 0.5); // cara de brava ao atirar
   const scale = wIdx === BOW ? clamp(Number(mul) || 1, 0.35, 1.3) : 1;
   const hitsBy = new Map(), dirs = [], heliDmg = new Map(), skies = shooter === player ? [] : skyHelis();
@@ -1233,6 +1247,8 @@ function kill(t, a, wIdx, head, back = false, noReward = false, label = null, fx
   if (state === 'over') return; // resultado fechado
   if (t.zt) { killZombieLocal(t, a, wIdx, head, back); return; } // Invasão: zumbi
   t.alive = false; t.hp = 0; t.deaths++; t.deathAt = gameTime; t.respawnAt = gameTime + (t.dummy ? TRAIN.respawn : exploreMode() && t.isPlayer ? 1 : RESPAWN_TIME); t.killW = wIdx; t.killBack = !!back;
+  if (a) t.lastAttacker = a;
+  if (t.isPlayer) t.killerName = a && a !== t && a.name ? a.name : (label || '');
   if (a && a !== t) a.kills++;
   addKillFeed(a, t, wIdx, head, back, label, fx);
   sfx.die(t.isPlayer ? 1 : distVol(t.pos));
@@ -1244,7 +1260,7 @@ function kill(t, a, wIdx, head, back = false, noReward = false, label = null, fx
 
 function startReload(e) {
   if (emote.on && e.isPlayer) return;
-  const w = WEAPONS[e.weapon];
+  const w = e.isPlayer ? gunOf(e, e.weapon) : WEAPONS[e.weapon];
   if (e.reloadEnd > gameTime || e.mag[e.weapon] >= w.mag || e.reserve[e.weapon] <= 0) return;
   e.reloadStartT = gameTime;
   if (online && e.isPlayer) netEv(['rl', e.weapon]);
@@ -1253,7 +1269,7 @@ function startReload(e) {
 }
 function finishReload(e) {
   if (!e.reloadEnd || gameTime < e.reloadEnd) return;
-  const w = WEAPONS[e.weapon];
+  const w = e.isPlayer ? gunOf(e, e.weapon) : WEAPONS[e.weapon];
   if (w.shellReload) {
     if (e.reserve[e.weapon] > 0 && e.mag[e.weapon] < w.mag) { e.mag[e.weapon]++; e.reserve[e.weapon]--; if (e.isPlayer) { sfx.shell(); fp.shellT = 0.18; } }
     if (e.mag[e.weapon] < w.mag && e.reserve[e.weapon] > 0) e.reloadEnd += w.reload;
@@ -2274,7 +2290,7 @@ function boardHtml() {
     `<tr class="${e.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td style="text-align:left"><span class="dot" style="background:${teamMode() && e.team >= 0 ? TEAM_COLORS[e.team] : e.shirt}"></span>${escapeHtml(e.name)}${teamMode() ? ` <small style="color:${TEAM_COLORS[e.team] || '#fff'}">${e.caps || 0} ${mode === 'bomb' ? 'obj.' : (e.caps || 0) === 1 ? 'zona' : 'zonas'}</small>` : ''}</td><td>${e.kills}</td><td>${e.deaths}</td><td>${(e.kills / Math.max(1, e.deaths)).toFixed(2)}</td>${pg(e)}</tr>`).join('')}</table>`;
 }
 function updateHud(dt) {
-  const p = player, w = WEAPONS[p.weapon];
+  const p = player, w = gunOf(p, p.weapon);
   $('hpfill').style.width = Math.max(0, p.hp) + '%'; $('hptext').textContent = Math.max(0, Math.ceil(p.hp));
   $('hpfill').style.background = p.hp > 35 ? '' : 'linear-gradient(#ff7b7b,#e63946)';
   hpBar.classList.toggle('regen', !!(p.alive && p.regenOn)); // brilho verde + "+" pulsando enquanto regenera
@@ -2304,8 +2320,15 @@ function updateHud(dt) {
   updateHitDirs();
   $('vignette').style.opacity = Math.max(hurtLevel, p.alive && p.hp < 35 ? 0.35 + Math.sin(gameTime * 6) * 0.1 : 0);
   const cm = $('centermsg');
-  if (!p.alive) cm.textContent = `${p.killW === W_BOMB ? 'Você explodiu com o botijão 💥' : `Você foi ${p.killW === KNIFE ? 'moggado' : 'pururucado'} por ${p.lastAttacker && p.lastAttacker !== p ? p.lastAttacker.name : '???'}${p.killW === KNIFE && p.killBack ? ' (pelas costas!)' : ''}`} · ${respawnReady(p) ? (rsSent ? 'renascendo...' : 'clique em RENASCER (ou Espaço)') : Number.isFinite(p.respawnAt) ? `renasce em ${Math.max(0, p.respawnAt - gameTime).toFixed(1)}s` : 'aguarde...'}`;
-  else if (msgTimer > 0) { msgTimer -= dt; if (cm.textContent.startsWith('Você foi ')) cm.textContent = ''; } // mensagem (ex.: "Mapa: …") tem prioridade; tira o "Você foi pururucado" que sobrou de antes de nascer
+  const veil = document.body.classList.contains('dead') || bombPick || invPick || pauseClassOpen();
+  document.body.classList.toggle('cls-on', veil);
+  if (!p.alive) {
+    const line = deathLine(p);
+    const who = $('deathWho'); if (who && who.textContent !== line) who.textContent = line;
+    if (document.body.classList.contains('dead')) { if (cm.textContent) cm.textContent = ''; }
+    else if (cm.textContent !== line) cm.textContent = line;
+  }
+  else if (msgTimer > 0) { msgTimer -= dt; if (cm.textContent.startsWith('Você foi ') || cm.textContent.startsWith('Você se ') || cm.textContent.startsWith('Você explodiu')) cm.textContent = ''; } // mensagem (ex.: "Mapa: …") tem prioridade; tira o aviso de morte que sobrou de antes de nascer
   else if (gameTime < p.invulnUntil) cm.textContent = 'PROTEGIDO';
   else cm.textContent = '';
   if (!$('tabboard').classList.contains('hidden')) $('tabboard').innerHTML = boardHtml();
@@ -2975,7 +2998,7 @@ const adsVig = document.getElementById('adsvig'), crossEl = document.getElementB
 function updateAds(dt, want) {
   ads = clamp(ads + (want ? 1 : -1) * dt / ADS_TIME, 0, 1);
   const e = ads * ads * (3 - 2 * ads); // suavizado
-  const target = WEAPONS[player ? player.weapon : 0].adsFov;
+  const target = gunOf(player, player ? player.weapon : 0).adsFov;
   const fov = BASE_FOV + (target - BASE_FOV) * e;
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   const sc = scoped(); const scopeEl = $('scope');
@@ -3105,7 +3128,7 @@ function updatePlayer(dt) {
   if (!guiding && (keys.KeyW || keys.ArrowUp)) wish.add(fwd); if (!guiding && (keys.KeyS || keys.ArrowDown)) wish.sub(fwd);
   if (!guiding && (keys.KeyD || keys.ArrowRight)) wish.add(right); if (!guiding && (keys.KeyA || keys.ArrowLeft)) wish.sub(right);
   p.useHold = !!(keys[BOMB.KEY] && p.alive && !emote.on); if (bombLock(p)) wish.set(0, 0, 0); // Bomba: parado na preparação e enquanto planta/desarma
-  if (wish.lengthSq()) wish.normalize().multiplyScalar(SPEED * (WEAPONS[p.weapon].move || (p.weapon === KNIFE ? MELEE.speedMul : 1)) * (p.stunUntil > gameTime ? SHOCK.slow : 1) * (p.ghostOn ? 1.3 : 1) * (1 - (1 - ADS_SPEED) * ads) * (1 - (1 - CROUCH.speed) * p.crouch)); // faca corre; agachado anda mais devagar
+  if (wish.lengthSq()) wish.normalize().multiplyScalar(SPEED * (gunOf(p, p.weapon).move || (p.weapon === KNIFE ? MELEE.speedMul : 1)) * (p.stunUntil > gameTime ? SHOCK.slow : 1) * (p.ghostOn ? 1.3 : 1) * (1 - (1 - ADS_SPEED) * ads) * (1 - (1 - CROUCH.speed) * p.crouch)); // faca corre; agachado anda mais devagar
   const acc = p.onGround ? 14 : 4;
   p.vel.x += (wish.x - p.vel.x) * Math.min(1, acc * dt); p.vel.z += (wish.z - p.vel.z) * Math.min(1, acc * dt);
   if (!guiding && jumpPressed && p.onGround && !bombLock(p)) { p.vel.y = JUMP; p.onGround = false; sfx.jump(); }
@@ -3132,7 +3155,7 @@ function updatePlayer(dt) {
   }
   // tiro
   finishReload(p);
-  const w = WEAPONS[p.weapon];
+  const w = gunOf(p, p.weapon);
   if (p.charging) updateArc();
   // Calibre 12: atirar interrompe a recarga cartucho a cartucho
   const canFire = p.reloadEnd <= gameTime || (w.shellReload && p.mag[p.weapon] > 0);
@@ -3168,7 +3191,7 @@ function updatePlayer(dt) {
       const dir = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
       const moving = Math.hypot(p.vel.x, p.vel.z) > 1 || !p.onGround;
       let spread;
-      if (w.scope) spread = sniperSpread(scoped(), Math.hypot(p.vel.x, p.vel.z), !p.onGround, w.scopeStyle === 'torresmo'); // luneta + parado = zero; Torresmo sem luneta abre bem mais
+      if (w.scope) spread = sniperSpread(scoped(), Math.hypot(p.vel.x, p.vel.z), !p.onGround, w.scopeStyle === 'torresmo', w.hipMul || 1, w.swayMul || 1); // luneta + parado = zero; Torresmo sem luneta abre bem mais
       else { const mv = w.moveSpread ?? 2.2; spread = w.spread * (moving ? mv - ads * (mv - 1) * 0.67 : 1) * (1 - (1 - w.adsSpread) * ads); } // moveSpread: quanto o cone abre andando (Calibre 12 abre pouco)
       const muzzle = scoped() ? camera.localToWorld(new V3(0, -0.12, -0.6)) : p.weapon === CROSS ? camera.localToWorld(new V3(0.25 * (1 - ads), -0.19 + ads * 0.15, -1.0)) : camera.localToWorld(new V3(0.2 * (1 - ads), -0.18 + ads * 0.06, -0.9));
       if (w.rocket) {
@@ -3468,6 +3491,7 @@ function openMenuView(view, trigger) {
 menuViewButtons.forEach((button) => button.onclick = () => openMenuView(button.dataset.menuView, button));
 $('menuBack').onclick = () => openMenuView('match');
 $('menu').addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && benchIsOpen()) { event.preventDefault(); event.stopPropagation(); closeBench(); return; }
   if (event.key === 'Escape' && (crateJourney.phase !== 'closed' || ($('menu').dataset.view && $('menu').dataset.view !== 'match'))) {
     event.preventDefault(); openMenuView('match');
   }
@@ -3706,10 +3730,40 @@ function renderWardrobePreview() {
   menuActorRoot.add(showcase); showcase.position.copy(wardrobePreviewPosition); showcase.quaternion.copy(wardrobePreviewRotation);
 }
 let selectedSkin = getSkin(localStorage.getItem('docao.skin') || DEFAULT_SKIN).id, preview = null;
-// loadout: arma primária escolhida (salva no navegador)
-let selectedPrimary = (() => { const v = parseInt(localStorage.getItem('docao.primary')); return PRIMARIES.includes(v) ? v : 0; })();
-let selectedSecondary = (() => { const v = parseInt(localStorage.getItem('docao.secondary')); return SECONDARIES.includes(v) ? v : PISTOL; })();
-let selectedMelee = (() => { const v = parseInt(localStorage.getItem('docao.melee')); return MELEES.includes(v) ? v : KNIFE; })();
+// Cinco classes no navegador. A última usada é a que nasce. docao.primary continua espelhando a classe armada.
+let classes = [], classIndex = 0, spawnedClass = 0, benchOn = false, benchWeapon = 0, benchSlot = 'optic', benchLook = '', arsenalFocus = -1;
+const DEATH_HINT = 'W S e setas andam na lista · 1–5 escolhe · U volta pra última · Espaço nasce. O tracinho branco é a arma de fábrica.';
+const LIVE_HINT = '1–5 entra agora · W/S ou setas · U última. O pente não enche sozinho. O tracinho branco é a arma de fábrica.';
+let selectedPrimary = 0, selectedSecondary = PISTOL, selectedMelee = KNIFE;
+function bootClasses() {
+  let raw = null, legacy = {};
+  try {
+    raw = JSON.parse(localStorage.getItem('docao.classes') || 'null');
+    legacy = { primary: parseInt(localStorage.getItem('docao.primary')), secondary: parseInt(localStorage.getItem('docao.secondary')), melee: parseInt(localStorage.getItem('docao.melee')), hand: localStorage.getItem('docao.hand') };
+    classIndex = clampClassIndex(parseInt(localStorage.getItem('docao.classe')));
+  } catch (e) { raw = null; classIndex = 0; }
+  classes = normalizeClasses(raw, legacy);
+  const c = classes[classIndex];
+  selectedPrimary = c.primary; selectedSecondary = c.secondary; selectedMelee = c.melee; spawnHold = normHand(c.hand); spawnedClass = classIndex;
+  saveClasses();
+}
+function saveClasses() {
+  try { localStorage.setItem('docao.classes', JSON.stringify(classes)); localStorage.setItem('docao.classe', String(classIndex)); } catch (e) { /* sem storage */ }
+}
+function kitsNow() {
+  const pack = classLoad(classes[classIndex], activeWeapons());
+  return { load: pack, kits: pack.kits };
+}
+function mirrorLegacy() {
+  const c = classes[classIndex]; if (!c) return;
+  try {
+    localStorage.setItem('docao.primary', String(c.primary));
+    localStorage.setItem('docao.secondary', String(c.secondary));
+    localStorage.setItem('docao.melee', String(c.melee));
+    localStorage.setItem('docao.hand', normHand(c.hand));
+  } catch (e) { /* sem storage */ }
+}
+bootClasses();
 let saberColor = (() => { try { const v = localStorage.getItem('docao.saber'); if (SABER_COLORS.some((c) => c.hex === v)) return v; } catch (e) { /* sem storage */ } return SABER_COLORS[0].hex; })();
 function paintSabers() {
   colorSabers(fp.guns, saberColor);
@@ -3752,12 +3806,25 @@ function trainSwap(code) {
   equipLiveLoadout(w);
 }
 // aplica o loadout escolhido no jogador vivo: slots novos, pente cheio só nas armas que entraram, saca a que trocou
+function equipClassNow(p, hold) {
+  if (!p) return;
+  const old = p.slots.slice();
+  const pack = kitsNow();
+  p.kit = pack.kits;
+  p.primary = p.nextPrimary = pack.load.primary; p.secondary = p.nextSecondary = pack.load.secondary; p.melee = p.nextMelee = pack.load.melee;
+  p.slots = [p.primary, p.secondary, p.melee];
+  for (const i of p.slots) {
+    const cap = gunOf(p, i).mag;
+    if (!old.includes(i)) { p.mag[i] = cap; p.reserve[i] = WEAPONS[i].reserve; }
+    else p.mag[i] = Math.min(p.mag[i] | 0, cap);
+  }
+  const w = hold != null && p.slots.includes(hold) ? hold : old[0] !== p.primary ? p.primary : old[1] !== p.secondary ? p.secondary : old[2] !== p.melee ? p.melee : p.weapon;
+  p.reloadEnd = 0; p.knifeMode = false;
+  if (p.slots.includes(w)) { switchWeapon(p, w); if (p.weapon !== w) setWeapon(p, w); }
+}
 function equipLiveLoadout(w) {
-  const p = player; if (!p) return;
-  const old = p.slots; p.primary = selectedPrimary; p.secondary = selectedSecondary; p.melee = selectedMelee; p.slots = [p.primary, p.secondary, p.melee];
-  for (const i of p.slots) if (!old.includes(i)) { p.mag[i] = WEAPONS[i].mag; p.reserve[i] = WEAPONS[i].reserve; }
-  p.reloadEnd = 0; p.knifeMode = false; switchWeapon(p, w); if (p.weapon !== w) setWeapon(p, w);
-  flashMsg(`${WEAPONS[w].name} · ${WEAPONS[w].desc}`);
+  equipClassNow(player, w);
+  if (player && WEAPONS[w]) flashMsg(`${WEAPONS[w].name} · ${WEAPONS[w].desc}`);
 }
 // munição de reserva infinita e Copo Bomba/fumaça voltam sozinhos; pau de choque em 10 s (offline e online; online o servidor confere)
 function trainRefill() {
@@ -3788,41 +3855,72 @@ function updateDmgPops(dt) {
   }
 }
 function sendLoadout() {
-  if (bombPick) { bombEquipNow(); renderBLoad(); } // Bomba: na preparação a troca vale na hora (offline e online)
+  const live = !!(player && player.alive && (bombPick || invPick || (typeof training === 'function' && training())));
+  if (live) equipClassNow(player);
+  if (bombPick) renderBLoad();
   if (!online || !online.net) return;
-  const c = clampLoadout(selectedPrimary, selectedSecondary, selectedMelee, activeWeapons());
-  const inLobby = online.lobby && online.lobby.state !== 'playing';
-  if (inLobby) online.net.send({ t: 'prof', name: myName(), skin: selectedSkin, primary: c.primary, secondary: c.secondary, melee: c.melee });
-  else netEv(['pr', c.primary, c.secondary, c.melee]);
+  const pack = kitsNow();
+  const inLobby = !online.lobby || online.lobby.state !== 'playing';
+  if (inLobby) online.net.send({ t: 'prof', name: myName(), skin: selectedSkin, primary: pack.load.primary, secondary: pack.load.secondary, melee: pack.load.melee, kit: pack.kits });
+  else netEv(['pr', pack.load.primary, pack.load.secondary, pack.load.melee, pack.kits]);
 }
 function setSpawnHand(h) {
-  spawnHold = normHand(h); try { localStorage.setItem('docao.hand', spawnHold); } catch (e) { /* sem storage */ }
+  spawnHold = normHand(h);
+  if (classes[classIndex]) classes[classIndex].hand = spawnHold;
+  saveClasses(); mirrorLegacy();
   syncLoadoutUi();
 }
 function setPrimary(i) {
-  selectedPrimary = i; try { localStorage.setItem('docao.primary', String(i)); } catch (e) { /* sem storage */ }
+  selectedPrimary = i;
+  if (classes[classIndex]) classes[classIndex].primary = i;
+  saveClasses(); mirrorLegacy();
   if (player) player.nextPrimary = i;
-  if (player && !player.alive) { setSpawnHand('primary'); buildDeathSec(); }
+  if (player && !player.alive) setSpawnHand('primary');
   sendLoadout();
   markPick('primary', i);
   syncLoadoutUi();
 }
 function setSecondary(i) {
-  selectedSecondary = i; try { localStorage.setItem('docao.secondary', String(i)); } catch (e) { /* sem storage */ }
+  selectedSecondary = i;
+  if (classes[classIndex]) classes[classIndex].secondary = i;
+  saveClasses(); mirrorLegacy();
   if (player) player.nextSecondary = i;
   sendLoadout();
   markPick('secondary', i);
-  buildDeathSec();
   syncLoadoutUi();
 }
 function setMelee(i) {
-  selectedMelee = i; try { localStorage.setItem('docao.melee', String(i)); } catch (e) { /* sem storage */ }
+  selectedMelee = i;
+  if (classes[classIndex]) classes[classIndex].melee = i;
+  saveClasses(); mirrorLegacy();
   if (player) player.nextMelee = i;
   sendLoadout();
   markPick('melee', i);
   const row = $('saberRow'); if (row) row.hidden = !isSaber(i);
-  buildDeathMelee();
   syncLoadoutUi();
+}
+function armClass(i) {
+  classIndex = clampClassIndex(i);
+  const pack = kitsNow();
+  selectedPrimary = pack.load.primary; selectedSecondary = pack.load.secondary; selectedMelee = pack.load.melee;
+  spawnHold = pack.load.hand;
+  if (classes[classIndex]) classes[classIndex].hand = spawnHold;
+  saveClasses(); mirrorLegacy();
+  if (player) { player.nextPrimary = pack.load.primary; player.nextSecondary = pack.load.secondary; player.nextMelee = pack.load.melee; }
+  sendLoadout();
+  markPick('primary', selectedPrimary); markPick('secondary', selectedSecondary); markPick('melee', selectedMelee);
+  syncLoadoutUi();
+}
+function tuneClass(i, patch) {
+  const c = classes[clampClassIndex(i)]; if (!c || !patch) return;
+  if (patch.name != null) c.name = String(patch.name).trim().slice(0, 16) || c.name;
+  if (patch.primary != null) c.primary = patch.primary | 0;
+  if (patch.secondary != null) c.secondary = patch.secondary | 0;
+  if (patch.melee != null) c.melee = patch.melee | 0;
+  if (patch.hand) c.hand = normHand(patch.hand);
+  if (patch.kits && typeof patch.kits === 'object') c.kits = patch.kits;
+  saveClasses();
+  paintClassSurfaces();
 }
 function buildPrimaryPickers() {
   const l = $('primList'); l.innerHTML = '';
@@ -3830,7 +3928,12 @@ function buildPrimaryPickers() {
     const box = document.createElement('div'); box.className = 'wcat';
     const title = document.createElement('div'); title.className = 'label2'; title.textContent = cat.title; box.appendChild(title);
     const grid = document.createElement('div'); grid.className = 'wgrid' + (cat.weapons.length < 3 || cat.id === 'secundaria' ? ' small' : '');
-    const onPick = cat.pick === 'secondary' ? setSecondary : cat.pick === 'melee' ? setMelee : setPrimary;
+    const basePick = cat.pick === 'secondary' ? setSecondary : cat.pick === 'melee' ? setMelee : setPrimary;
+    const onPick = (i) => {
+      if (cat.pick === 'primary' && i === selectedPrimary && arsenalFocus === i) { openBench(i); return; }
+      if (cat.pick === 'primary') arsenalFocus = i;
+      basePick(i);
+    };
     for (const i of cat.weapons) grid.appendChild(primChip(i, '', onPick, cat.pick));
     box.appendChild(grid);
     if (cat.id === 'faca') { const row = $('saberRow'); if (row) box.appendChild(row); }
@@ -3872,7 +3975,7 @@ function paintWeaponThumbs() {
 function makeWeaponThumbs() {
   let i = 0;
   const next = () => {
-    if (i >= fp.guns.length) { paintWeaponThumbs(); window.__gunThumbs = weaponThumbs.length; return; }
+    if (i >= fp.guns.length) { paintWeaponThumbs(); paintClassSurfaces(); window.__gunThumbs = weaponThumbs.length; return; }
     try { weaponThumbs[i] = renderWeaponThumb(fp.guns[i]); } catch (e) { console.warn('miniatura da arma', i, e); }
     i++; requestAnimationFrame(next);
   };
@@ -4084,7 +4187,7 @@ function cycleExplorePrimary(dir) {
   setPrimary(i);
   player.primary = player.nextPrimary = i;
   player.slots[0] = i;
-  player.mag[i] = WEAPONS[i].mag; player.reserve[i] = WEAPONS[i].reserve;
+  player.kit = kitsNow().kits; player.mag[i] = gunOf(player, i).mag; player.reserve[i] = WEAPONS[i].reserve;
   player.reloadEnd = 0;
   if (player.weapon !== i) switchWeapon(player, i); else setWeapon(player, i);
   flashMsg(WEAPONS[i].name);
@@ -4167,70 +4270,41 @@ function refreshModeHud() {
   if (teamMode() && player) { $('myTeam').textContent = `Você: Time ${TEAM_NAMES[player.team] || '?'}`; $('myTeam').style.color = TEAM_COLORS[player.team] || '#fff'; }
   $('winner').dataset.tone = '';
 }
-// Pausa: trocar primária / secundária / corpo a corpo. data-pick próprio pra não brigar com os chips do menu.
-const PAUSE_GROUPS = [
-  { title: 'Primária', kind: 'pause-primary', pick: 'primary', slot: 0, set: (i) => setPrimary(i) },
-  { title: 'Secundária', kind: 'pause-secondary', pick: 'secondary', slot: 1, set: (i) => setSecondary(i) },
-  { title: 'Corpo a corpo', kind: 'pause-melee', pick: 'melee', slot: 2, set: (i) => setMelee(i) },
-];
+// A pausa escolhe classe e manda 'pr' (vale na próxima vida). 'px' continua no protocolo pra cliente antigo.
 let pauseSwapUntil = 0; // online: o 'k' da troca chega depois do clique; enquanto isso, não reabre a pausa nem solta a mira
 let pauseSwapWeapon = -1; // arma que o clique escolheu, pra nascer com ela na mão
 const pauseSwapQuiet = () => performance.now() < pauseSwapUntil;
-function markPauseGuns() {
-  const root = $('pauseGuns'); if (!root || !player) return;
-  const live = { 'pause-primary': player.slots[0], 'pause-secondary': player.slots[1], 'pause-melee': player.slots[2] };
-  for (const [kind, i] of Object.entries(live)) root.querySelectorAll(`.primchip[data-pick="${kind}"]`).forEach((c) => c.classList.toggle('active', +c.dataset.i === i));
+function buildPauseGuns() { paintClassSurfaces(); }
+function pauseClassOpen() { const el = $('pauseClass'); return !!(el && !el.classList.contains('hidden')); }
+function openPauseClass() {
+  if (invMode() || !$('pauseClass')) return;
+  buildPauseGuns();
+  const sub = $('pauseClassSub');
+  if (sub) sub.textContent = training() ? 'No estande a classe entra agora e o pente não enche sozinho.' : 'A classe escolhida entra na próxima vida. Não derruba.';
+  $('pauseClass').classList.remove('hidden');
+  document.body.classList.add('cls-on');
 }
-function buildPauseGuns() {
-  const root = $('pauseGuns'); if (!root) return;
-  root.innerHTML = '';
-  for (const g of PAUSE_GROUPS) {
-    const box = document.createElement('div'); box.className = 'wcat';
-    const title = document.createElement('div'); title.className = 'label2'; title.textContent = g.title; box.appendChild(title);
-    const grid = document.createElement('div'); grid.className = 'wgrid' + (g.pick === 'primary' ? '' : ' small');
-    for (const cat of CATEGORIES) if (cat.pick === g.pick) for (const i of pool(cat.weapons)) grid.appendChild(primChip(i, '', (picked) => pausePick(g, picked), g.kind));
-    box.appendChild(grid);
-    root.appendChild(box);
-  }
-  markPauseGuns();
+function closePauseClass() {
+  const el = $('pauseClass'); if (!el || el.classList.contains('hidden')) return;
+  el.classList.add('hidden');
+  if (!document.body.classList.contains('dead') && !bombPick && !invPick) document.body.classList.remove('cls-on');
 }
 let pauseSwapLast = -1e9; // online: último pedido que derrubou (o servidor também limita; aqui é só pra avisar)
 const PX_COOLDOWN = 10; // s, igual ao servidor
-function pausePick(g, i) {
-  if (state !== 'paused' || !player || !player.alive) return;
-  if (invMode()) { flashMsg('Na Invasão a troca de arma é no painel B, entre as waves'); markPauseGuns(); return; } // Invasão: nunca derruba nem gasta vida
-  const before = player.slots[g.slot];
-  g.set(i); // setPrimary/setSecondary/setMelee: localStorage + ['pr', ...] enquanto vivo (não mexe em spawnHold)
-  if (i === before) { markPauseGuns(); return; } // a arma do slot vivo: só o destaque
-  if (training()) { equipLiveLoadout(i); markPauseGuns(); return; }
-  if (online) {
-    const wait = PX_COOLDOWN - (performance.now() - pauseSwapLast) / 1000;
-    if (wait > 0) { flashMsg(`Espera ${Math.ceil(wait)} s pra trocar de arma de novo`); markPauseGuns(); return; }
-    pauseSwapLast = performance.now();
-    pauseSwapWeapon = i;
-    pauseSwapUntil = performance.now() + 4000;
-    netEv(['px', selectedPrimary, selectedSecondary, selectedMelee]);
-    resume(); lockPointer();
-    return;
-  }
-  kill(player, null, player.weapon); respawn(player); // morre sem abate e nasce na mesma ação (sem os 5 s nem a tela de RENASCER)
-  if (player.slots.includes(i)) setWeapon(player, i);
-  flashMsg('Nasceu de novo com o equipamento novo');
-  resume(); lockPointer();
-}
 buildPauseGuns();
 function releaseLook() { mouseDown = false; rightDown = false; keys.Space = keys.ShiftLeft = keys.ShiftRight = false; resetAds(); if (player) { player.charging = false; player.bowDraw = 0; player.eggDraw = 0; arcLine.visible = arcMark.visible = false; } if (pickingStrike) { pickingStrike = false; closeStrikeMap(); } }
-function pause() { if (state !== 'playing') return; softPauseOn = false; state = 'paused'; releaseLook(); $('pauseInvite').classList.toggle('hidden', !online); $('pauseVoice').classList.toggle('hidden', !online); const note = document.querySelector('#pause .pause-note'); if (note) note.textContent = invMode() ? 'Na Invasão a troca de arma é no painel B, entre as waves.' : training() ? 'No estande a troca entra na hora e você continua de pé.' : 'Trocar uma arma te derruba. Você nasce de novo com o equipamento novo.'; buildPauseGuns(); $('pauseGuns').classList.toggle('hidden', invMode()); $('pauseDance').classList.toggle('hidden', invMode()); $('pause').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
+function tuckDeathMenu() { const el = $('deathpick'); if (el) el.classList.add('hidden'); }
+function pause() { if (state !== 'playing') return; softPauseOn = false; state = 'paused'; releaseLook(); closePauseClass(); tuckDeathMenu(); if (player && player.alive) document.body.classList.remove('dead', 'deadgray', 'cls-on'); $('pauseInvite').classList.toggle('hidden', !online); $('pauseVoice').classList.toggle('hidden', !online); const note = $('pauseClassNote'); if (note) note.textContent = invMode() ? 'Na Invasão a classe entra no painel B, entre as waves.' : training() ? 'No estande a classe entra agora e o pente não enche sozinho.' : 'A classe escolhida entra na próxima vida. Não derruba.'; const swap = $('pauseClassBtn'); if (swap) swap.classList.toggle('hidden', invMode()); buildPauseGuns(); $('pauseDance').classList.toggle('hidden', invMode()); $('pause').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
 // ` solta o mouse como o Esc, sem a pausa na chapa: o HUD fica como estava. Clique ou ` de novo volta a mirar.
 function softPause() { if (state !== 'playing') return; state = 'paused'; softPauseOn = true; releaseLook(); if (document.pointerLockElement) document.exitPointerLock(); }
-function resume() { softPauseOn = false; $('pause').classList.add('hidden'); state = 'playing'; lockPointer(); }
+function resume() { closePauseClass(); softPauseOn = false; $('pause').classList.add('hidden'); state = 'playing'; if (!document.body.classList.contains('dead') && !bombPick && !invPick) document.body.classList.remove('cls-on'); lockPointer(); }
 function toMenu() {
   clearMatchEnding();
   if (online) leaveOnline();
   endVictory(); stopEmote(); document.body.classList.remove('deadgray');
   zone = null; mode = 'dm'; endBomb(); $('domhud').classList.add('hidden'); $('zoneMark').classList.add('hidden'); $('teamPick').classList.add('hidden');
   state = 'menu'; rulesLive = false; clearBots(); inv = null; invNet = null; if (selectedMap !== 'random') loadMap(selectedMap); invApplyLook(false); showcase.visible = true; pickups.forEach((p) => (p.mesh.visible = false)); camera.clearViewOffset();
-  ['pause', 'gameover', 'hud'].forEach((id) => $(id).classList.add('hidden')); $('menu').classList.remove('hidden');
+  closePauseClass(); ['pause', 'pauseClass', 'gameover', 'hud'].forEach((id) => { const el = $(id); if (el) el.classList.add('hidden'); }); document.body.classList.remove('cls-on', 'dead'); $('menu').classList.remove('hidden');
   if (document.pointerLockElement) document.exitPointerLock();
 }
 // pede o pointer lock DENTRO do gesto do usuário (clique/tecla). Se o navegador recusar, mostra o aviso e o próximo clique no jogo tenta de novo.
@@ -4243,6 +4317,10 @@ function lockPointer() {
 
 $('playBtn').onclick = () => startGame(); $('menuBtn').onclick = toMenu;
 $('resumeBtn').onclick = resume; $('quitBtn').onclick = toMenu;
+if ($('pauseClassBtn')) $('pauseClassBtn').onclick = () => openPauseClass();
+if ($('pauseClassBack')) $('pauseClassBack').onclick = () => closePauseClass();
+if ($('bLoadClose')) $('bLoadClose').onclick = () => closeBombPick();
+if ($('iLoadClose')) $('iLoadClose').onclick = () => invClosePick();
 $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') startGame(); e.stopPropagation(); });
 
 document.addEventListener('pointerlockchange', () => {
@@ -4283,7 +4361,7 @@ document.addEventListener('mouseup', (e) => {
 });
 document.addEventListener('wheel', (e) => { // rodinha: primária → pistola → faca (e volta)
   if (state !== 'playing' || !player || !player.alive) return;
-  if (bombPick) { const P = pool(PRIMARIES), i = P.indexOf(selectedPrimary); if (!P.length) return; setPrimary(P[(i + (e.deltaY < 0 ? P.length - 1 : 1)) % P.length]); return; } // Bomba: rodinha escolhe a primária
+  if (bombPick || invPick) { armClass((classIndex + (e.deltaY < 0 ? classes.length - 1 : 1)) % classes.length); return; } // painel de classe: rodinha troca a classe
   const S = player.slots, i = Math.max(0, S.indexOf(player.weapon)), n = S.length; switchWeapon(player, S[(i + (e.deltaY < 0 ? n - 1 : 1)) % n]);
 });
 function tryOpenChat(e) {
@@ -4297,12 +4375,12 @@ document.addEventListener('keydown', (e) => {
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (chatTyping()) { if (e.code === 'Escape') { e.preventDefault(); closeChat(true); } return; }
+  if (benchKey(e)) { e.preventDefault(); return; }
+  if (classMenuKey(e)) { e.preventDefault(); return; }
   if (e.code === 'KeyK') voicePtt(true);
   if (e.code === 'KeyJ' && !e.repeat && online) { e.preventDefault(); voiceCycle(); }
   if (state === 'playing' && isBomb() && bombFrozen(bombS) && player && player.alive && !e.repeat) { // Bomba, preparação: painel de troca de arma
     if (e.code === 'KeyB') { if (bombPick) closeBombPick(); else openBombPick(); return; }
-    if (bombPick && e.code === 'KeyN') { { const L = pool(SECONDARIES); if (L.length) setSecondary(L[(Math.max(0, L.indexOf(selectedSecondary)) + 1) % L.length]); } return; }
-    if (bombPick && e.code === 'KeyM') { { const L = pool(MELEES); if (L.length) setMelee(L[(Math.max(0, L.indexOf(selectedMelee)) + 1) % L.length]); } return; }
     if (bombPick && e.code === 'KeyG') { deathUnlock = true; if (document.pointerLockElement) document.exitPointerLock(); return; } // solta o mouse pra clicar
   }
   if (tryOpenChat(e)) { e.preventDefault(); return; }
@@ -4334,7 +4412,6 @@ document.addEventListener('keydown', (e) => {
   if (state === 'playing' && player) {
     if (!emote.on && e.code === 'KeyR') startReload(player);
     if (!player.alive && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat && requestRespawn()) keys[e.code] = false; // Espaço não vira pulo ao renascer
-    if ((!player.alive || bombPick) && /^Digit[1-9]$/.test(e.code)) { const pick = pool(PRIMARIES)[+e.code.slice(5) - 1]; if (pick != null) setPrimary(pick); } // escolha na tela de morte
     else {
       if (!emote.on && e.code === 'Digit1') switchWeapon(player, player.slots[0]);
       if (!emote.on && e.code === 'Digit2') switchWeapon(player, player.slots[1]);
@@ -4699,11 +4776,208 @@ function fillLoadoutRow(rowId, prefix, fancy) {
   if (!note) { note = document.createElement('div'); note.className = 'sub loadout-note'; row.insertAdjacentElement('afterend', note); }
   const txt = loadoutNote(); if (note.textContent !== txt) note.textContent = txt;
 }
-function buildDeathPrimaries() {
-  const d = $('deathList'); if (!d) return; d.innerHTML = '';
-  pool(PRIMARIES).forEach((i, k) => d.appendChild(primChip(i, k < 9 ? String(k + 1) : '', setPrimary, 'primary')));
-  markPick('primary', selectedPrimary);
+function classRows() {
+  return classes.map((c, i) => {
+    const pack = classLoad(c, activeWeapons());
+    const w = WEAPONS[pack.primary];
+    return {
+      i, name: c.name, weapon: pack.primary, weaponName: w.short || w.name,
+      on: i === classIndex, last: i === spawnedClass,
+    };
+  });
 }
+function gunView(c) {
+  const pack = classLoad(c, activeWeapons());
+  const i = pack.primary;
+  const fac = WEAPONS[i];
+  const w = resolveWeapon(i, pack.kits[fac.key]);
+  const kit = pack.kits[fac.key] || {};
+  const slots = slotsOf(i).map((s) => ({
+    id: s.id,
+    label: s.label,
+    piece: (pieceInfo(i, s.id, kit[s.id] || '') || {}).name || '',
+  }));
+  const noteOf = (wi) => {
+    if (!familyOf(wi)) return 'sem peça';
+    const own = pack.kits[WEAPONS[wi].key] || {};
+    return slotsOf(wi).some((s) => own[s.id]) ? 'temperada' : 'de fábrica';
+  };
+  const sec = WEAPONS[pack.secondary], mel = WEAPONS[pack.melee];
+  return {
+    name: fac.name,
+    className: `Classe ${c.name} · ${sec.short} · ${mel.short}`,
+    weapon: i,
+    slots,
+    bars: statBars(w, fac).map((b) => ({ ...b, num: barCaption(b) })),
+    side: [
+      { label: 'Secundária', weapon: pack.secondary, name: sec.short, note: noteOf(pack.secondary) },
+      { label: 'Faca', weapon: pack.melee, name: mel.short, note: noteOf(pack.melee) },
+    ],
+  };
+}
+function barCaption(b) {
+  if (b.id === 'alcance' && / m$/.test(b.num)) return 'cai aos ' + b.num;
+  if (b.id === 'mobilidade') return b.fill >= 60 ? 'anda mais' : b.fill >= 40 ? 'passo firme' : 'anda menos';
+  if (b.id === 'controle') return 'recuo ' + b.num;
+  return b.num;
+}
+function sheetSpec(hint) {
+  return { rows: classRows(), thumbs: weaponThumbs, gun: gunView(classes[classIndex]), hint, onPick: (i) => armClass(i) };
+}
+function paintPair(listId, gunId, hint) {
+  const list = $(listId), gun = $(gunId);
+  if (list && gun) fillSheet(list, gun, sheetSpec(hint));
+}
+function paintClassSurfaces() {
+  paintPair('deathList', 'classGun', DEATH_HINT);
+  paintPair('pauseGuns', 'pauseGun', '1–5 escolhe · W/S ou setas · U última. Vale na próxima vida.');
+  paintPair('bLoadList', 'bLoadGun', LIVE_HINT);
+  paintPair('iLoadList', 'iLoadGun', LIVE_HINT);
+  const chips = $('lobbyClasses');
+  if (chips) fillChips(chips, { rows: classRows(), onPick: (i) => armClass(i) });
+  if (benchOn) paintBench();
+}
+function buildDeathPrimaries() { paintClassSurfaces(); }
+function benchIsOpen() { return benchOn; }
+function openBench(idx) {
+  const w = WEAPONS[idx];
+  if (!w || !familyOf(idx)) { tone('square', 140, 80, 0.08, 0.05); return; }
+  const slots = slotsOf(idx);
+  if (!benchOn || benchWeapon !== idx || !slots.some((s) => s.id === benchSlot)) benchSlot = (slots[0] || {}).id || 'optic';
+  benchOn = true; benchWeapon = idx;
+  const fac = classLoad(classes[classIndex], activeWeapons());
+  benchLook = (fac.kits[w.key] || {})[benchSlot] || '';
+  const bench = $('bench'); if (bench) bench.hidden = false;
+  const name = $('benchName'); if (name) name.value = classes[classIndex].name;
+  const pick = document.querySelector('#menu-arsenal .primpick'); if (pick) pick.classList.add('hidden');
+  const temper = $('temperBtn'); if (temper) temper.classList.add('hidden');
+  paintBench();
+}
+function closeBench() {
+  if (!benchOn) return;
+  benchOn = false;
+  const bench = $('bench'); if (bench) bench.hidden = true;
+  const pick = document.querySelector('#menu-arsenal .primpick'); if (pick) pick.classList.remove('hidden');
+  const temper = $('temperBtn'); if (temper) temper.classList.remove('hidden');
+  buildPrimaryPickers();
+}
+function paintBench() {
+  const w = WEAPONS[benchWeapon];
+  const body = $('benchBody');
+  if (!w || !body) return;
+  const pack = classLoad(classes[classIndex], activeWeapons());
+  const equipped = { ...(pack.kits[w.key] || {}) };
+  const lookKit = { ...equipped, [benchSlot]: benchLook };
+  const slots = slotsOf(benchWeapon);
+  const pieces = piecesOf(benchWeapon, benchSlot);
+  const guns = [];
+  for (let i = 0; i < WEAPONS.length; i++) if (familyOf(i) === familyOf(benchWeapon)) guns.push(i);
+  const chipHost = $('benchChips');
+  if (chipHost) fillChips(chipHost, {
+    rows: classRows(),
+    onPick: (i) => {
+      const row = classes[clampClassIndex(i)];
+      benchLook = ((row && row.kits && row.kits[w.key]) || {})[benchSlot] || '';
+      armClass(i);
+    },
+  });
+  fillBench(body, {
+    thumbs: weaponThumbs,
+    family: { rajada: 'Rajada', escopeta: 'Escopeta', precisao: 'Precisão' }[familyOf(benchWeapon)] || '',
+    weapons: pool(guns).map((i) => ({ i, name: WEAPONS[i].short || WEAPONS[i].name, on: i === benchWeapon })),
+    slots: slots.map((s) => ({ ...s, on: s.id === benchSlot })),
+    slotLabel: (slots.find((s) => s.id === benchSlot) || {}).label || '',
+    pieces: pieces.map((p) => ({ ...p, look: p.id === benchLook, stamped: p.id === (equipped[benchSlot] || '') })),
+    rows: compare(resolveWeapon(benchWeapon, equipped), resolveWeapon(benchWeapon, lookKit)),
+    blurb: pieceBlurb(benchWeapon, benchSlot, benchLook),
+    same: (equipped[benchSlot] || '') === benchLook,
+    onWeapon: (i) => openBench(i),
+    onSlot: (id) => { benchSlot = id; benchLook = equipped[id] || ''; paintBench(); },
+    onLook: (id) => { benchLook = id; paintBench(); },
+    onStamp: () => stampBench(),
+  });
+  const name = $('benchName');
+  if (name && document.activeElement !== name) name.value = classes[classIndex].name;
+}
+function stampBench() {
+  const w = WEAPONS[benchWeapon];
+  if (!w) return;
+  const c = classes[classIndex];
+  c.kits[w.key] = clampKit(benchWeapon, { ...(c.kits[w.key] || {}), [benchSlot]: benchLook });
+  if (!Object.values(c.kits[w.key]).some(Boolean)) delete c.kits[w.key];
+  saveClasses(); mirrorLegacy();
+  tone('square', 620, 480, 0.05, 0.08);
+  const live = $('benchLive');
+  const piece = pieceInfo(benchWeapon, benchSlot, benchLook);
+  if (live) live.textContent = (piece ? piece.name : 'Peça') + ' carimbada na ' + (w.short || w.name) + '.';
+  paintClassSurfaces();
+}
+function benchKey(e) {
+  if (!benchOn) return false;
+  const slots = slotsOf(benchWeapon);
+  const pieces = piecesOf(benchWeapon, benchSlot);
+  if (!slots.length || !pieces.length) { if (e.code === 'Escape') { closeBench(); return true; } return false; }
+  const si = Math.max(0, slots.findIndex((s) => s.id === benchSlot));
+  const pi = Math.max(0, pieces.findIndex((p) => p.id === benchLook));
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    benchSlot = slots[(si + (e.code === 'ArrowRight' ? 1 : -1) + slots.length) % slots.length].id;
+    const equipped = classLoad(classes[classIndex], activeWeapons()).kits[WEAPONS[benchWeapon].key] || {};
+    benchLook = equipped[benchSlot] || '';
+    paintBench();
+    return true;
+  }
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'KeyW' || e.code === 'KeyS') {
+    benchLook = pieces[(pi + ((e.code === 'ArrowDown' || e.code === 'KeyS') ? 1 : -1) + pieces.length) % pieces.length].id;
+    paintBench();
+    return true;
+  }
+  if (e.code === 'Enter') { stampBench(); return true; }
+  if (e.code === 'Escape') { closeBench(); return true; }
+  if (/^Digit[1-5]$/.test(e.code)) {
+    const i = Number(e.code.slice(5)) - 1;
+    const row = classes[clampClassIndex(i)];
+    const key = WEAPONS[benchWeapon] && WEAPONS[benchWeapon].key;
+    benchLook = ((row && row.kits && key && row.kits[key]) || {})[benchSlot] || '';
+    armClass(i);
+    return true;
+  }
+  return false;
+}
+function classMenuOn() {
+  if (bombPick || invPick || pauseClassOpen()) return true;
+  if (player && !player.alive && $('deathpick') && !$('deathpick').classList.contains('hidden')) return true;
+  return false;
+}
+function classMenuKey(e) {
+  if (e.code === 'Escape') {
+    if (pauseClassOpen()) { closePauseClass(); return true; }
+    if (bombPick) { closeBombPick(); return true; }
+    if (invPick) { invClosePick(); return true; }
+  }
+  if (!classMenuOn()) return false;
+  const n = classes.length;
+  if (/^Digit[1-5]$/.test(e.code)) { armClass(Number(e.code.slice(5)) - 1); return true; }
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'KeyW' || e.code === 'KeyS' || e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'KeyD') {
+    const dir = (e.code === 'ArrowDown' || e.code === 'KeyS' || e.code === 'ArrowRight' || e.code === 'KeyD') ? 1 : -1;
+    armClass((classIndex + dir + n) % n);
+    return true;
+  }
+  if (e.code === 'KeyU') { armClass(spawnedClass); return true; }
+  if (e.code === 'Enter' && player && !player.alive) {
+    const btn = $('respawnBtn');
+    if (btn && document.activeElement !== btn) { btn.focus(); return true; }
+  }
+  return false;
+}
+if ($('temperBtn')) $('temperBtn').onclick = () => openBench(arsenalFocus >= 0 ? arsenalFocus : selectedPrimary);
+if ($('benchBack')) $('benchBack').onclick = () => closeBench();
+if ($('benchName')) $('benchName').addEventListener('input', () => {
+  const v = $('benchName').value.replace(/[<>]/g, '').slice(0, 16);
+  classes[classIndex].name = v.trim() ? v : ('Classe ' + (classIndex + 1));
+  saveClasses();
+  const chipHost = $('benchChips');
+  if (chipHost) fillChips(chipHost, { rows: classRows(), onPick: (i) => { const row = classes[clampClassIndex(i)]; const key = WEAPONS[benchWeapon] && WEAPONS[benchWeapon].key; benchLook = ((row && row.kits && key && row.kits[key]) || {})[benchSlot] || ''; armClass(i); } });
+});
 const DOCK_SLOTS = [
   ['primary', 'Primária', PRIMARIES, () => selectedPrimary, (v) => setPrimary(v)],
   ['secondary', 'Secundária', SECONDARIES, () => selectedSecondary, (v) => setSecondary(v)],
@@ -4777,10 +5051,29 @@ function buildDeathMelee() {
 let rsSent = false;
 const invMeOut = () => { const v = invMode() && invView(); const s = v && v.lives.get(online ? online.myId : player && player.id); return !!(s && s.out); };
 const respawnReady = (p) => !!p && !p.alive && Number.isFinite(p.respawnAt) && gameTime >= p.respawnAt && !invMeOut();
+function deathLine(p) {
+  if (!p) return '';
+  if (p.killW === W_BOMB) return 'Você explodiu com o botijão';
+  const who = p.killerName || (p.lastAttacker && p.lastAttacker !== p && p.lastAttacker.name) || '';
+  if (p.killW === KNIFE) return who ? `Você foi moggado por ${who}${p.killBack ? ' pelas costas' : ''}` : 'Você se moggou';
+  if (p.killW === EGG_W) return who ? `Você foi omeletado por ${who}` : 'Você se omeletou';
+  return who ? `Você foi pururucado por ${who}` : 'Você se pururucou';
+}
 function updateRespawnBtn(p) {
   const b = $('respawnBtn'), ok = respawnReady(p) && !rsSent;
-  const txt = invMeOut() ? 'Sem vidas · espere a ✨ Ressurreição' : rsSent ? 'Renascendo...' : ok ? 'RENASCER (Espaço)' : Number.isFinite(p.respawnAt) ? `Renascer em ${Math.max(0, p.respawnAt - gameTime).toFixed(1)}s` : 'Aguarde...';
-  if (b.disabled === ok) b.disabled = !ok; if (b.textContent !== txt) b.textContent = txt; b.classList.toggle('ready', ok);
+  const left = Number.isFinite(p.respawnAt) ? Math.max(0, p.respawnAt - gameTime) : RESPAWN_TIME;
+  const nome = (classes[classIndex] && classes[classIndex].name) || 'a classe';
+  const ultima = classIndex === spawnedClass;
+  const txt = invMeOut() ? 'Sem vidas' : rsSent ? 'Nascendo...' : ok ? `Nasce com ${nome}` : Number.isFinite(p.respawnAt) ? `Nascer em ${left.toFixed(1).replace('.', ',')}s` : 'Aguarde...';
+  const sub = invMeOut() ? 'Espere a ressurreição' : `Espaço · classe ${nome}${ultima ? ', a última' : ''}`;
+  const main = b && b.querySelector('b'), small = b && b.querySelector('small');
+  if (b) { if (b.disabled === ok) b.disabled = !ok; b.classList.toggle('ready', ok); }
+  if (main) { if (main.textContent !== txt) main.textContent = txt; }
+  else if (b && b.textContent !== txt) b.textContent = txt;
+  if (small && small.textContent !== sub) small.textContent = sub;
+  const clock = $('classClockTxt'), bar = $('classClockBar');
+  if (clock) { const ct = invMeOut() ? 'Sem vidas' : rsSent ? 'Nascendo' : ok ? 'Pode nascer' : `Renasce em ${left.toFixed(1).replace('.', ',')}s`; if (clock.textContent !== ct) clock.textContent = ct; }
+  if (bar) bar.style.width = (!Number.isFinite(p.respawnAt) ? 0 : ok || rsSent ? 100 : (1 - left / RESPAWN_TIME) * 100).toFixed(1) + '%';
 }
 function requestRespawn() {
   const p = player; if (state !== 'playing' || !respawnReady(p) || rsSent) return false;
@@ -4790,7 +5083,7 @@ function requestRespawn() {
 }
 $('respawnBtn').onclick = (ev) => { ev.stopPropagation(); requestRespawn(); };
 function onPlayerDeath(opts) { clearHitMarks(); if (player) { player.mgWant = false; player.mgSpin = 0; player.mgFiring = false; } rsSent = false; resetRewards(true); if (!(opts && opts.keepAim) && document.pointerLockElement) { deathUnlock = true; document.exitPointerLock(); } mouseDown = false; rightDown = false; if (player) player.bowDraw = player.eggDraw = 0; }
-function onPlayerRespawn() { clearHitMarks(); rsSent = false; deathCamState.on = false; deathCamState.killer = null; document.body.classList.remove('deadgray'); if (ghost) ghost.model.group.visible = false;
+function onPlayerRespawn() { clearHitMarks(); rsSent = false; deathCamState.on = false; deathCamState.killer = null; tuckDeathMenu(); document.body.classList.remove('deadgray', 'dead'); if (!bombPick && !invPick && !pauseClassOpen()) document.body.classList.remove('cls-on'); if (ghost) ghost.model.group.visible = false;
   // o pointer lock é assíncrono: só avisa se ainda estiver sem mouse depois de um tempinho (o clique em RENASCER já pediu o lock)
   setTimeout(() => { if (!document.pointerLockElement && deathUnlock && state === 'playing' && player && player.alive) flashMsg(RELOCK_MSG); }, 600); }
 
@@ -4830,7 +5123,7 @@ for (const id of NAME_FIELDS) {
   el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter' && id === 'lobbyName') { el.blur(); } });
 }
 // lobby: manda o nome novo pro servidor (ele limpa e evita repetido, ex.: "Matheus (2)")
-function sendName() { if (!online || !online.net) return; const n = saveName($('lobbyName').value); online.net.send({ t: 'prof', name: n, skin: selectedSkin, primary: selectedPrimary, secondary: selectedSecondary, melee: selectedMelee }); online.nameSent = n; }
+function sendName() { if (!online || !online.net) return; const n = saveName($('lobbyName').value); const pack = kitsNow(); online.net.send({ t: 'prof', name: n, skin: selectedSkin, primary: pack.load.primary, secondary: pack.load.secondary, melee: pack.load.melee, kit: pack.kits }); online.nameSent = n; }
 $('lobbyNameBtn').onclick = () => sendName();
 // ---------- conta (opcional): apelido fixo + skin guardada ----------
 function applyAccount(a) {
@@ -4897,7 +5190,7 @@ function flashMenuErr(msg) { $('onlineErr').textContent = msg; $('onlineModal').
 function onNetMessage(m) {
   const o = online; if (!o) return;
   switch (m.t) {
-    case 'welcome': o.myId = m.id; o.hostId = m.hostId; o.cfg = m.cfg; voiceReset(); chatSeed(m.chat); chatSetRoom(!m.cfg || m.cfg.chat !== false); chatSetTeam(socialTeam()); break;
+    case 'welcome': o.myId = m.id; o.hostId = m.hostId; o.cfg = m.cfg; voiceReset(); chatSeed(m.chat); chatSetRoom(!m.cfg || m.cfg.chat !== false); chatSetTeam(socialTeam()); sendLoadout(); break;
     case 'lobby': o.lobby = m; o.hostId = m.hostId; o.cfg = m.cfg; renderLobby(); break;
     case 'chat': chatPush(m); break;
     case 'voices': voiceRoster(m.list); break;
@@ -5109,6 +5402,7 @@ function netEvent(ev) {
       return;
     }
     if (a) a.kills = aK; t.deaths = tD; t.mgSpinOn = false; t.alive = false; t.hp = 0; t.deathAt = gameTime; t.respawnAt = gameTime + RESPAWN_TIME; t.lastAttacker = a || null; t.killW = w; t.killBack = back;
+    { const named = a && a !== t && a.name ? a.name : ''; const row = !named && aid && o.lobby && o.lobby.players && o.lobby.players.find((p) => p.id === aid); t.killerName = named || (row && row.name) || (ks === 'fog' ? 'Névoa Assombrada' : ''); }
     if (w === -2) { t.fxDeath = t.deathAt; return; } // trocou de time (sem bacon)
     addKillFeed(a, t, w, head, back, ks === 'fog' ? 'Névoa Assombrada' : KS_KILL_NAME[ks] || null, fx); sfx.die(t === player ? 1 : distVol(t.pos));
     if (a === player && t !== player) { sfx.kill(); if (ks === 'h' || ks === 'x' || ks === 'g' || ks === 'a') { if (ks === 'h' || ks === 'g') feedbackAward(HELI.points); } else { notePlayerKill(t, !!head, fx); if (w >= 0) noteWeaponKill(player, w); } }
@@ -5117,7 +5411,7 @@ function netEvent(ev) {
     const [, id, pos, yaw, prim, sq] = ev; const e = entOf(id); if (!e) return;
     e.pos.set(pos[0], pos[1], pos[2]); e.vel.set(0, 0, 0); e.crouch = 0; e.hp = 100; e.alive = true; e.invulnUntil = gameTime + INVULN; resetRegen(e);
     e.primary = prim; e.secondary = e.secondary ?? PISTOL; e.melee = e.melee ?? KNIFE; e.slots = [prim, e.secondary, e.melee]; e.mag = WEAPONS.map((x) => x.mag); e.reserve = WEAPONS.map((x) => x.reserve); e.reloadEnd = 0; e.switchEnd = 0; e.nades = NADE.spawnWith; e.smokeNades = clientPower('smoke') ? 1 : 0; e.stunNades = clientPower('stun') ? SHOCK.spawnWith : 0; e.stunUntil = 0; e.mgSpin = 0; e.mgHeat = 0; e.mgHot = false; e.mgWant = false; e.mgFiring = false; e.mgSpinOn = false; setWeapon(e, prim);
-    if (e === player) { keys.Space = false; eggSplatUntil = 0; player.sq = sq; player.yaw = yaw + Math.PI; player.pitch = 0; player.respawnAt = Infinity; player.nextPrimary = prim; const handLoad = clampLoadout(prim, selectedSecondary, selectedMelee, activeWeapons()); player.secondary = handLoad.secondary; player.melee = handLoad.melee; player.slots = [prim, player.secondary, player.melee]; player.onGround = true; $('stamp').classList.remove('show'); const hand = pauseSwapWeapon >= 0 && player.slots.includes(pauseSwapWeapon) ? pauseSwapWeapon : spawnHold === 'melee' ? player.melee : spawnHold === 'secondary' ? player.secondary : prim; if (player.slots.includes(hand)) setWeapon(player, hand); $('teamPick').classList.add('hidden'); onPlayerRespawn(); if (pauseSwapQuiet()) { flashMsg('Nasceu de novo com o equipamento novo'); pauseSwapWeapon = -1; pauseSwapUntil = performance.now() + 800; if (state === 'paused') resume(); } }
+    if (e === player) { keys.Space = false; eggSplatUntil = 0; player.sq = sq; player.yaw = yaw + Math.PI; player.pitch = 0; player.respawnAt = Infinity; player.nextPrimary = prim; const handLoad = clampLoadout(prim, selectedSecondary, selectedMelee, activeWeapons()); player.secondary = handLoad.secondary; player.melee = handLoad.melee; player.slots = [prim, player.secondary, player.melee]; player.kit = kitsNow().kits; for (const i of player.slots) player.mag[i] = gunOf(player, i).mag; spawnedClass = classIndex; player.onGround = true; $('stamp').classList.remove('show'); const hand = pauseSwapWeapon >= 0 && player.slots.includes(pauseSwapWeapon) ? pauseSwapWeapon : spawnHold === 'melee' ? player.melee : spawnHold === 'secondary' ? player.secondary : prim; if (player.slots.includes(hand)) setWeapon(player, hand); $('teamPick').classList.add('hidden'); onPlayerRespawn(); if (pauseSwapQuiet()) { flashMsg('Nasceu de novo com o equipamento novo'); pauseSwapWeapon = -1; pauseSwapUntil = performance.now() + 800; if (state === 'paused') resume(); } }
     else { e.yaw = yaw; e.model.group.visible = true; e.model.group.scale.set(1, 1, 1); e.buf = [{ t: performance.now() / 1000 - INTERP_DELAY, x: pos[0], y: pos[1], z: pos[2], yaw }]; }
   } else if (k === 'pk') { const p = pickups[ev[1]]; if (p) { p.active = !!ev[2]; p.mesh.visible = p.active; } }
   else if (k === 'sk') { const [, pid, oid, op, vel] = ev; const owner = entOf(oid); spawnShock({ net: true, pid, owner, pos: a3v(op), vel: a3v(vel) }); if (oid !== o.myId && owner) sfx.toss(distVol(owner.pos)); } // pau de choque lançado
@@ -5303,20 +5597,10 @@ function clearBombGfx() {
   for (const id of ['bombhud', 'bProg', 'bombBanner', 'siteMark0', 'siteMark1', 'bombMark']) { const el = $(id); if (el) el.classList.add('hidden'); }
   $('timer').style.color = '';
 }
-// Bomba: painel compacto de troca de arma na preparação de cada rodada (miniaturas das armas). Vale na hora (online o
-// servidor só aceita na preparação). Fecha sozinho no VALENDO; B fecha/abre. Não solta o mouse (G solta, se quiser clicar).
+// Bomba: na preparação escolhe uma das cinco classes. Vale na hora. B fecha/abre. G solta o mouse.
 let bombPick = false;
-function bLoadTile(i, key, on, pick) {
-  const w = WEAPONS[i], b = document.createElement('button'); b.className = 'bltile' + (on ? ' on' : ''); b.dataset.w = i;
-  b.innerHTML = `${key ? `<i>${key}</i>` : ''}<span>${escapeHtml(w.chip || w.short || w.name)}</span>`; b.title = w.name;
-  if (weaponThumbs[i]) b.style.backgroundImage = `url("${weaponThumbs[i]}")`;
-  b.onclick = (ev) => { ev.stopPropagation(); pick(i); }; return b;
-}
 function renderBLoad() {
-  const pr = $('bLoadPri'), se = $('bLoadSec'), me = $('bLoadMel'); pr.innerHTML = se.innerHTML = me.innerHTML = '';
-  pool(PRIMARIES).forEach((i, k) => pr.appendChild(bLoadTile(i, k < 9 ? String(k + 1) : '', i === selectedPrimary, setPrimary)));
-  pool(SECONDARIES).forEach((i) => se.appendChild(bLoadTile(i, i === selectedSecondary ? 'N' : '', i === selectedSecondary, setSecondary)));
-  pool(MELEES).forEach((i) => me.appendChild(bLoadTile(i, i === selectedMelee ? 'M' : '', i === selectedMelee, setMelee)));
+  paintPair('bLoadList', 'bLoadGun', LIVE_HINT);
 }
 function openBombPick() {
   if (!player || !isBomb() || !bombFrozen(bombS)) return;
@@ -5332,13 +5616,7 @@ function updateBLoad() {
   const left = Math.max(0, bombS.phaseEnd - gameTime); $('bLoadFill').style.width = (100 * left / BOMB.PREP).toFixed(1) + '%';
   $('bLoadT').textContent = `rodada começa em ${Math.ceil(left)} s`;
 }
-function bombEquipNow() {
-  const p = player; if (!p || !p.alive) return;
-  const old = p.slots.slice(); p.primary = p.nextPrimary = selectedPrimary; p.secondary = p.nextSecondary = selectedSecondary; p.melee = p.nextMelee = selectedMelee; p.slots = [p.primary, p.secondary, p.melee];
-  for (const i of p.slots) if (!old.includes(i)) { p.mag[i] = WEAPONS[i].mag; p.reserve[i] = WEAPONS[i].reserve; }
-  const w = old[0] !== p.primary ? p.primary : old[1] !== p.secondary ? p.secondary : old[2] !== p.melee ? p.melee : p.weapon;
-  p.reloadEnd = 0; p.knifeMode = false; switchWeapon(p, w); if (p.weapon !== w) setWeapon(p, w);
-}
+function bombEquipNow() { equipClassNow(player); }
 //  Modo Invasão 🎃 (cliente): core offline, eventos (offline e do servidor), zumbis, decoração, névoa, HUD,
 //  poderes (G usa · X troca) e painel de troca de arma nas pausas entre waves. Regras em shared/invasion.js.
 // ============================================================
@@ -5519,32 +5797,16 @@ function invSpectate() {
   const back = new V3(-Math.sin(t.yaw), 0, -Math.cos(t.yaw)); const cam = t.pos.clone().addScaledVector(back, 4.5); cam.y += 3;
   camera.position.lerp(cam, 0.15); camera.lookAt(t.pos.x, t.pos.y + 1.4, t.pos.z); return true;
 }
-// ---------- painel de troca de arma (pausa entre waves; mesmo jeito do modo Bomba) ----------
+// ---------- classes entre as waves (mesmo painel da Bomba) ----------
 let invPick = false;
-function iLoadTile(i, key, on, pickFn) {
-  const w = WEAPONS[i], b = document.createElement('button'); b.className = 'bltile' + (on ? ' on' : ''); b.dataset.w = i;
-  b.innerHTML = `${key ? `<i>${key}</i>` : ''}<span>${escapeHtml(w.chip || w.short || w.name)}</span>`; b.title = w.name;
-  if (weaponThumbs[i]) b.style.backgroundImage = `url("${weaponThumbs[i]}")`;
-  b.onclick = (ev) => { ev.stopPropagation(); pickFn(i); }; return b;
-}
 function invRenderPick() {
-  const pr = $('iLoadPri'), se = $('iLoadSec'), me = $('iLoadMel'); pr.innerHTML = se.innerHTML = me.innerHTML = '';
-  pool(PRIMARIES).forEach((i, k) => pr.appendChild(iLoadTile(i, k < 9 ? String(k + 1) : '', i === selectedPrimary, (x) => invPickW(setPrimary, x))));
-  pool(SECONDARIES).forEach((i) => se.appendChild(iLoadTile(i, i === selectedSecondary ? 'N' : '', i === selectedSecondary, (x) => invPickW(setSecondary, x))));
-  pool(MELEES).forEach((i) => me.appendChild(iLoadTile(i, i === selectedMelee ? 'M' : '', i === selectedMelee, (x) => invPickW(setMelee, x))));
+  paintPair('iLoadList', 'iLoadGun', LIVE_HINT);
 }
 const invCanPick = () => { const v = invView(); return !!(invMode() && v && (v.phase === 'break' || v.phase === 'prep') && player && player.alive); };
-function invPickW(fn, i) { fn(i); invEquipNow(); if (invPick) invRenderPick(); } // troca na hora (online o servidor também troca: 'pr' na pausa)
 function invOpenPick(unlock = false) { if (!invCanPick()) return; if (unlock) { deathUnlock = true; if (document.pointerLockElement) document.exitPointerLock(); } invPick = true; document.body.classList.add('invpick'); invRenderPick(); $('iLoad').classList.remove('hidden'); window.__invPicks = (window.__invPicks || 0) + 1; }
 function invClosePick() { if (!invPick) return; invPick = false; document.body.classList.remove('invpick'); $('iLoad').classList.add('hidden'); if (state === 'playing' && player && player.alive && document.pointerLockElement !== canvas && deathUnlock) lockPointer(); }
 function invUpdatePick(v) { if (!invCanPick()) { invClosePick(); return; } const tot = v.phase === 'prep' ? INV.PREP : INV.BREAK; $('iLoadFill').style.width = (100 * v.left / tot).toFixed(1) + '%'; $('iLoadT').textContent = `wave ${v.wave + 1} em ${Math.ceil(v.left)} s`; }
-function invEquipNow() {
-  const p = player; if (!p || !p.alive) return;
-  const old = p.slots.slice(); p.primary = p.nextPrimary = selectedPrimary; p.secondary = p.nextSecondary = selectedSecondary; p.melee = p.nextMelee = selectedMelee; p.slots = [p.primary, p.secondary, p.melee];
-  for (const i of p.slots) if (!old.includes(i)) { p.mag[i] = WEAPONS[i].mag; p.reserve[i] = WEAPONS[i].reserve; }
-  const w = old[0] !== p.primary ? p.primary : old[1] !== p.secondary ? p.secondary : old[2] !== p.melee ? p.melee : p.weapon;
-  p.reloadEnd = 0; p.knifeMode = false; switchWeapon(p, w); if (p.weapon !== w) setWeapon(p, w);
-}
+function invEquipNow() { equipClassNow(player); }
 // Bomba, rodada nova: a sequência e os streaks guardados continuam (trocar de rodada não é morrer), mas o que estava
 // no ar acaba: o Gavião vai embora, e o míssil pilotado e o Fim da chapa ainda na contagem voltam pro banco (F de novo).
 function bombRoundStreaks() {
@@ -5734,9 +5996,6 @@ function invKey(e) { // teclas da Invasão; true = consumiu
   if (e.code === KEYS.cycle) { invCycle(); return true; }
   if (invCanPick()) {
     if (e.code === 'KeyB') { if (invPick) invClosePick(); else invOpenPick(true); return true; }
-    if (invPick && e.code === 'KeyN') { const L = pool(SECONDARIES); if (L.length) invPickW(setSecondary, L[(Math.max(0, L.indexOf(selectedSecondary)) + 1) % L.length]); return true; }
-    if (invPick && e.code === 'KeyM') { const L = pool(MELEES); if (L.length) invPickW(setMelee, L[(Math.max(0, L.indexOf(selectedMelee)) + 1) % L.length]); return true; }
-    if (invPick && /^Digit[1-9]$/.test(e.code)) { const pk = pool(PRIMARIES)[+e.code.slice(5) - 1]; if (pk != null) invPickW(setPrimary, pk); return true; }
   }
   return false;
 }
@@ -5748,7 +6007,7 @@ function invEndText() {
 
 // ganchos para testes automatizados
 window.__docao = { get state() { return state; }, get ending() { return matchEnding; }, get entities() { return entities; }, get player() { return player; }, get camera() { return camera; }, startGame, endGame, pause, visible: (e) => losClear(center(player, EYE), center(e, 1.2)),
-  set time(v) { gameTime = v; }, get time() { return gameTime; }, get grenades() { return grenades; }, get grenadeAim() { return { origin: throwOrigin().toArray(), velocity: throwVelocity(throwPower()).toArray(), points: Array.from(arcGeo.attributes.position.array.slice(0, arcGeo.drawRange.count * 3)), marker: arcMark.position.toArray(), visible: arcLine.visible, cupVisible: fp.cup.visible, handVisible: fp.cupHand.visible }; }, get explosions() { return explosions; }, get pickups() { return pickups; }, get ads() { return ads; }, get fov() { return camera.fov; }, get rockets() { return rockets; }, get lastKnock() { return lastKnock; }, WEAPONS, setPrimary, get scoped() { return scoped(); },
+  set time(v) { gameTime = v; }, get time() { return gameTime; }, get grenades() { return grenades; }, get grenadeAim() { return { origin: throwOrigin().toArray(), velocity: throwVelocity(throwPower()).toArray(), points: Array.from(arcGeo.attributes.position.array.slice(0, arcGeo.drawRange.count * 3)), marker: arcMark.position.toArray(), visible: arcLine.visible, cupVisible: fp.cup.visible, handVisible: fp.cupHand.visible }; }, get explosions() { return explosions; }, get pickups() { return pickups; }, get ads() { return ads; }, get fov() { return camera.fov; }, get rockets() { return rockets; }, get lastKnock() { return lastKnock; }, WEAPONS, setPrimary, tuneClass, armClass, get classes() { return classes; }, get classIndex() { return classIndex; }, get held() { return player ? gunOf(player, player.weapon) : null; }, get scoped() { return scoped(); },
   MAPS, loadMap, selectMap, get map() { return currentMap; }, get nav() { return nav; }, get navMs() { return navMs; }, get spawns() { return SPAWNS; }, groundAt, collides, get solids() { return solids; },
   get online() { return online; }, joinRoom, leaveOnline, netEv,
   get mode() { return mode; }, get zone() { return zone; }, set zone(v) { zone = v; }, get teamScore() { return teamScore; }, get spawnHold() { return spawnHold; }, get selectedPrimary() { return selectedPrimary; },

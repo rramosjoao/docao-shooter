@@ -17,7 +17,7 @@ await page.mouse.click(400, 300); await wait(300); await page.mouse.click(300, 2
 const c1 = await G(() => window.__lockCalls || 0);
 ok(c1 === c0 && !(await G(() => !!document.pointerLockElement)), `morto: clicar no jogo não pede o mouse de novo (pedidos ${c0} → ${c1}) e o cursor fica livre`);
 // o painel de armas continua clicável
-const picked = await G(() => { const b = document.querySelector('#deathList button.primchip:not(.active)'); if (!b) return false; b.click(); return true; });
+const picked = await G(() => { const b = document.querySelector('#deathList button.clsrow:not(.on)'); if (!b) return false; b.click(); return true; });
 ok(picked, 'morto: o painel de armas responde ao clique');
 // renascer volta a capturar
 await G(() => { window.__docao.player.respawnAt = 0; }); await page.waitForFunction(() => document.getElementById('respawnBtn') && !document.getElementById('respawnBtn').disabled, null, { timeout: 30000 });

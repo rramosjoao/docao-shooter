@@ -116,14 +116,16 @@ await G(() => { window.__docao.player.invulnUntil = 0; window.__docao.kill(windo
 const dstate = await G(() => ({ lock: !!document.pointerLockElement, state: window.__docao.state, pick: !document.getElementById('deathpick').classList.contains('hidden') }));
 ok(!dstate.lock && dstate.state === 'playing' && dstate.pick, 'ao morrer: mouse solto, sem pausar, cartões de arma visíveis');
 await page.screenshot({ path: `${SHOTS}/17-tela-morte-clicavel.png` });
-await page.click('#deathList .primchip[data-i="1"]'); await page.click('#deathSec .primchip');
-ok(await G(() => window.__docao.selectedPrimary === 1 && window.__docao.spawnHold === 'secondary'), 'clique escolhe a Calibre 12 e "renascer com a pistola na mão"');
+await G(() => window.__docao.tuneClass(1, { primary: 1, secondary: 4, melee: 7, hand: 'secondary' }));
+await page.click('#deathList button.clsrow[data-i="1"]');
+ok(await G(() => window.__docao.selectedPrimary === 1 && window.__docao.spawnHold === 'secondary'), 'clique escolhe a classe com Calibre 12 e a pistola na mão');
 await until(() => window.__docao.player.alive, 20000); await wait(300);
 ok(await G(() => window.__docao.player.primary === 1 && window.__docao.player.weapon === 4), 'renasceu com Calibre 12 de primária e a pistola na mão');
 await page.click('#game'); await wait(300);
 ok(await G(() => !!document.pointerLockElement), 'clique trava o mouse de novo');
 await G(() => { window.__docao.player.invulnUntil = 0; window.__docao.kill(window.__docao.player); }); await until(() => !document.getElementById('deathpick').classList.contains('hidden'), 6000); // câmera do bacon (1,1 s de jogo) antes dos cartões
-await page.keyboard.press('Digit3'); ok(await G(() => window.__docao.selectedPrimary === 2), 'atalho de teclado (3) continua valendo');
+await G(() => window.__docao.tuneClass(2, { primary: 2 }));
+await page.keyboard.press('Digit3'); ok(await G(() => window.__docao.selectedPrimary === 2), 'atalho 3 escolhe a classe do Torresmo');
 await page.waitForFunction(() => !document.getElementById('respawnBtn').disabled, null, { timeout: 8000 }); await page.click('#respawnBtn'); await wait(300); ok(await G(() => !!document.pointerLockElement), 'botão RENASCER trava o mouse');
 // ---- placar no mata-mata também
 await G(() => window.__docao.endGame()); await page.click('#menuBtn'); await wait(500);

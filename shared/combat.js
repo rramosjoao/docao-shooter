@@ -71,8 +71,9 @@ export function rayCapsule(o, d, maxT, pos, pad = 0, crouch = 0) {
 }
 // dispersão do Sniper: scoped = luneta aberta (o overlay aparece), speed = velocidade horizontal, air = no ar.
 // looseHip = Torresmo sem luneta: no quadril o tiro abre bem mais. Com a luneta e parado continua reto.
-export function sniperSpread(scoped, speed, air, looseHip = false) {
-  if (scoped) return air ? 0.02 : speed < 1.5 ? 0 : 0.012;
-  if (looseHip) return air ? 0.2 : speed < 1.5 ? 0.11 : 0.16;
-  return air ? 0.06 : speed < 1.5 ? 0.025 : 0.045;
+export function sniperSpread(scoped, speed, air, looseHip = false, hipMul = 1, swayMul = 1) {
+  const hip = Number.isFinite(hipMul) ? hipMul : 1, sway = Number.isFinite(swayMul) ? swayMul : 1;
+  if (scoped) return air ? 0.02 * sway : speed < 1.5 ? 0 : 0.012 * sway;
+  if (looseHip) return (air ? 0.2 : speed < 1.5 ? 0.11 : 0.16) * hip;
+  return (air ? 0.06 : speed < 1.5 ? 0.025 : 0.045) * hip;
 }

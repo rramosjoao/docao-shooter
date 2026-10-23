@@ -2,7 +2,7 @@
 import { chromium } from 'playwright';
 const SITE = process.env.SITE || 'http://localhost:8124/', SHOT = process.env.SHOT || '';
 const fails = []; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FALHA') + ' ' + m); if (!c) fails.push(m); };
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-sandbox'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
 await page.goto(SITE, { waitUntil: 'load' }); await page.waitForTimeout(1500);
@@ -14,7 +14,7 @@ await G(() => { const g = window.__docao; g.player.invulnUntil = 0; g.kill(g.pla
 const t0 = await G(() => window.__docao.time);
 await page.waitForFunction((t) => window.__docao.time >= t + 2, t0, { timeout: 30000 });
 let st = await G(() => ({ alive: window.__docao.player.alive, dis: document.getElementById('respawnBtn').disabled, txt: document.getElementById('respawnBtn').textContent, vis: !document.getElementById('deathpick').classList.contains('hidden'), msg: document.getElementById('centermsg').textContent }));
-console.log(st); ok(!st.alive && st.dis && /Renascer em/.test(st.txt) && st.vis, 'antes de 5 s: morto, botão desativado com contagem');
+console.log(st); ok(!st.alive && st.dis && /Nascer em/.test(st.txt) && st.vis, 'antes de 5 s: morto, botão desativado com contagem');
 await page.waitForFunction((t) => window.__docao.time >= t + 6.5, t0, { timeout: 30000 });
 st = await G(() => ({ alive: window.__docao.player.alive, dis: document.getElementById('respawnBtn').disabled, txt: document.getElementById('respawnBtn').textContent, msg: document.getElementById('centermsg').textContent }));
 console.log(st); ok(!st.alive && !st.dis, 'depois de 5 s: botão ativo e sem renascer sozinho');

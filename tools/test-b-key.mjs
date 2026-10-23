@@ -56,7 +56,7 @@ await page.screenshot({ path: '/tmp/p14c/inv-painel.png' });
 await page.keyboard.press('KeyB'); await wait(300);
 ok(await G(() => !window.__docao.invPick && !window.__docao.emoting), 'B de novo fecha o painel, sem dança');
 await page.keyboard.press('Escape'); await wait(400);
-ok(await G(() => document.getElementById('pauseDance').classList.contains('hidden') && document.getElementById('pauseGuns').classList.contains('hidden')), 'Invasão: menu de pausa sem escolha de dança e sem troca de arma');
+ok(await G(() => document.getElementById('pauseDance').classList.contains('hidden') && document.getElementById('pauseClass').classList.contains('hidden') && document.getElementById('pauseClassBtn').classList.contains('hidden')), 'Invasão: menu de pausa sem escolha de dança e sem troca de arma');
 ok(errors.length === 0, 'sem erro no console' + (errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''));
 await browser.close();
 console.log(fails.length ? 'FALHOU ' + fails.length : 'TUDO OK'); process.exit(fails.length ? 1 : 0);

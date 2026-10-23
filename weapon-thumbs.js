@@ -61,7 +61,8 @@ function boundsOfVisibleMeshes(root) {
 
 export function renderWeaponThumb(group, w = 256, h = 160) {
   if (!thumbRenderer) {
-    thumbRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    thumbRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    thumbRenderer.setClearColor(0x000000, 0);
   }
   thumbRenderer.setSize(w, h, false);
 
@@ -71,7 +72,7 @@ export function renderWeaponThumb(group, w = 256, h = 160) {
   clone.rotation.set(0, 0, 0);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#1a2238');
+  scene.background = null;
   scene.fog = null;
   const hemi = new THREE.HemisphereLight(0xfff4e0, 0x6a5038, 2.1);
   const sun = new THREE.DirectionalLight(0xffffff, 1.8);

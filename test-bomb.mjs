@@ -3,7 +3,7 @@
 import { chromium } from 'playwright';
 const SITE = process.env.SITE || 'http://localhost:8124/', SHOTS = process.env.SHOTS || 'screenshots';
 const errors = [], fails = []; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FALHA') + ' ' + m); if (!c) fails.push(m); };
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-sandbox'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${m.type()}] ${m.text()}`); });
 page.on('pageerror', (e) => errors.push('[pageerror] ' + e.message + ' ' + e.stack));
@@ -34,18 +34,19 @@ const p0 = await G(() => window.__docao.player.pos.toArray()); await page.keyboa
 const p1 = await G(() => window.__docao.player.pos.toArray());
 ok(Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) < 0.05, 'preparação: o Docão não anda');
 await page.screenshot({ path: `${SHOTS}/30-bomba-prep.png` });
-// troca de arma na preparação (cartas da tela de morte): aparece, 1–9 troca na hora
+// classes na preparação: o painel abre, 5 escolhe a classe na hora
 const vis = (id) => !document.getElementById(id).classList.contains('hidden');
-const pk0 = await G(() => ({ pick: !document.getElementById('bLoad').classList.contains('hidden'), death: !document.getElementById('deathpick').classList.contains('hidden'), tiles: document.querySelectorAll('#bLoad .bltile').length, thumbs: [...document.querySelectorAll('#bLoadPri .bltile')].filter((b) => b.style.backgroundImage).length, t: document.getElementById('bLoadT').textContent, bar: document.getElementById('bLoadFill').style.width, prim: window.__docao.player.primary, sec: window.__docao.player.slots[1], banner: document.querySelector('#bombBanner .b2').textContent, rs: document.getElementById('respawnBtn').offsetParent !== null }));
-ok(pk0.pick && !pk0.death && !pk0.rs && pk0.tiles >= 12 && /rodada começa em \d+ s/.test(pk0.t) && parseFloat(pk0.bar) > 0, `preparação: painel compacto de troca de arma (${pk0.tiles} armas, ${pk0.thumbs} com miniatura, "${pk0.t}", barra ${pk0.bar})`);
+await G(() => window.__docao.tuneClass(4, { primary: 1, name: 'Chiqueiro' }));
+const pk0 = await G(() => ({ pick: !document.getElementById('bLoad').classList.contains('hidden'), death: !document.getElementById('deathpick').classList.contains('hidden'), tiles: document.querySelectorAll('#bLoad .clsrow').length, thumbs: [...document.querySelectorAll('#bLoad .wthumb')].filter((b) => b.style.backgroundImage).length, t: document.getElementById('bLoadT').textContent, bar: document.getElementById('bLoadFill').style.width, prim: window.__docao.player.primary, sec: window.__docao.player.slots[1], banner: document.querySelector('#bombBanner .b2').textContent, rs: document.getElementById('respawnBtn').offsetParent !== null }));
+ok(pk0.pick && !pk0.death && !pk0.rs && pk0.tiles === 5 && pk0.thumbs >= 1 && /rodada começa em \d+ s/.test(pk0.t) && parseFloat(pk0.bar) > 0, `preparação: painel de classes (${pk0.tiles} classes, ${pk0.thumbs} com foto, "${pk0.t}", barra ${pk0.bar})`);
 ok(/Leve o botijão até o A ou o B e segure E por 4 s/.test(pk0.banner) || /Impeça a plantação/.test(pk0.banner), `faixa da rodada explica o objetivo do lado (${pk0.banner})`);
 await page.keyboard.press('Digit5'); await wait(300);
-const pk1 = await G(() => { const p = window.__docao.player; return { prim: p.primary, slot0: p.slots[0], w: p.weapon, mag: p.mag[p.primary], on: document.querySelector('#bLoadPri .bltile.on').dataset.w }; });
-ok(pk1.prim !== pk0.prim && pk1.slot0 === pk1.prim && pk1.w === pk1.prim && pk1.mag > 0 && +pk1.on === pk1.prim, `tecla 5 na preparação troca a primária na hora e marca no painel (${pk0.prim} → ${pk1.prim})`);
+const pk1 = await G(() => { const p = window.__docao.player; return { prim: p.primary, slot0: p.slots[0], w: p.weapon, mag: p.mag[p.primary], on: document.querySelector('#bLoad .clsrow.on').dataset.i }; });
+ok(pk1.prim !== pk0.prim && pk1.slot0 === pk1.prim && pk1.w === pk1.prim && pk1.mag > 0 && +pk1.on === 4, `tecla 5 na preparação entra na classe na hora (${pk0.prim} → ${pk1.prim})`);
 await page.mouse.wheel(0, 120); await wait(300);
-const pk2 = await G(() => window.__docao.player.primary); ok(pk2 !== pk1.prim, `rodinha troca a primária (${pk1.prim} → ${pk2})`);
-await page.keyboard.press('KeyN'); await wait(300);
-const pk3 = await G(() => window.__docao.player.slots[1]); ok(pk3 !== pk0.sec, `N troca a secundária (${pk0.sec} → ${pk3})`);
+const pk2 = await G(() => window.__docao.player.primary); ok(pk2 !== pk1.prim, `rodinha troca a classe (${pk1.prim} → ${pk2})`);
+await page.keyboard.press('KeyU'); await wait(300);
+const pk3 = await G(() => window.__docao.player.primary); ok(pk3 === pk0.prim, `U volta pra classe com que nasceu (${pk1.prim} → ${pk3})`);
 await page.keyboard.press('KeyB'); await wait(200); const cl = await G(() => document.getElementById('bLoad').classList.contains('hidden'));
 await page.keyboard.press('KeyB'); await wait(200); const op = await G(() => !document.getElementById('bLoad').classList.contains('hidden'));
 ok(cl && op, 'B fecha e reabre o painel na preparação');
