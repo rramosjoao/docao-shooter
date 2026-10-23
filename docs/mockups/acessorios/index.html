@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Bancada de acessórios · Docão Shooter</title>
+<style>
+  :root {
+    --ink: #2d1b11;
+    --cream: #fff0d1;
+    --cream-2: #f6e4bd;
+    --gold: #e8bc67;
+    --gold-2: #e2bd7e;
+    --wood: #58371f;
+    --wood-2: #3e281a;
+    --tray: #6d5033;
+    --tray-2: #281b13aa;
+    --red: #a52e26;
+    --green: #294b36;
+    --muted: #dfc49a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #1a120c; color: var(--cream);
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  }
+  body > header.page {
+    max-width: 1280px; margin: 0 auto; padding: 28px 8px 8px;
+  }
+  body > header.page h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: .02em; }
+  body > header.page p { margin: 0 0 18px; color: var(--muted); font-size: 14px; max-width: 70ch; }
+  .shot { margin: 0 auto 36px; }
+  .label-shot {
+    max-width: 1280px; margin: 0 auto 8px; padding: 0 4px;
+    font: 800 12px/1 "Trebuchet MS", sans-serif; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--gold-2);
+  }
+
+  /* ---------- Arsenal (dentro da caixa) ---------- */
+  #arsenal {
+    width: 1280px; margin: 0 auto; padding: 28px 28px 22px;
+    background: #58371f;
+    border: 12px solid #3e281a;
+    box-shadow: inset 0 0 40px #1e100b99, 0 18px 40px #0008;
+    color: #ffe6b8;
+  }
+  .toprow { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .back {
+    border: 1px solid #987045; background: #34261b; color: #f5d7a0;
+    padding: 10px 16px; font: 800 13px "Trebuchet MS", sans-serif;
+    box-shadow: 0 3px #271a12; transform: rotate(-.4deg);
+  }
+  .heading { text-align: left; flex: 1; padding-bottom: 14px; position: relative; }
+  .heading .kicker { color: #d6b17a; font-size: 10px; letter-spacing: .18em; font-weight: 800; }
+  .heading h2 {
+    margin: 4px 0 6px; font-family: Georgia, "Times New Roman", serif;
+    font-size: 40px; font-weight: 800; color: #ffe3a5;
+    text-shadow: 2px 3px #2d1b11; letter-spacing: .01em;
+  }
+  .heading p { margin: 0; color: #dfc49a; font-size: 14px; max-width: 62ch; }
+  .heading::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: #ba8950; opacity: .55;
+    clip-path: polygon(0 0, 18% 40%, 32% 0, 58% 50%, 100% 0, 100% 100%, 70% 60%, 40% 100%, 0 100%);
+  }
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 22px; margin-top: 18px; }
+  .tray {
+    background: #281b1366; border: 2px solid #382619; padding: 12px;
+    box-shadow: inset 0 2px #ac7a3d44, 0 3px #261a12;
+  }
+  .tray h3 {
+    margin: 0 0 10px; color: #e2bd7e; font-size: 11px; letter-spacing: .16em;
+    font-weight: 800;
+  }
+  .gun {
+    display: flex; gap: 10px; align-items: center; width: 100%; text-align: left;
+    min-height: 64px; margin: 0 0 7px; padding: 8px 10px;
+    background: #6d5033; border: 1px solid #a07b4c; color: #fff0d1;
+    box-shadow: 0 2px #21170f; font: 800 13px/1.2 "Trebuchet MS", sans-serif;
+  }
+  .gun small { display: block; color: #e7cba3; font-weight: 600; font-size: 11px; margin-top: 3px; }
+  .gun.on { border: 2px solid #e8bc67; background: #856039; box-shadow: inset 4px 0 #e8bc67, 0 2px #21170f; }
+  .thumb {
+    width: 72px; height: 42px; flex: none; background: #30291e; border: 1px solid #a98855;
+    display: grid; place-items: center;
+  }
+  .thumb svg { width: 64px; height: 28px; }
+  .other {
+    margin-top: 10px; padding: 8px 10px; color: #e2bd7e; font-size: 12px; font-weight: 700;
+    border: 1px dashed #a07b4c; background: #34221588;
+  }
+  .bench-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .bench-head strong { color: #ffe3a5; font-size: 16px; }
+  .bench-head span { color: #d6b17a; font-size: 12px; }
+  .slots { display: flex; gap: 8px; margin: 12px 0; }
+  .slot {
+    flex: 1; text-align: left; padding: 8px 10px; min-height: 64px;
+    background: #4a301c; border: 1px solid #a07b4c; color: #fff0d1;
+    font: 800 12px/1.25 "Trebuchet MS", sans-serif;
+  }
+  .slot em { display: block; font-style: normal; color: #d6b17a; font-size: 10px; letter-spacing: .12em; margin-bottom: 4px; }
+  .slot.focus { border: 2px solid #e8bc67; background: #5c3d24; box-shadow: inset 0 -3px #e8bc67; }
+  .slot .tag { display: inline-block; margin-top: 4px; font-size: 10px; letter-spacing: .08em; color: #2d1b11; background: #e8bc67; padding: 1px 5px; }
+  .options { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .opt {
+    text-align: left; padding: 10px; min-height: 118px;
+    background: #6d5033; border: 1px solid #a07b4c; color: #fff0d1;
+    font: 800 13px/1.3 "Trebuchet MS", sans-serif; position: relative;
+  }
+  .opt small { display: block; font-weight: 600; color: #e7cba3; margin-top: 6px; }
+  .opt.equipped { box-shadow: inset 4px 0 #e8bc67; }
+  .opt.looking {
+    border: 2px solid #edc982; background: #856039;
+    outline: 3px solid #edc982; outline-offset: 2px;
+  }
+  .badge {
+    position: absolute; top: 8px; right: 8px; font-size: 10px; letter-spacing: .08em;
+    padding: 2px 6px; background: #2d1b11; color: #e8bc67;
+  }
+  .opt.equipped .badge { background: #e8bc67; color: #2d1b11; }
+  .compare {
+    margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    background: #24160f; border: 1px solid #a07b4c; padding: 12px 14px;
+  }
+  .compare h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: .14em; color: #e2bd7e; }
+  .compare .now h4 { color: #d6b17a; }
+  .compare .next h4 { color: #ffe3a5; }
+  .rowstat { display: grid; grid-template-columns: 92px 1fr 52px; gap: 8px; align-items: center; margin: 6px 0; font-size: 12px; }
+  .ruler { height: 8px; background: #3a2718; border: 1px solid #a07b4c; position: relative; }
+  .ruler i { display: block; height: 100%; background: #e8bc67; }
+  .ruler.down i { background: #c46a4a; }
+  .delta { font-weight: 800; color: #ffe3a5; text-align: right; }
+  .delta.bad { color: #f0b0a4; }
+  .same { color: #b9a488; font-size: 12px; margin: 8px 0 0; }
+  .sentence {
+    margin: 12px 0 0; padding: 10px 12px; background: #342215; border-left: 4px solid #e8bc67;
+    color: #fff0d1; font-size: 14px;
+  }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
+  .stamp {
+    background: #a52e26; color: #fff0cc; border: 0; padding: 12px 18px;
+    font: 900 14px "Trebuchet MS", sans-serif; letter-spacing: .04em;
+    box-shadow: 0 3px #2a1410; min-height: 44px;
+  }
+  .hint { color: #d6b17a; font-size: 12px; }
+  .hint kbd {
+    border: 1px solid #d6bc8d; background: #30281e80; border-radius: 2px;
+    padding: 2px 5px; font: 11px "Trebuchet MS", sans-serif;
+  }
+  .states { display: flex; gap: 8px; margin-top: 14px; }
+  .states .mini {
+    flex: 1; padding: 8px; background: #4a301c; border: 1px solid #a07b4c; font-size: 11px; color: #fff0d1;
+  }
+  .states .mini b { display: block; letter-spacing: .08em; font-size: 10px; color: #e2bd7e; margin-bottom: 4px; }
+  .states .seal { opacity: .85; background: repeating-linear-gradient(135deg, #4a301c, #4a301c 6px, #3d2818 6px, #3d2818 8px); }
+  .states .seal b { color: #f0b0a4; }
+
+  /* ---------- Morte ---------- */
+  #morte {
+    width: 1280px; height: 720px; margin: 0 auto; position: relative; overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% 40%, #6a5340 0%, #2a2118 55%, #14110e 100%);
+  }
+  #morte .world {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(#0000, #0006),
+      repeating-linear-gradient(90deg, #3a2a1c 0 14px, #332516 14px 16px);
+    opacity: .45;
+  }
+  #morte .gray {
+    position: absolute; inset: 0; background: rgba(40, 40, 42, .45);
+  }
+  #morte .msg {
+    position: absolute; top: 42%; left: 0; right: 0; text-align: center;
+    font: 800 18px/1.4 "Trebuchet MS", sans-serif; color: #fff;
+    text-shadow: 0 2px 0 #000;
+  }
+  #deathpick {
+    position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+    width: min(1000px, 96vw); max-height: calc(100% - 24px);
+    background: #f6e4bd; color: #34402e; border: 2px solid #34402e; border-top: 5px solid #674029;
+    border-radius: 4px; box-shadow: 2px 3px 0 #291e18; padding: 12px 10px 8px;
+  }
+  #deathpick .dl { font: 800 14px/1.2 "Trebuchet MS", sans-serif; margin-bottom: 6px; }
+  #deathpick .dl small { color: #674029; font-weight: 700; }
+  .dgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .chip {
+    display: flex; gap: 6px; align-items: center; text-align: left;
+    background: #f6e4bd; color: #34402e; border: 1px solid #34402e; border-radius: 3px;
+    box-shadow: 1px 2px 0 #291e18; padding: 4px 6px; font: 800 12px/1.15 "Trebuchet MS", sans-serif;
+    min-width: 0;
+  }
+  .chip.on { background: #a52e26; color: #fff0cc; border-color: #2a1410; }
+  .chip.on small { color: #fff0cc; }
+  .chip small { display: block; color: #674029; font: 700 10.5px/1.15 "Trebuchet MS", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip kbd { color: #a52e26; margin-right: 2px; }
+  .chip.on kbd { color: #fff0cc; }
+  .sq { width: 36px; height: 24px; flex: none; background: #6b4a30; box-shadow: inset 0 0 0 1px #291e18; }
+  .strip-label { margin: 8px 0 4px; font: 800 12px/1.2 "Trebuchet MS", sans-serif; color: #674029; text-align: left; }
+  .strip { display: flex; gap: 6px; position: relative; }
+  .piece {
+    flex: 1; text-align: left; background: #fff0cc; border: 1px solid #34402e; border-radius: 3px;
+    padding: 6px 8px; font: 800 12px/1.2 "Trebuchet MS", sans-serif; color: #34402e; min-height: 44px;
+  }
+  .piece em { display: block; font-style: normal; font-size: 10px; letter-spacing: .08em; color: #674029; }
+  .piece.open { background: #a52e26; color: #fff0cc; }
+  .piece.open em { color: #fff0cc; }
+  .pop {
+    position: absolute; left: 0; bottom: 52px; width: 280px;
+    background: #fff8e8; border: 2px solid #34402e; box-shadow: 2px 3px 0 #291e18; padding: 8px;
+    text-align: left;
+  }
+  .pop .choice {
+    display: block; width: 100%; text-align: left; margin: 0 0 4px; padding: 8px;
+    background: #f6e4bd; border: 1px solid #34402e; font: 800 12px/1.3 "Trebuchet MS", sans-serif; color: #34402e;
+  }
+  .pop .choice.hot { outline: 3px solid #c33b28; outline-offset: 1px; background: #fff0cc; }
+  .pop .choice b { display: block; }
+  .pop .choice span { font-weight: 600; color: #674029; }
+  .pop .say { margin: 6px 0 0; font-size: 12px; color: #34402e; }
+  .drow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .drow .dl { margin: 0 0 4px; color: #674029; }
+  #respawn {
+    display: block; width: min(420px, 90%); margin: 10px auto 2px; padding: 10px 14px;
+    font: 900 22px "Trebuchet MS", sans-serif; background: #e63946; color: #fff; border: 0;
+    box-shadow: 0 4px 0 #2a1410; letter-spacing: .03em;
+  }
+  .keys { text-align: center; color: #674029; font-size: 11px; font-weight: 700; margin-top: 4px; }
+
+  /* ---------- Estreita ---------- */
+  #estreita-wrap { width: 390px; margin: 0 auto 48px; }
+  #estreita {
+    width: 390px; background: #58371f; border: 6px solid #3e281a; color: #ffe6b8;
+    min-height: 844px; padding: 14px 12px 18px; box-shadow: inset 0 0 30px #1e100b99;
+  }
+  #estreita h2 { margin: 8px 0 4px; font-family: Georgia, serif; font-size: 28px; color: #ffe3a5; text-shadow: 2px 2px #2d1b11; }
+  #estreita .kicker { color: #d6b17a; font-size: 10px; letter-spacing: .16em; font-weight: 800; }
+  #estreita .lead { margin: 0 0 12px; color: #dfc49a; font-size: 13px; }
+  .mgun {
+    display: flex; gap: 8px; align-items: center; padding: 8px; margin-bottom: 10px;
+    background: #856039; border: 2px solid #e8bc67; color: #fff0d1; font-weight: 800;
+  }
+  .mslot { margin-bottom: 8px; }
+  .mslot .cap { font-size: 10px; letter-spacing: .14em; color: #e2bd7e; font-weight: 800; margin-bottom: 4px; }
+  .mopt {
+    display: block; width: 100%; text-align: left; padding: 10px 12px; margin: 0 0 4px;
+    min-height: 44px; background: #6d5033; border: 1px solid #a07b4c; color: #fff0d1;
+    font: 800 14px/1.3 "Trebuchet MS", sans-serif;
+  }
+  .mopt.looking { border: 2px solid #edc982; outline: 3px solid #edc982; outline-offset: 2px; background: #856039; }
+  .mopt small { display: block; font-weight: 600; color: #e7cba3; }
+  .sticky {
+    margin-top: 12px; background: #24160f; border: 1px solid #a07b4c; padding: 10px;
+  }
+  .sticky p { margin: 0 0 8px; font-size: 13px; }
+  .sticky button {
+    width: 100%; min-height: 48px; background: #a52e26; color: #fff0cc; border: 0;
+    font: 900 15px "Trebuchet MS", sans-serif; box-shadow: 0 3px #2a1410;
+  }
+  .footnote { max-width: 1280px; margin: 0 auto 40px; color: #b9a488; font-size: 12px; }
+</style>
+</head>
+<body>
+<header class="page">
+  <h1>Mockup estático — bancada do Arsenal</h1>
+  <p>Rascunho visual para o plano. Esta página é a bancada aprovada, dentro da caixa. A escolha in-game (morte, pausa, Bomba e tela estreita) está em <a href="ingame.html">ingame.html</a>.</p>
+</header>
+
+<p class="label-shot">1 · Home, dentro da caixa · bancada do Fuzil</p>
+<section class="shot" id="arsenal" aria-label="Bancada no Arsenal">
+  <div class="toprow">
+    <button class="back" type="button">← Arsenal</button>
+    <div class="heading">
+      <div class="kicker">Equipamento da casa</div>
+      <h2>Temperar o Fuzil Pururuca</h2>
+      <p>Uma peça por lugar. Olhe o que muda e só então carimbe. Vale quando você nascer — trocar peça não derruba ninguém.</p>
+    </div>
+  </div>
+  <div class="layout">
+    <div>
+      <div class="tray">
+        <h3>Rajada · a arma aberta</h3>
+        <button class="gun on" type="button"><span class="thumb" aria-hidden="true"><svg viewBox="0 0 64 28"><rect x="6" y="12" width="40" height="6" fill="#c4b49a"/><rect x="40" y="13" width="18" height="3" fill="#8d7a62"/><rect x="18" y="18" width="8" height="8" fill="#a52e26"/></svg></span><span>Fuzil Pururuca<small>aberta na bancada</small></span></button>
+        <button class="gun" type="button"><span class="thumb" aria-hidden="true"></span><span>Commando da Granja<small>recuo quase zero</small></span></button>
+        <button class="gun" type="button"><span class="thumb" aria-hidden="true"></span><span>Metralhadora do Chiqueiro<small>fita · anda mais devagar</small></span></button>
+        <button class="gun" type="button"><span class="thumb" aria-hidden="true"></span><span>MP5K da Granja<small>rajada curta</small></span></button>
+      </div>
+      <div class="other">Escopeta, Precisão e o resto ficam no Arsenal. Luneta de vidro de conserva não aparece neste fuzil: ela só abre na Sniper, no Canhão e na Carabina. Esc volta um passo.</div>
+    </div>
+    <div class="tray">
+      <div class="bench-head">
+        <strong>Quatro lugares</strong>
+        <span>Fuzil de fábrica: 30/120 · recuo 0,018 · mira 40</span>
+      </div>
+      <div class="slots" role="tablist" aria-label="Lugares da arma">
+        <button class="slot focus" type="button"><em>Mira</em>Alça de arame<span class="tag">Olhando</span></button>
+        <button class="slot" type="button"><em>Cano</em>Cano de bica<span class="tag">Na arma</span></button>
+        <button class="slot" type="button"><em>Pente</em>Pente de lata<span class="tag">De fábrica</span></button>
+        <button class="slot" type="button"><em>Mão</em>Sabugo<span class="tag">Na arma</span></button>
+      </div>
+      <div class="options" role="radiogroup" aria-label="Miras do Fuzil Pururuca">
+        <button class="opt equipped" type="button"><span class="badge">Na arma</span>Massa de milho<small>De fábrica. A mira que já veio no fuzil. Números iguais aos de hoje.</small></button>
+        <button class="opt looking" type="button"><span class="badge">Olhando</span>Alça de arame<small>Aproxima mais e fecha o tiro no botão direito. No quadril, abre um pouco.</small></button>
+        <button class="opt" type="button"><span class="badge">Cabe</span>Anel de barbante<small>Abre o campo (mira 48). Acha o alvo mais rápido e fecha menos o tiro.</small></button>
+      </div>
+      <div class="compare">
+        <div class="now">
+          <h4>Agora · Massa de milho</h4>
+          <div class="rowstat"><span>Aproxima</span><span class="ruler"><i style="width:46%"></i></span><span>40</span></div>
+          <div class="rowstat"><span>Mirando</span><span class="ruler"><i style="width:55%"></i></span><span>0,12</span></div>
+          <div class="rowstat"><span>No quadril</span><span class="ruler"><i style="width:40%"></i></span><span>0,010</span></div>
+        </div>
+        <div class="next">
+          <h4>Se carimbar · Alça de arame</h4>
+          <div class="rowstat"><span>Aproxima</span><span class="ruler"><i style="width:62%"></i></span><span class="delta">34</span></div>
+          <div class="rowstat"><span>Mirando</span><span class="ruler"><i style="width:72%"></i></span><span class="delta">0,09</span></div>
+          <div class="rowstat"><span>No quadril</span><span class="ruler down"><i style="width:52%"></i></span><span class="delta bad">0,012</span></div>
+          <p class="same">Recuo, pente, andar e parede furada ficam iguais. Some da comparação.</p>
+        </div>
+      </div>
+      <p class="sentence">A Alça de arame aproxima a mira e fecha o tiro quando você segura o botão direito. No quadril, o tiro abre um pouco.</p>
+      <div class="actions">
+        <div class="hint"><kbd>←</kbd><kbd>→</kbd> lugar &nbsp; <kbd>↑</kbd><kbd>↓</kbd> peça &nbsp; <kbd>Enter</kbd> carimba &nbsp; <kbd>Esc</kbd> volta ao Arsenal</div>
+        <button class="stamp" type="button">Por na arma</button>
+      </div>
+      <div class="states" aria-label="Estados da peça">
+        <div class="mini"><b>De fábrica</b>Pente de lata. É uma escolha, não um vazio com defeito.</div>
+        <div class="mini"><b>Na arma</b>Filete dourado e a palavra. A cor sozinha não diz.</div>
+        <div class="mini"><b>Olhando</b>Contorno dourado. Os números mudam. Ainda não está na arma.</div>
+        <div class="mini seal"><b>Lacre · fase 2</b>Peça visível, sem clique. “15 abates com este fuzil na caderneta.” O MVP não usa lacre.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<p class="footnote">A partida escolhe uma de três fichas em <a href="ingame.html">ingame.html</a>. A bancada acima continua a oficina. Uma linha com o nome da ficha aberta entra acima do título quando for código; a captura 01 permanece. Paleta da caixa em <code>style.css</code> (<code>#menu[data-crate-state=inside]</code>).</p>
+</body>
+</html>
