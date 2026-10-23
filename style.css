@@ -765,7 +765,7 @@ body.ghostfx #hud::before{content:'';position:fixed;inset:0;pointer-events:none;
 #iLoad .blbar{height:5px;margin-top:4px;border-radius:3px;background:rgba(255,255,255,.15);overflow:hidden}
 #iLoadFill{height:100%;width:100%;background:#ff9a3a}
 body.invpick #score,body.invpick #nades,body.invpick #tac,body.invpick #slots,body.invpick #wname{visibility:hidden}
-body.invmode #streakCount,body.invmode #streakBar,body.invmode #nukeReady,body.invmode #strikeMap,body.invmode #nukeBanner,body.invmode #predatorHud,body.invmode #heliHud,body.invmode #gunnerHud{display:none!important} /* Invasão: sem killstreaks */
+body.invmode #streakCount,body.invmode #streakBar,body.invmode #nukeReady,body.invmode #strikeMap,body.invmode #nukeBanner,body.invmode #predatorHud,body.invmode #heliHud,body.invmode #gunnerHud,body.invmode #ac130Hud,body.invmode #ac130Vig,body.invmode #ac130Alert{display:none!important} /* Invasão: sem killstreaks */
 body.invout #deathpick,body.invout #stamp,body.invout #centermsg{display:none!important}
 #invOut{z-index:6;background:rgba(20,8,30,.55);padding:10px 22px;border-radius:12px;border:1px solid rgba(192,112,255,.5)}
 /* Logo escolhida: placa de madeira com recorte transparente. */

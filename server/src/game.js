@@ -550,8 +550,9 @@ export class Game {
   }
   hurtHeli(h, amount, by) {
     if (!h.alive || !(amount > 0)) return;
-    h.hp = Math.max(0, h.hp - amount); this.events.push(['hh', h.id, Math.round(h.hp)]);
-    if (h.hp <= 0) { h.alive = false; this.events.push(['hx', h.id, 1, by ? by.id : 0]); }
+    const gun = this.gunships.includes(h);
+    h.hp = Math.max(0, h.hp - amount); this.events.push([gun ? 'ah' : 'hh', h.id, Math.round(h.hp)]);
+    if (h.hp <= 0) { h.alive = false; this.events.push([gun ? 'ae' : 'hx', h.id, 1, by ? by.id : 0]); }
   }
   // inimigo do dono do Gavião (pode atirar nele / ele atira em você)
   heliFoe(h, e) { return e && e !== h.owner && !this.friends(e, h.owner); }
@@ -763,6 +764,7 @@ export class Game {
     const scale = W.key === 'arco' ? clamp(Number(mul) || 1, 0.35, 1.3) : 1;
     const targets = [...this.ents.values()].filter((t) => t !== shooter && t.alive && (t.bot || t.connected) && !this.friends(t, shooter)).map((t) => ({ e: t, p: rewindT < this.T ? this.posAt(t, rewindT) : t.pos, crouch: this.crouchAt(t, rewindT), size: t.zt ? t.size : 1 })); // agachado achata o corpo (traceShot)
     const helis = []; for (const hl of this.helis) if (hl.alive && this.heliFoe(hl, shooter)) helis.push({ h: hl, c: this.heliAt(hl, heliT), r: this.heliR(hl) }, { h: hl, c: this.heliAt(hl, rewindT), r: this.heliR(hl) }); // o cliente desenha o Gavião sem atraso: vale o ping ou o rewind
+    for (const hl of this.gunships) if (hl.alive && this.heliFoe(hl, shooter)) helis.push({ h: hl, c: this.heliAt(hl, heliT), r: AC130.hit }, { h: hl, c: this.heliAt(hl, rewindT), r: AC130.hit }); // Grelha: mesma esfera do helicóptero, raio do avião
     const shotW = this.inv ? { ...W, pierce: 8, pierceMul: 0.82 } : W; // Invasão: a bala segue na fila de zumbis (8 corpos, ×0,82 de dano). Fora dela, o pierce da arma.
     for (const d of dirs) {
       const tr = traceShot(this.P, o, d, shotW, targets, helis, scale);
@@ -812,6 +814,10 @@ export class Game {
     for (const hl of this.helis) { // explosão perto do Gavião (mesma conta do offline)
       if (!hl.alive || !this.heliFoe(hl, owner)) continue;
       const d = dist(c, this.heliAt(hl)), reach = o.radius + this.heliR(hl) * 0.4; if (d < reach) this.hurtHeli(hl, o.maxDmg * (0.35 + 0.65 * (1 - d / reach)), owner);
+    }
+    for (const hl of this.gunships) { // a Grelha também leva explosão (a vida dela deixa de ser só número)
+      if (!hl.alive || !this.heliFoe(hl, owner)) continue;
+      const d = dist(c, this.heliAt(hl)), reach = o.radius + AC130.hit * 0.4; if (d < reach) this.hurtHeli(hl, o.maxDmg * (0.35 + 0.65 * (1 - d / reach)), owner);
     }
     const hits = explosionHits(c, o, this.invasion ? this.live().filter((x) => x.zt || x === owner) : this.live(), (a, b) => this.P.losClear(a, b), owner, this.teamMode, direct);
     for (const h of hits) {

@@ -914,7 +914,7 @@ function blastFx(c, radius) {
 function blast(c, owner, o, direct = null) {
   if (state === 'over') { blastFx(c, o.radius); return; } // depois do resultado: só o efeito
   (o.fx === 'pop' ? popFx : blastFx)(c, o.radius); // pipoca: estouro pequeno; o resto: som, tremida, confete (conta a explosão)
-  if (owner !== player) for (const sh of skyHelis()) {
+  if (owner !== player) for (const sh of [...skyHelis(), ...gunshipList()]) {
     const d = c.distanceTo(sh.pos);
     const reach = o.radius + heliR(sh) * 0.4;
     if (d < reach) hurtHeli(o.maxDmg * (0.35 + 0.65 * (1 - d / reach)), sh);
@@ -1195,7 +1195,7 @@ function fire(shooter, origin, dir, wIdx, spread, muzzle, mul = 1) {
   const w = WEAPONS[wIdx]; const res = { hit: false, kill: false, kills: 0, wall: false };
   if (shooter && shooter.model) setExpression(shooter.model, 'angry', 0.5); // cara de brava ao atirar
   const scale = wIdx === BOW ? clamp(Number(mul) || 1, 0.35, 1.3) : 1;
-  const hitsBy = new Map(), dirs = [], heliDmg = new Map(), skies = shooter === player ? [] : skyHelis();
+  const hitsBy = new Map(), dirs = [], heliDmg = new Map(), skies = shooter === player ? [] : [...skyHelis(), ...gunshipList().filter((h) => h.owner !== shooter)];
   const targets = entities.filter((e) => e !== shooter && e.alive && !friends(e, shooter)).map((e) => ({ e, p: e.pos, crouch: e.crouch || 0, size: e.zt ? e.size : 1 })); // zumbi grande: hitbox escalada; // time: bala atravessa o companheiro; agachado achata o corpo
   const helis = skies.map((sh) => ({ h: sh, c: sh.pos, r: heliR(sh) }));
   const shotW = invMode() ? { ...w, pierce: 8, pierceMul: 0.82 } : w; // Invasão: a bala segue na fila de zumbis (8 corpos, ×0,82 de dano). Fora dela, o pierce da arma.
@@ -1555,7 +1555,7 @@ function updateNetHelis(dt) {
 function hurtHeli(amount, h = heli) {
   if (!h || !h.alive || !(amount > 0)) return;
   h.hp = Math.max(0, h.hp - amount);
-  if (h.hp <= 0) { h.alive = false; h.crash = true; h.dieT = 0.9; if (!h.gunner) flashMsg('Derrubaram o gavião'); }
+  if (h.hp <= 0) { h.alive = false; h.crash = true; h.dieT = h.gunship ? 1.6 : 0.9; if (!h.gunner && !h.gunship) flashMsg('Derrubaram o gavião'); }
 }
 function grantHeli() {
   if (!currentMap) return;
@@ -1576,10 +1576,11 @@ function grantHeli() {
 // ---------- Chopper da granja (Chopper Gunner): a câmera vai pro helicóptero e você atira lá de cima ----------
 // Offline o helicóptero é gunHeli; online vem do servidor (netHelis, com gunner = true). gunner = o modo de controle.
 let gunHeli = null, gunner = null;
-let ac130Ship = null, ac130 = null;
+let ac130Ship = null, ac130 = null, ac130Touch = false;
 const netGunships = new Map();
 const skyHelis = () => [heli, gunHeli].filter((h) => h && h.alive);
-const heliR = (h) => (h.gunner ? GUNNER.hit : HELI.hit);
+const gunshipList = () => [ac130Ship, ...netGunships.values()].filter((h) => h && h.alive);
+const heliR = (h) => (h.gunship ? AC130.hit : h.gunner ? GUNNER.hit : HELI.hit);
 function grantGunner() {
   if (!currentMap || !player) return;
   if (gunHeli) { scene.remove(gunHeli.mesh); gunHeli = null; }
@@ -1662,8 +1663,150 @@ function gunnerHit(t, dmg, head) {
   kill(t, player, 0, head, false, true, 'Chopper da granja'); feedbackAward(HELI.points); // abate do Chopper não conta pra sequência
 }
 // ---------- Grelha da granja: o avião gira sozinho; quem chamou só aponta as três armas ----------
-const AC130_LABEL = { espeto: 'Espeto', panela: 'Panela', caldeirao: 'Caldeirão' };
+// O tiro sai da boca do canhão (fora do eixo da câmera). Um traço que começa no olho e segue a mira
+// vira um ponto na tela: por isso o Espeto parecia invisível (linha de 1px, 0,07 s, sem flash).
+const AC130_ORDER = ['espeto', 'panela', 'caldeirao'];
+const AC130_TOAST = { espeto: '1 · ESPETO · rajada', panela: '2 · PANELA · explosão', caldeirao: '3 · CALDEIRÃO · explosão grande' };
 const AC130_RANGE = 180;
+const AC130_FX = {
+  espeto: { fov: 68, kick: 0.016, roll: 0.004, color: 0xfff3c0, radius: 0.07, life: 0.22, vol: 0.78, shell: 0.1 },
+  panela: { fov: 54, kick: 0.048, roll: 0.012, color: 0xffb15a, radius: 0.16, life: 0.36, vol: 0.84, shell: 0.24 },
+  caldeirao: { fov: 40, kick: 0.09, roll: 0.022, color: 0xff6a2a, radius: 0.3, life: 0.5, vol: 0.95, shell: 0.4 },
+};
+const acGeo = {
+  beam: new THREE.CylinderGeometry(1, 1, 1, 6, 1, true),
+  flash: new THREE.SphereGeometry(1, 10, 8),
+  shell: new THREE.SphereGeometry(1, 8, 6),
+  ring: new THREE.RingGeometry(0.82, 1, 28),
+  scorch: new THREE.CircleGeometry(1, 18),
+};
+const ac130Cap = { beam: 32, flash: 20, shell: 12, ring: 8, scorch: 8 };
+const ac130Pool = { beam: [], flash: [], shell: [], ring: [], scorch: [] };
+const ac130Jobs = [];
+const skyVol = (p) => (player ? clamp(1 - p.distanceTo(player.pos) / 120, 0.28, 1) : 0.45);
+function acTake(kind, geo, color) {
+  const pool = ac130Pool[kind];
+  let m = pool.find((x) => x.userData.free);
+  if (!m) {
+    if (pool.length >= ac130Cap[kind]) return null;
+    m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }));
+    m.userData.free = true; m.frustumCulled = false; scene.add(m); pool.push(m);
+  }
+  m.userData.free = false; m.visible = true; m.material.opacity = 1; m.material.color.setHex(color);
+  m.scale.set(1, 1, 1); m.rotation.set(0, 0, 0); m.position.set(0, 0, 0);
+  return m;
+}
+function acFree(m) { if (!m) return; m.visible = false; m.userData.free = true; }
+function ac130Beam(a, b, color, radius, life) {
+  const dir = b.clone().sub(a); const len = dir.length(); if (len < 0.2) return;
+  const m = acTake('beam', acGeo.beam, color); if (!m) return;
+  m.scale.set(radius, len, radius);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new V3(0, 1, 0), dir.multiplyScalar(1 / len));
+  ac130Jobs.push({ kind: 'beam', mesh: m, t: 0, life });
+}
+function ac130Muzzle(from, mode) {
+  const m = acTake('flash', acGeo.flash, mode === 'caldeirao' ? 0xffe2a0 : 0xfff8e0); if (!m) return;
+  const s = mode === 'espeto' ? 0.42 : mode === 'panela' ? 0.85 : 1.35;
+  m.position.copy(from); m.scale.setScalar(s);
+  ac130Jobs.push({ kind: 'flash', mesh: m, t: 0, life: 0.09, s0: s });
+}
+function ac130Spark(end) {
+  const m = acTake('flash', acGeo.flash, 0xfff6d0);
+  if (m) { m.position.copy(end); m.scale.setScalar(0.55); ac130Jobs.push({ kind: 'flash', mesh: m, t: 0, life: 0.24, s0: 0.7 }); }
+  for (let i = 0; i < 4; i++) {
+    const s = new THREE.Mesh(dropGeo, new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true }));
+    s.position.copy(end); scene.add(s);
+    particles.push({ mesh: s, vel: new V3(rand(-1, 1), rand(0.3, 1.5), rand(-1, 1)).multiplyScalar(rand(2, 5)), life: 0.3, t: 0, kind: 'drop' });
+  }
+}
+function ac130Danger(end, mode) {
+  if (!player || ac130) return;
+  const reach = mode === 'caldeirao' ? 16 : 11;
+  if (end.distanceTo(player.pos) > reach) return;
+  const n = document.getElementById('ac130Alert');
+  if (n) { n.hidden = false; n.classList.add('hot', 'foe'); n.textContent = 'IMPACTO PERTO · sai da marca'; setTimeout(() => n.classList.remove('hot'), 700); }
+  shake = Math.max(shake, mode === 'caldeirao' ? 0.55 : 0.28);
+}
+function ac130Boom(c, mode, local) {
+  window.__ac130Booms = (window.__ac130Booms || 0) + 1;
+  const big = mode === 'caldeirao', R = big ? 9 : 5.2;
+  const flash = acTake('flash', acGeo.flash, 0xfff3c4);
+  if (flash) { flash.position.copy(c); const s0 = big ? 2.6 : 1.4; flash.scale.setScalar(s0); ac130Jobs.push({ kind: 'flash', mesh: flash, t: 0, life: 0.28, s0 }); }
+  const ring = acTake('ring', acGeo.ring, big ? 0xff6a2a : 0xffd27a);
+  if (ring) { ring.rotation.x = -Math.PI / 2; ring.position.set(c.x, c.y + 0.2, c.z); ac130Jobs.push({ kind: 'ring', mesh: ring, t: 0, life: 0.5, to: R }); }
+  const scorch = acTake('scorch', acGeo.scorch, 0x2a160c);
+  if (scorch) { scorch.rotation.x = -Math.PI / 2; scorch.position.set(c.x, c.y + 0.08, c.z); scorch.scale.setScalar(big ? 3.4 : 1.8); ac130Jobs.push({ kind: 'scorch', mesh: scorch, t: 0, life: 6 }); }
+  const n = big ? 12 : 7;
+  for (let i = 0; i < n; i++) {
+    const s = new THREE.Mesh(smokeGeo, new THREE.MeshBasicMaterial({ color: i % 2 ? 0xc8c2b8 : 0x8a8680, transparent: true, depthWrite: false }));
+    s.position.copy(c); scene.add(s);
+    particles.push({ mesh: s, vel: new V3(rand(-1, 1), rand(1.2, 3.4), rand(-1, 1)), life: rand(1.1, 1.8), t: 0, kind: 'smoke', s0: rand(big ? 1.4 : 0.8, big ? 2.4 : 1.4) });
+  }
+  for (let i = 0; i < (big ? 14 : 7); i++) {
+    const m = new THREE.Mesh(dropGeo, new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffb15a : 0xfff0c0, transparent: true }));
+    m.position.copy(c); scene.add(m);
+    particles.push({ mesh: m, vel: new V3(rand(-1, 1), rand(0.4, 1.6), rand(-1, 1)).normalize().multiplyScalar(rand(4, big ? 12 : 7)), life: rand(0.4, 0.8), t: 0, kind: 'drop' });
+  }
+  const light = new THREE.PointLight(0xffb15a, big ? 36 : 18, big ? 26 : 14);
+  light.position.copy(c); light.position.y += 0.8; scene.add(light);
+  ac130Jobs.push({ kind: 'light', light, power: big ? 36 : 18, t: 0, life: 0.22 });
+  sfx.boom(local ? (big ? 1 : 0.72) : skyVol(c) * (big ? 1 : 0.8));
+  if (player && !local) shake = Math.max(shake, clamp(1 - c.distanceTo(player.pos) / (big ? 32 : 18), 0, 1) * (big ? 0.62 : 0.32));
+  ac130Danger(c, mode);
+}
+function ac130Shell(from, to, mode, life, boom, local) {
+  const m = acTake('shell', acGeo.shell, mode === 'espeto' ? 0xfff6c0 : mode === 'panela' ? 0xffc46a : 0xff6a2a);
+  if (!m) { if (boom) ac130Boom(to, mode, local); return; }
+  // no chão o projétil está a dezenas de metros: o mesmo tamanho da cabine vira um pontinho
+  const far = local ? 1 : (mode === 'espeto' ? 3.4 : mode === 'panela' ? 2.1 : 1.7);
+  m.scale.setScalar((mode === 'caldeirao' ? 0.62 : mode === 'panela' ? 0.36 : 0.14) * far);
+  m.position.copy(from);
+  ac130Jobs.push({ kind: 'shell', mesh: m, from: from.clone(), to: to.clone(), t: 0, life, mode, boom, local, next: 0.03 });
+}
+function ac130Fx(from, end, mode, local) {
+  const fx = AC130_FX[mode];
+  // quem está no avião vê o traço grosso porque ele começa a 2 m do olho.
+  // quem está no chão olha de longe: o mesmo cilindro fica com 1 px. O traço remoto é mais grosso e dura um pouco mais.
+  const far = local ? 1 : (mode === 'espeto' ? 6 : mode === 'panela' ? 3.2 : 2.2);
+  ac130Beam(from, end, fx.color, fx.radius * far, fx.life * (local ? 1 : 1.25));
+  if (mode === 'espeto') ac130Beam(from, end, 0xffffff, fx.radius * (local ? 0.38 : 2.2), fx.life * 0.65);
+  ac130Muzzle(from, mode);
+  ac130Shell(from, end, mode, fx.shell, mode !== 'espeto', local);
+  window.__ac130Last = { fx: from.x, fy: from.y, fz: from.z, x: end.x, y: end.y, z: end.z, mode };
+  const vol = local ? fx.vol : skyVol(from) * 0.9;
+  if (mode === 'espeto') sfx.lmg(vol);
+  else { (mode === 'caldeirao' ? sfx.canhao : sfx.bazooka)(vol); sfx.incoming(local ? 0.22 : Math.min(0.4, skyVol(end))); }
+}
+function updateAc130Vis(dt) {
+  for (let i = ac130Jobs.length - 1; i >= 0; i--) {
+    const j = ac130Jobs[i]; j.t += dt; const k = j.life > 0 ? j.t / j.life : 1;
+    if (j.kind === 'shell') {
+      const u = Math.min(1, k);
+      j.mesh.position.lerpVectors(j.from, j.to, u);
+      if (j.mode !== 'espeto' && u < 1 && j.t >= j.next) {
+        j.next = j.t + 0.05;
+        const s = new THREE.Mesh(smokeGeo, new THREE.MeshBasicMaterial({ color: 0xd9d0c4, transparent: true, depthWrite: false }));
+        s.position.copy(j.mesh.position); scene.add(s);
+        particles.push({ mesh: s, vel: new V3(rand(-0.3, 0.3), rand(0.4, 1.2), rand(-0.3, 0.3)), life: 0.7, t: 0, kind: 'smoke', s0: j.mode === 'caldeirao' ? 1.2 : 0.65 });
+      }
+      if (u >= 1) { if (j.boom) ac130Boom(j.to, j.mode, j.local); else if (j.mode === 'espeto') ac130Spark(j.to); acFree(j.mesh); ac130Jobs.splice(i, 1); }
+      continue;
+    }
+    if (j.kind === 'light') { j.light.intensity = j.power * Math.max(0, 1 - k); if (k >= 1) { scene.remove(j.light); ac130Jobs.splice(i, 1); } continue; }
+    if (j.kind === 'beam') j.mesh.material.opacity = 0.95 * Math.max(0, 1 - k);
+    else if (j.kind === 'ring') { j.mesh.scale.setScalar(0.35 + k * j.to); j.mesh.material.opacity = Math.max(0, 1 - k); }
+    else if (j.kind === 'flash') { j.mesh.scale.setScalar(j.s0 * (1 + k * 1.6)); j.mesh.material.opacity = Math.max(0, 1 - k); }
+    else if (j.kind === 'scorch') j.mesh.material.opacity = k < 0.75 ? 0.62 : 0.62 * Math.max(0, 1 - (k - 0.75) / 0.25);
+    if (k >= 1) { acFree(j.mesh); ac130Jobs.splice(i, 1); }
+  }
+}
+function ac130Port(h) {
+  const p = h.pos.clone(), inward = new V3(-h.pos.x, 0, -h.pos.z);
+  if (inward.lengthSq() < 1) inward.set(1, 0, 0);
+  inward.normalize(); p.addScaledVector(inward, 1.6); p.y -= 1.5;
+  return p;
+}
 function makeAc130Mesh() {
   const g = new THREE.Group();
   const add = (geo, color, x, y, z) => {
@@ -1674,85 +1817,236 @@ function makeAc130Mesh() {
   add(new THREE.BoxGeometry(2.7, 0.1, 1.05), 0xc4a15a, -1.85, 0.06, 0.15);
   add(new THREE.BoxGeometry(2.7, 0.1, 1.05), 0xc4a15a, 1.85, 0.06, 0.15);
   add(new THREE.BoxGeometry(0.12, 0.95, 0.72), 0x2a241c, 0, 0.62, 1.85);
+  const gun = add(new THREE.CylinderGeometry(0.08, 0.1, 1.15, 8), 0x1c1814, 0.42, -0.42, 0.2);
+  gun.rotation.x = 1.15;
   g.scale.setScalar(2.6);
   return g;
 }
 function ensureAc130Hud() {
-  if (document.getElementById('ac130Vig')) return;
+  if (document.getElementById('ac130Hud')) return document.getElementById('ac130Hud');
   const style = document.createElement('style');
-  style.textContent = '#ac130Vig{position:fixed;inset:0;z-index:5;pointer-events:none;background:transparent;box-shadow:inset 0 0 120px 42px rgba(184,98,16,.72)}#ac130Vig[hidden]{display:none!important}#ac130Lock{position:fixed;left:50%;bottom:108px;transform:translateX(-50%);z-index:26;pointer-events:none;user-select:none;font:700 14px "Trebuchet MS",Arial,sans-serif;color:#ffd27a;text-shadow:0 1px 0 #000;background:rgba(28,16,6,.8);border:2px solid #c47820;border-radius:6px;padding:4px 10px;white-space:nowrap}#ac130Lock[hidden]{display:none!important}';
+  style.textContent = `#ac130Vig{position:fixed;inset:0;z-index:5;pointer-events:none;background:repeating-linear-gradient(180deg,rgba(255,170,60,.07) 0 1px,transparent 1px 3px),radial-gradient(circle at 50% 46%,rgba(255,150,40,.08),rgba(40,14,0,.5) 78%);box-shadow:inset 0 0 150px 40px rgba(150,60,8,.62)}#ac130Vig[hidden]{display:none!important}
+#ac130Hud{position:fixed;inset:0;z-index:26;pointer-events:none;user-select:none;font-family:"Trebuchet MS",Arial,sans-serif;color:#ffe7c2}
+#ac130Hud[hidden]{display:none!important}
+#ac130Hud .ac-top{position:absolute;top:64px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+#ac130Hud .ac-top b{font-family:Impact,"Arial Black",sans-serif;font-size:18px;letter-spacing:1px;text-shadow:0 2px 0 #000}
+#ac130Hud .ac-hp{width:240px;height:8px;background:rgba(0,0,0,.6);border:1px solid #ffd27a;border-radius:4px;overflow:hidden}
+#ac130Hud .ac-hp span{display:block;height:100%;width:100%;background:#e7b15a}
+#ac130Hud .ac-top small{font-weight:700;text-shadow:0 1px 0 #000}
+#ac130Hud .ac-modes{position:absolute;left:18px;bottom:22px;display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+#ac130Hud .ac-modes button{display:grid;grid-template-columns:22px 1fr auto;grid-template-rows:auto auto;column-gap:8px;align-items:center;min-width:196px;text-align:left;color:#ffe7c2;background:rgba(20,10,4,.72);border:2px solid rgba(255,210,122,.35);border-radius:8px;padding:6px 8px 8px;font:700 13px "Trebuchet MS",Arial,sans-serif;cursor:pointer}
+#ac130Hud .ac-modes button i{grid-row:1/span 2;font-style:normal;font-family:Impact,sans-serif;font-size:18px}
+#ac130Hud .ac-modes button b{font-size:14px}
+#ac130Hud .ac-modes button small{opacity:.8}
+#ac130Hud .ac-modes button em{grid-column:2/span 2;display:block;height:4px;margin-top:3px;background:#ffb15a;transform-origin:left center;transform:scaleX(0);border-radius:2px}
+#ac130Hud .ac-modes button.on{border-color:#ffd27a;color:#fff6df;box-shadow:0 0 0 1px #ffd27a}
+#ac130Hud .ac-modes button.wait{opacity:.72}
+#ac130Hud .ac-x{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+#ac130Hud .ac-x.espeto{width:26px;height:26px;border:2px solid #ffe7a4;border-radius:50%;box-shadow:0 0 0 1px #000}
+#ac130Hud .ac-x.espeto::before{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#ffe7a4;border-radius:50%}
+#ac130Hud .ac-x.panela{width:64px;height:64px;border:2px solid #ffb15a;box-shadow:0 0 0 1px #000}
+#ac130Hud .ac-x.panela::before,#ac130Hud .ac-x.panela::after{content:"";position:absolute;background:#ffb15a}
+#ac130Hud .ac-x.panela::before{left:50%;top:-8px;bottom:-8px;width:2px;margin-left:-1px}
+#ac130Hud .ac-x.panela::after{top:50%;left:-8px;right:-8px;height:2px;margin-top:-1px}
+#ac130Hud .ac-x.caldeirao{width:108px;height:108px;border:2px dashed #ff8a3a;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.65)}
+#ac130Hud .ac-x.caldeirao::before{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px;background:#ff8a3a;border-radius:50%}
+#ac130Hud .ac-toast{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-family:Impact,"Arial Black",sans-serif;font-size:28px;letter-spacing:1px;color:#fff6df;text-shadow:0 2px 0 #000,0 0 12px #c45a10}
+#ac130Hud .ac-toast[hidden]{display:none!important}
+#ac130Hud .ac-hint{position:absolute;right:18px;bottom:22px;text-align:right;font-size:12px;font-weight:700;line-height:1.45;text-shadow:0 1px 0 #000;opacity:.9}
+#ac130Hud .ac-tags{position:absolute;inset:0}
+#ac130Hud .ac-tag{position:absolute;transform:translate(-50%,-130%);padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;text-shadow:0 1px 0 #000}
+#ac130Hud .ac-tag.foe{color:#ffe0dc;background:rgba(90,16,10,.75);border:1px solid #ff5a42}
+#ac130Hud .ac-tag.ally{color:#e7fbff;background:rgba(8,40,60,.75);border:1px solid #7ee0ff}
+#ac130Hud .ac-tag.off{opacity:.8}
+#ac130Hud .ac-fire{display:none}
+@media (pointer:coarse){
+  #ac130Hud .ac-fire{display:flex;position:absolute;right:16px;bottom:108px;width:92px;height:92px;border-radius:50%;align-items:center;justify-content:center;pointer-events:auto;background:rgba(180,60,12,.85);border:3px solid #ffd27a;color:#fff6df;font:700 14px Impact,sans-serif;letter-spacing:.5px;touch-action:none}
+  #ac130Hud .ac-hint{display:none}
+}
+body.in-ac130 #crosshair,body.in-ac130 #bottomright,body.in-ac130 #streakBar,body.in-ac130 #score,body.in-ac130 #nukeReady{visibility:hidden}
+#ac130Alert{position:fixed;top:74px;left:50%;transform:translateX(-50%);z-index:27;pointer-events:none;padding:6px 12px;border-radius:8px;background:rgba(12,36,52,.82);border:2px solid #7ee0ff;color:#e7fbff;font:700 14px "Trebuchet MS",Arial,sans-serif;text-shadow:0 1px 0 #000;white-space:nowrap}
+#ac130Alert.foe{background:rgba(70,16,8,.86);border-color:#ff5a42;color:#ffe0dc}
+#ac130Alert.hot{animation:acHot .25s steps(2) infinite}
+#ac130Alert[hidden]{display:none!important}
+@keyframes acHot{50%{opacity:.45}}`;
   document.head.appendChild(style);
   const vig = document.createElement('div'); vig.id = 'ac130Vig'; vig.hidden = true; document.body.appendChild(vig);
-  const lock = document.createElement('div'); lock.id = 'ac130Lock'; lock.hidden = true; document.body.appendChild(lock);
+  const alert = document.createElement('div'); alert.id = 'ac130Alert'; alert.hidden = true; document.body.appendChild(alert);
+  const node = document.createElement('div'); node.id = 'ac130Hud'; node.hidden = true;
+  node.innerHTML = '<div class="ac-tags"></div><div class="ac-x espeto"></div><div class="ac-toast" hidden></div>'
+    + '<div class="ac-top"><b>GRELHA DA GRANJA</b><div class="ac-hp"><span></span></div><small>40s</small></div>'
+    + '<div class="ac-modes"></div>'
+    + '<div class="ac-hint">clique: atira<br>1 / 2 / 3, rodinha ou botão direito: troca<br>sem pente · a recarga é o tempo<br>vermelho inimigo · azul aliado<br>F: sai da Grelha</div>'
+    + '<button type="button" class="ac-fire">ATIRA</button>';
+  const modes = node.querySelector('.ac-modes');
+  for (const [id, key, name, blur] of [['espeto', '1', 'Espeto', 'rajada'], ['panela', '2', 'Panela', 'explosão'], ['caldeirao', '3', 'Caldeirão', 'grande']]) {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.m = id;
+    b.innerHTML = `<i>${key}</i><b>${name}</b><small>${blur}</small><em></em>`;
+    b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); setAc130Mode(id); });
+    modes.appendChild(b);
+  }
+  const fire = node.querySelector('.ac-fire');
+  const hold = (ev) => { ev.preventDefault(); ac130Touch = true; };
+  const drop = () => { ac130Touch = false; };
+  fire.addEventListener('pointerdown', hold);
+  fire.addEventListener('pointerup', drop);
+  fire.addEventListener('pointercancel', drop);
+  fire.addEventListener('pointerleave', drop);
+  document.body.appendChild(node);
+  return node;
 }
 function showAc130Hud(on) {
   ensureAc130Hud();
+  document.getElementById('ac130Hud').hidden = !on;
   document.getElementById('ac130Vig').hidden = !on;
-  document.getElementById('ac130Lock').hidden = !on;
+  document.body.classList.toggle('in-ac130', !!on);
 }
-function paintAc130Lock() {
-  const node = document.getElementById('ac130Lock'); if (!node || !ac130) return;
-  const mode = ac130.mode, M = AC130[mode];
-  const wait = Math.max(0, ac130.last[mode] + M.rate - gameTime);
-  node.textContent = `${AC130_LABEL[mode]} · ${wait.toFixed(1)}s`;
+function paintAc130Tags(node) {
+  const box = node.querySelector('.ac-tags'); if (!box) return;
+  const list = [];
+  for (const e of entities) {
+    if (!e.alive || e === player) continue;
+    _gm.copy(center(e, 1.15)).project(camera);
+    if (_gm.z > 1) continue;
+    list.push({ e, ally: friends(e, player), x: _gm.x, y: _gm.y, off: Math.abs(_gm.x) > 1 || Math.abs(_gm.y) > 1, d: camera.position.distanceTo(e.pos) });
+  }
+  list.sort((a, b) => a.d - b.d);
+  const nMax = Math.min(14, list.length);
+  for (let i = 0; i < nMax; i++) {
+    const it = list[i], tag = box.children[i] || box.appendChild(document.createElement('i'));
+    const x = clamp(it.x, -0.94, 0.94), y = clamp(it.y, -0.88, 0.88);
+    tag.className = 'ac-tag' + (it.ally ? ' ally' : ' foe') + (it.off ? ' off' : '');
+    tag.style.left = ((x + 1) / 2 * innerWidth).toFixed(0) + 'px';
+    tag.style.top = ((1 - y) / 2 * innerHeight).toFixed(0) + 'px';
+    tag.textContent = `${it.e.name} ${Math.round(it.d)}m`;
+    tag.hidden = false;
+  }
+  for (let i = nMax; i < box.children.length; i++) box.children[i].hidden = true;
+}
+function paintAc130Hud() {
+  const node = ensureAc130Hud(), g = ac130, h = g.h;
+  node.querySelector('.ac-hp span').style.width = Math.max(0, h.hp / (h.max || AC130.hp) * 100) + '%';
+  node.querySelector('.ac-top small').textContent = Math.max(0, Math.ceil(h.until - gameTime)) + 's';
+  node.querySelector('.ac-x').className = 'ac-x ' + g.mode;
+  const toast = node.querySelector('.ac-toast');
+  toast.hidden = !(g.toastUntil > gameTime);
+  if (!toast.hidden) toast.textContent = g.toast || '';
+  node.querySelectorAll('.ac-modes button').forEach((b) => {
+    const mode = b.dataset.m, M = AC130[mode], wait = Math.max(0, g.last[mode] + M.rate - gameTime);
+    b.classList.toggle('on', mode === g.mode);
+    b.classList.toggle('wait', wait > 0.05);
+    b.querySelector('small').textContent = wait > 0.05 ? `${wait.toFixed(1)}s` : 'pronta';
+    b.querySelector('em').style.transform = `scaleX(${M.rate ? Math.min(1, wait / M.rate) : 0})`;
+  });
+  paintAc130Tags(node);
+}
+function paintAc130Alert() {
+  if (!document.getElementById('ac130Alert') && !ac130Ship && !netGunships.size) return;
+  ensureAc130Hud();
+  const node = document.getElementById('ac130Alert');
+  const ships = gunshipList();
+  const h = ships[0];
+  const show = !!(h && !ac130 && player && state === 'playing');
+  if (!show) { if (!node.classList.contains('hot')) node.hidden = true; return; }
+  if (node.classList.contains('hot')) { node.hidden = false; return; }
+  const foe = h.owner && h.owner !== player && !friends(h.owner, player);
+  node.hidden = false; node.classList.toggle('foe', !!foe);
+  const left = Math.max(0, Math.ceil(h.until - gameTime));
+  const who = h.owner && h.owner.name ? h.owner.name : 'alguém';
+  node.textContent = foe ? `GRELHA NO CÉU · ${who} · ${left}s · procura abrigo` : `Grelha aliada · ${who} · ${left}s`;
 }
 function grantAc130() {
   if (!currentMap || !player) return;
   if (ac130Ship) { scene.remove(ac130Ship.mesh); ac130Ship = null; }
   const mesh = makeAc130Mesh(); scene.add(mesh);
-  ac130Ship = { mesh, alive: true, dieT: 0, hp: AC130.hp, max: AC130.hp, until: gameTime + AC130.life, ang: Math.random() * Math.PI * 2, orbit: heliOrbit(mapBounds) * AC130.orbit, height: AC130.height, spin: AC130.spin, born: gameTime, pos: new V3(), vel: new V3() };
+  ac130Ship = { mesh, gunship: true, owner: player, alive: true, dieT: 0, crash: false, hp: AC130.hp, max: AC130.hp, until: gameTime + AC130.life, ang: Math.random() * Math.PI * 2, orbit: heliOrbit(mapBounds) * AC130.orbit, height: AC130.height, spin: AC130.spin, born: gameTime, pos: new V3(), vel: new V3() };
   const p = heliPos(ac130Ship, gameTime); ac130Ship.pos.set(p.x, p.y, p.z); mesh.position.copy(ac130Ship.pos);
   const ahead = heliPos(ac130Ship, gameTime + 0.05); mesh.lookAt(ahead.x, ahead.y, ahead.z);
   startAc130(ac130Ship, false);
 }
 function startAc130(h, net) {
-  ac130 = { h, net, mode: 'espeto', yaw: Math.atan2(h.pos.x, h.pos.z), pitch: -1.05, last: { espeto: -9, panela: -9, caldeirao: -9 } };
-  mouseDown = false; player.bowDraw = player.eggDraw = 0; resetAds(); showAc130Hud(true);
+  ac130 = { h, net, mode: 'espeto', yaw: Math.atan2(h.pos.x, h.pos.z), pitch: -1.05, last: { espeto: -9, panela: -9, caldeirao: -9 }, fov: AC130_FX.espeto.fov, kick: 0, roll: 0, rWas: rightDown, toast: AC130_TOAST.espeto, toastUntil: gameTime + 1.5 };
+  mouseDown = false; ac130Touch = false; player.bowDraw = player.eggDraw = 0; resetAds();
+  camera.fov = AC130_FX.espeto.fov; camera.updateProjectionMatrix();
+  showAc130Hud(true);
   flashMsg('Grelha da granja'); if (state === 'playing' && !document.pointerLockElement) lockPointer();
 }
 function endAc130(leave = false) {
   if (!ac130) return;
-  const g = ac130; ac130 = null; showAc130Hud(false);
+  const g = ac130; ac130 = null; ac130Touch = false; showAc130Hud(false);
   camera.fov = BASE_FOV; camera.updateProjectionMatrix();
   if (!leave) return;
-  if (g.net) netEv(['ks', 'ax']); else if (g.h.alive) { g.h.alive = false; g.h.dieT = 1.25; }
+  if (g.net) netEv(['ks', 'ax']); else if (g.h.alive) { g.h.alive = false; g.h.dieT = 1.25; g.h.crash = false; }
 }
-function setAc130Mode(mode) { if (!ac130 || ac130.mode === mode || !AC130[mode]) return; ac130.mode = mode; }
-function updateAc130Ship(dt) {
-  const h = ac130Ship; if (!h) return;
+function setAc130Mode(mode) {
+  if (!ac130 || ac130.mode === mode || !AC130[mode]) return;
+  ac130.mode = mode; ac130.toast = AC130_TOAST[mode]; ac130.toastUntil = gameTime + 0.85; sfx.bolt(0.55);
+}
+function stepGunship(h, dt, onGone) {
   if (!h.alive) {
-    h.pos.y += dt * 16; h.mesh.position.copy(h.pos); h.dieT -= dt;
-    if (h.dieT <= 0) { scene.remove(h.mesh); if (ac130Ship === h) ac130Ship = null; }
+    if (h.crash) { h.pos.y -= dt * 22; h.mesh.rotation.z += dt * 1.8; }
+    else h.pos.y += dt * 16;
+    h.mesh.position.copy(h.pos); h.dieT -= dt;
+    if (h.dieT <= 0 || (h.crash && h.pos.y < 1.2)) { if (h.crash) blastFx(h.pos.clone(), 6); onGone(); }
     return;
   }
-  if (gameTime >= h.until) { h.alive = false; h.dieT = 1.25; return; }
+  if (gameTime >= h.until) { h.alive = false; h.crash = false; h.dieT = 1.25; return; }
   const prev = h.pos.clone(), p = heliPos(h, gameTime); h.pos.set(p.x, p.y, p.z);
   h.vel.copy(h.pos).sub(prev).multiplyScalar(1 / Math.max(dt, 0.001)); h.mesh.position.copy(h.pos);
   if (h.vel.lengthSq() > 0.04) h.mesh.lookAt(h.pos.clone().add(h.vel));
 }
-function updateAc130Mode() {
+function updateAc130Ship(dt) {
+  const h = ac130Ship; if (!h) return;
+  stepGunship(h, dt, () => { scene.remove(h.mesh); if (ac130Ship === h) ac130Ship = null; });
+}
+function updateAc130Mode(dt) {
   const g = ac130, h = g.h;
   if (!h.alive || gameTime >= h.until) {
-    if (h.alive) { h.alive = false; h.dieT = 1.25; }
-    endAc130(); flashMsg('A Grelha foi embora'); return;
+    const crashed = !!h.crash;
+    if (h.alive) { h.alive = false; h.crash = false; h.dieT = 1.25; }
+    endAc130(); flashMsg(crashed ? 'Derrubaram a Grelha' : 'A Grelha foi embora'); return;
   }
-  camera.position.set(h.pos.x, h.pos.y - 1.6, h.pos.z); camera.rotation.set(g.pitch, g.yaw, 0);
+  const fx = AC130_FX[g.mode];
+  g.fov += (fx.fov - g.fov) * Math.min(1, dt * 8);
+  g.kick = Math.max(0, g.kick - dt * (g.mode === 'espeto' ? 9 : 3.2));
+  g.roll *= Math.max(0, 1 - dt * 7);
+  if (rightDown && !g.rWas) setAc130Mode(AC130_ORDER[(AC130_ORDER.indexOf(g.mode) + 1) % AC130_ORDER.length]);
+  g.rWas = rightDown;
+  camera.position.set(h.pos.x, h.pos.y - 1.6, h.pos.z);
+  camera.rotation.set(g.pitch + g.kick, g.yaw, g.roll);
+  if (Math.abs(camera.fov - g.fov) > 0.04) { camera.fov = g.fov; camera.updateProjectionMatrix(); }
   const M = AC130[g.mode];
-  const latched = !mouseDown && clickLatch && performance.now() - clickLatch < 250;
-  if (gameTime >= g.last[g.mode] + M.rate && (mouseDown || latched)) { clickLatch = 0; ac130Shot(g); }
-  paintAc130Lock();
+  const firing = mouseDown || ac130Touch;
+  const latched = !firing && clickLatch && performance.now() - clickLatch < 250;
+  if (gameTime >= g.last[g.mode] + M.rate && (firing || latched)) { if (!firing) clickLatch = 0; ac130Shot(g); }
+  paintAc130Hud();
 }
 function ac130Shot(g) {
-  const mode = g.mode, M = AC130[mode]; g.last[mode] = gameTime;
+  const mode = g.mode, M = AC130[mode], fx = AC130_FX[mode]; g.last[mode] = gameTime;
   const dir = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
   if (M.spread) { dir.x += rand(-1, 1) * M.spread; dir.y += rand(-1, 1) * M.spread; dir.z += rand(-1, 1) * M.spread; dir.normalize(); }
   const o = camera.position.clone();
+  const muzzle = camera.localToWorld(new V3(0.9, -0.5, -2.3));
+  let end, hit = null;
   if (M.radius > 0) {
     const wh = wallDistance(o, dir, AC130_RANGE), wallD = wh ? wh.distance : AC130_RANGE;
-    const end = o.clone().addScaledVector(dir, wallD);
-    tracer(o, end, false); puff(end, 0xffb15a); burst(end, M.radius);
-    if (mode === 'caldeirao') sfx.boom(0.8); else sfx.boom(0.4);
-    if (online) { netEv(['af', mode, v3a(dir)]); return; }
+    end = o.clone().addScaledVector(dir, wallD);
+  } else {
+    const wh = wallDistance(o, dir, AC130_RANGE), wallD = wh ? wh.distance : AC130_RANGE;
+    let best = null;
+    for (const e of entities) {
+      if (e === player || !e.alive || friends(e, player)) continue;
+      for (const [y, r] of [[1.5, 0.5], [0.8, 0.58]]) { const t = raySphere(o, dir, center(e, y), r); if (t > 0 && t < wallD && (!best || t < best.t)) best = { e, t }; }
+    }
+    end = o.clone().addScaledVector(dir, best ? best.t : wallD);
+    hit = best;
+  }
+  g.kick = Math.min(0.14, g.kick + fx.kick);
+  g.roll += (Math.random() < 0.5 ? -1 : 1) * fx.roll;
+  ac130Fx(muzzle, end, mode, true);
+  window.__ac130Shots = (window.__ac130Shots || 0) + 1;
+  if (online) { netEv(['af', mode, v3a(dir)]); return; }
+  if (M.radius > 0) {
     for (const e of entities) {
       if (e === player || !e.alive || friends(e, player)) continue;
       const d = end.distanceTo(center(e, 1)), dmg = M.dmg * (1 - d / M.radius);
@@ -1760,16 +2054,7 @@ function ac130Shot(g) {
     }
     return;
   }
-  const wh = wallDistance(o, dir, AC130_RANGE), wallD = wh ? wh.distance : AC130_RANGE;
-  let best = null;
-  for (const e of entities) {
-    if (e === player || !e.alive || friends(e, player)) continue;
-    for (const [y, r] of [[1.5, 0.5], [0.8, 0.58]]) { const t = raySphere(o, dir, center(e, y), r); if (t > 0 && t < wallD && (!best || t < best.t)) best = { e, t }; }
-  }
-  const end = o.clone().addScaledVector(dir, best ? best.t : wallD);
-  tracer(o, end, false); puff(end, best ? 0xff9fb0 : 0xffffff); sfx.uzi(0.35);
-  if (online) { netEv(['af', mode, v3a(dir)]); return; }
-  if (best) ac130Hurt(best.e, M.dmg);
+  if (hit) ac130Hurt(hit.e, M.dmg);
 }
 function ac130Hurt(t, dmg) {
   if (!t.alive || gameTime < t.invulnUntil || !(dmg > 0)) return;
@@ -1779,37 +2064,32 @@ function ac130Hurt(t, dmg) {
   kill(t, player, 0, false, false, true, 'Grelha da granja');
 }
 function clearGunships() {
-  ac130 = null;
-  const vig = document.getElementById('ac130Vig'), lock = document.getElementById('ac130Lock');
-  if (vig) vig.hidden = true; if (lock) lock.hidden = true;
+  if (ac130) { ac130 = null; camera.fov = BASE_FOV; camera.updateProjectionMatrix(); }
+  ac130Touch = false;
+  document.body.classList.remove('in-ac130');
+  const vig = document.getElementById('ac130Vig'), hud = document.getElementById('ac130Hud'), alert = document.getElementById('ac130Alert');
+  if (vig) vig.hidden = true; if (hud) hud.hidden = true; if (alert) { alert.hidden = true; alert.classList.remove('hot'); }
   if (ac130Ship) { scene.remove(ac130Ship.mesh); ac130Ship = null; }
   for (const h of netGunships.values()) scene.remove(h.mesh); netGunships.clear();
+  for (const j of ac130Jobs) { acFree(j.mesh); if (j.light) scene.remove(j.light); }
+  ac130Jobs.length = 0;
 }
 function netAc130Spawn([, id, oid, ang, orbit, born, until, hp]) {
   if (netGunships.has(id)) return;
   const mesh = makeAc130Mesh(); scene.add(mesh);
-  const owner = entOf(oid), h = { id, owner, mesh, ang, orbit, born, until, hp, max: AC130.hp, alive: true, dieT: 0, height: AC130.height, spin: AC130.spin, pos: new V3(), vel: new V3() };
+  const owner = entOf(oid), h = { id, owner, mesh, gunship: true, ang, orbit, born, until, hp, max: AC130.hp, alive: true, dieT: 0, crash: false, height: AC130.height, spin: AC130.spin, pos: new V3(), vel: new V3() };
   const p = heliPos(h, gameTime); h.pos.set(p.x, p.y, p.z); mesh.position.copy(h.pos);
   const ahead = heliPos(h, gameTime + 0.05); mesh.lookAt(ahead.x, ahead.y, ahead.z);
   netGunships.set(id, h);
   if (owner === player) startAc130(h, true); else if (owner) flashMsg(`${owner.name} chamou a Grelha`);
 }
-function netAc130Down(id) {
+function netAc130Down(id, crash) {
   const h = netGunships.get(id); if (!h || !h.alive) return;
-  h.alive = false; h.dieT = 1.25;
+  h.alive = false; h.crash = !!crash; h.dieT = crash ? 1.6 : 1.25;
+  if (ac130 && ac130.h === h) { endAc130(); flashMsg(crash ? 'Derrubaram a Grelha' : 'A Grelha foi embora'); }
 }
 function updateNetGunships(dt) {
-  for (const h of [...netGunships.values()]) {
-    if (!h.alive) {
-      h.pos.y += dt * 16; h.mesh.position.copy(h.pos); h.dieT -= dt;
-      if (h.dieT <= 0) { scene.remove(h.mesh); netGunships.delete(h.id); }
-      continue;
-    }
-    if (gameTime >= h.until) { h.alive = false; h.dieT = 1.25; continue; }
-    const prev = h.pos.clone(), p = heliPos(h, gameTime); h.pos.set(p.x, p.y, p.z);
-    h.vel.copy(h.pos).sub(prev).multiplyScalar(1 / Math.max(dt, 0.001)); h.mesh.position.copy(h.pos);
-    if (h.vel.lengthSq() > 0.04) h.mesh.lookAt(h.pos.clone().add(h.vel));
-  }
+  for (const h of [...netGunships.values()]) stepGunship(h, dt, () => { scene.remove(h.mesh); netGunships.delete(h.id); });
 }
 const _gm = new V3();
 // barra de calor da minigun (embaixo da mira)
@@ -1921,7 +2201,7 @@ function paintGunnerHud() {
 function heliAimBot(b, dist) {
   if (dist && dist < 12) return null;
   const eye = center(b, 1.5); let best = null;
-  for (const h of skyHelis()) { const hd = eye.distanceTo(h.pos); if (hd <= 62 && hd >= 4 && (!best || hd < best.d) && losClear(eye, h.pos)) best = { h, d: hd }; }
+  for (const h of [...skyHelis(), ...gunshipList()]) { if (h.owner === b || (h.owner && friends(b, h.owner))) continue; const hd = eye.distanceTo(h.pos); if (hd <= 90 && hd >= 4 && (!best || hd < best.d) && losClear(eye, h.pos)) best = { h, d: hd }; }
   return best;
 }
 function heliShoot() {
@@ -2226,7 +2506,7 @@ function updateRewards(dt) {
     drawUav({ player: { x: player.pos.x, z: player.pos.z, yaw: player.yaw }, enemies });
     if (!tickUav(dt)) uavLive = false;
   }
-  updateHeli(dt); updateGunHeli(dt); updateAc130Ship(dt);
+  updateHeli(dt); updateGunHeli(dt); updateAc130Ship(dt); updateAc130Vis(dt); paintAc130Alert();
   if (online) {
     updateNetHelis(dt); updateNetGunships(dt);
     if (netNukeAt && !nukeAt) { const l = Math.ceil(netNukeAt - gameTime); if (l > 0) showNukeCount(l); }
@@ -3085,6 +3365,7 @@ function updatePlayer(dt) {
   // Consome o toque mesmo no ar: segurar Espaço não rearma o pulo ao aterrissar.
   const jumpPressed = !!keys.Space; keys.Space = false;
   if (!p.alive) {
+    if (ac130) endAc130(false); // o corpo no chão morreu: solta a mira da Grelha e mostra a câmera da morte (o avião continua no ar)
     if (emote.on) stopEmote();
     saberSfx.hum(false);
     if (p.charging) { p.charging = false; arcLine.visible = arcMark.visible = false; }
@@ -3119,7 +3400,7 @@ function updatePlayer(dt) {
   }
   if (gunner || guiding || radioCall) p.bowDraw = p.eggDraw = 0; // killstreak/rádio no meio da puxada: solta o elástico sem atirar
   if (gunner) { updateGunnerMode(dt); return; }
-  if (ac130) { updateAc130Mode(); return; }
+  if (ac130) { updateAc130Mode(dt); return; }
   if (guiding) { updatePredator(dt); if (predator) posePredatorCam(); return; }
   if (radioCall) { if (gameTime >= radioCall.at) finishRadioCall(); else return; } // chamando no rádio: sem tiro até terminar
   if (emote.on) { // dança: anda e olha, mas a arma não dispara até a animação acabar
@@ -4253,7 +4534,7 @@ document.addEventListener('mousemove', (e) => {
   if (state !== 'playing' || document.pointerLockElement !== canvas || !player) return;
   if (Math.abs(e.movementX) > 250 || Math.abs(e.movementY) > 250) return; // ignora saltos espúrios do pointer lock
   if (gunner) { const k = sens * (gunner.fov / BASE_FOV) * 0.0015; gunner.yaw -= e.movementX * k; gunner.pitch = clamp(gunner.pitch - e.movementY * k, -1.5, -0.1); return; }
-  if (ac130) { const k = sens * 0.0015; ac130.yaw -= e.movementX * k; ac130.pitch = clamp(ac130.pitch - e.movementY * k, -1.5, -0.25); return; }
+  if (ac130) { const k = sens * (camera.fov / BASE_FOV) * 0.0015; ac130.yaw -= e.movementX * k; ac130.pitch = clamp(ac130.pitch - e.movementY * k, -1.5, -0.18); return; }
   if (predator && predator.phase === 'fly') {
     predator.yaw -= e.movementX * 0.0022;
     predator.pitch = clamp(predator.pitch - e.movementY * 0.002, -1.2, 0.22);
@@ -4263,6 +4544,22 @@ document.addEventListener('mousemove', (e) => {
   const s = sens * (ads > 0.2 ? sensAds : 1) * (camera.fov / BASE_FOV); // mirando usa o slider "Mirando"; o zoom ainda deixa o mouse mais lento
   player.yaw -= e.movementX * 0.0015 * s; player.pitch = clamp(player.pitch - e.movementY * 0.0015 * s, -1.5, 1.5);
 });
+// toque na Grelha: arrastar a tela mira, o botão ATIRA segura o gatilho (não existe outro controle de toque no jogo)
+let acTouch = null;
+canvas.addEventListener('touchstart', (e) => {
+  if (!ac130 || state !== 'playing') return;
+  const t = e.changedTouches[0]; acTouch = { id: t.identifier, x: t.clientX, y: t.clientY }; e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  if (!ac130 || !acTouch) return;
+  const t = [...e.changedTouches].find((x) => x.identifier === acTouch.id); if (!t) return;
+  const k = sens * (camera.fov / BASE_FOV) * 0.0045;
+  ac130.yaw -= (t.clientX - acTouch.x) * k;
+  ac130.pitch = clamp(ac130.pitch - (t.clientY - acTouch.y) * k, -1.5, -0.18);
+  acTouch.x = t.clientX; acTouch.y = t.clientY; e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => { if (acTouch && [...e.changedTouches].some((t) => t.identifier === acTouch.id)) acTouch = null; });
+canvas.addEventListener('touchcancel', () => { acTouch = null; });
 canvas.addEventListener('mousedown', (e) => {
   if (softPauseOn) { if (e.button === 0) resume(); return; }
   if (state !== 'playing') return;
@@ -4281,8 +4578,9 @@ document.addEventListener('mouseup', (e) => {
   if (e.button === 0) { if (mouseDown && !firedThisPress) clickLatch = performance.now(); mouseDown = false; }
   if (e.button === 2) { if (rightDown && !rightFired && !rightStale && player && player.weapon === KNIFE) rightLatch = performance.now(); rightDown = false; rightStale = false; }
 });
-document.addEventListener('wheel', (e) => { // rodinha: primária → pistola → faca (e volta)
+document.addEventListener('wheel', (e) => { // rodinha: primária → pistola → faca (e volta). Na Grelha, troca Espeto / Panela / Caldeirão.
   if (state !== 'playing' || !player || !player.alive) return;
+  if (ac130) { const i = AC130_ORDER.indexOf(ac130.mode); setAc130Mode(AC130_ORDER[(i + (e.deltaY > 0 ? 1 : AC130_ORDER.length - 1)) % AC130_ORDER.length]); e.preventDefault(); return; }
   if (bombPick) { const P = pool(PRIMARIES), i = P.indexOf(selectedPrimary); if (!P.length) return; setPrimary(P[(i + (e.deltaY < 0 ? P.length - 1 : 1)) % P.length]); return; } // Bomba: rodinha escolhe a primária
   const S = player.slots, i = Math.max(0, S.indexOf(player.weapon)), n = S.length; switchWeapon(player, S[(i + (e.deltaY < 0 ? n - 1 : 1)) % n]);
 });
@@ -4322,9 +4620,9 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (state === 'playing' && player && ac130) { // na Grelha: 1/2/3 trocam a arma, F sai (a mesma tecla do Chopper)
-    if (e.code === 'Digit1') setAc130Mode('espeto');
-    if (e.code === 'Digit2') setAc130Mode('panela');
-    if (e.code === 'Digit3') setAc130Mode('caldeirao');
+    if (e.code === 'Digit1' || e.code === 'Numpad1') setAc130Mode('espeto');
+    if (e.code === 'Digit2' || e.code === 'Numpad2') setAc130Mode('panela');
+    if (e.code === 'Digit3' || e.code === 'Numpad3') setAc130Mode('caldeirao');
     if (e.code === 'KeyF' && !e.repeat) endAc130(true);
     if (e.code === 'Tab') $('tabboard').classList.remove('hidden');
     if (e.code === 'Escape' || e.code === 'KeyP') pause();
@@ -5164,8 +5462,9 @@ function netEvent(ev) {
   else if (k === 'mk') { if (ev[1] === o.myId) feedbackMedal('Collateral', `${ev[2]} de uma bala só`); } // várias mortes num tiro só (servidor)
   else if (k === 'gs') { const h = netHelis.get(ev[1]); if (h && h.owner !== player) { const from = h.pos.clone(); from.y -= 1.6; tracer(from, a3v(ev[2]), !!ev[3]); (ev[3] ? sfx.sniper : sfx.uzi)(distVol(h.pos) * 0.5); } } // tiro do Chopper de outro jogador
   else if (k === 'al') netAc130Spawn(ev);
-  else if (k === 'ae') netAc130Down(ev[1]);
-  else if (k === 'as') { const h = netGunships.get(ev[1]); if (h && h.owner !== player) { const from = h.pos.clone(); from.y -= 1.2; const end = a3v(ev[2]); const kind = ev[3] | 0; tracer(from, end, false); if (kind === 0) { puff(end, 0xfff6e0); sfx.uzi(distVol(h.pos) * 0.35); } else { puff(end, 0xffb15a); burst(end, kind === 2 ? AC130.caldeirao.radius : AC130.panela.radius); sfx.boom((kind === 2 ? 0.8 : 0.4) * distVol(end)); } } }
+  else if (k === 'ah') { const h = netGunships.get(ev[1]); if (h && h.alive) h.hp = ev[2]; }
+  else if (k === 'ae') netAc130Down(ev[1], !!ev[2]);
+  else if (k === 'as') { const h = netGunships.get(ev[1]); if (h && h.owner !== player) { const end = a3v(ev[2]); const kind = ev[3] | 0; const mode = kind === 2 ? 'caldeirao' : kind === 1 ? 'panela' : 'espeto'; ac130Fx(ac130Port(h), end, mode, false); } }
   else if (k === 'hs') { const h = netHelis.get(ev[1]); if (h) { const from = h.pos.clone(); from.y -= 0.4; tracer(from, a3v(ev[2]), false); sfx.rifle(distVol(h.pos) * 0.45); } }
   else if (k === 'nk') { const [, oid, at] = ev; if (oid !== o.myId) { netNukeAt = at; nukeRiderDone = false; const e = entOf(oid); flashMsg(`${e ? e.name : 'Alguém'} puxou o rádio · Fim da chapa`); showNukeCount(Math.max(1, Math.ceil(at - gameTime))); } }
   else if (k === 'nb') { netNukeAt = 0; nukeRiderDone = true; dropNukeRider(); if (!nukeAt) hideNuke(); sfx.boom(1); shake = Math.max(shake, 1.2); nukeFlash(); window.__nukeBooms = (window.__nukeBooms || 0) + 1; } else if (k === 'zc') {
@@ -5763,7 +6062,7 @@ window.__docao = { get state() { return state; }, get ending() { return matchEnd
   blastAt: (x, y, z, kind = 'r', owner) => blast(new V3(x, y, z), owner || player, kind === 'n' ? { radius: NADE.radius, maxDmg: NADE.maxDmg, selfMul: NADE.selfMul, knock: NADE.knock, lift: NADE.lift, wIdx: W_NADE } : { ...WEAPONS[3].rocket, wIdx: 3 }),
   rocketAt: (o, d, owner) => launchRocket(owner || player, new V3(...o), new V3(...d).normalize()),
   cornAt: (o, d, owner) => launchCorn(owner || player, new V3(...o), new V3(...d).normalize()), get corns() { return corns; }, get cornPopsQ() { return cornPops; }, fpCorn: () => ({ vis: fp.guns[CORN_W].visible, cobY: fp.cornCob.position.y, cobVis: fp.cornCob.visible, crank: fp.cornCrank.rotation.x, kernels: fp.cornKernels.filter((g) => g.visible).length, cobScr: (() => { fp.root.updateMatrixWorld(true); const v = fp.cornCob.localToWorld(new V3(0, 0.1, 0)).project(fpCam); return [v.x, v.y]; })() }), setWeaponOf: (e, i) => setWeapon(e, i),
-  rewardKill: () => onRewardKill(), endAc130, get ac130On() { return !!ac130; }, get rewardKills() { return rewardKills; }, useStreak, get streakReady() { return streakReady.slice(); }, callNuke, get nukeReady() { return nukeReady || streakReady.includes('nuke'); }, get nukeAt() { return nukeAt; }, spawnHeli: () => grantHeli(), get heli() { return heli; }, get netHelis() { return [...netHelis.values()].map((h) => ({ id: h.id, owner: h.owner ? h.owner.name : '', hp: h.hp, alive: h.alive, pos: h.pos.toArray() })); }, get netNukeAt() { return netNukeAt; }, hurtHeli, get predator() { return predator; }, throwSmoke: () => throwTactical(), throwStun: () => throwShock(), throwShock: () => throwShock(), spawnShock: (owner, pos, vel) => spawnShock({ owner, pos: new V3(...pos), vel: new V3(...vel) }), get shocks() { return shocks; }, SHOCK, get smokes() { return smokes; }, get tacticals() { return tacticals; }, strikeAt: (x, z) => spawnSkyMissile({ x, z }, player), get strikes() { return strikes; }, STRIKE, PREDATOR, get gunKills() { return player ? player.gunKills : null; }, addWeaponKills: (w, n = 1) => { for (let i = 0; i < n; i++) noteWeaponKill(player, w); }, camoLevel,
+  rewardKill: () => onRewardKill(), endAc130, grantAc130, setAc130Mode, aimAc130: (yaw, pitch) => { if (!ac130) return; if (yaw != null) ac130.yaw = yaw; if (pitch != null) ac130.pitch = pitch; }, ac130Fire: () => { if (ac130) ac130Shot(ac130); }, get ac130On() { return !!ac130; }, get ac130State() { return ac130 ? { mode: ac130.mode, fov: camera.fov, yaw: ac130.yaw, pitch: ac130.pitch, hp: ac130.h.hp, until: ac130.h.until, shots: window.__ac130Shots || 0, booms: window.__ac130Booms || 0, jobs: ac130Jobs.length } : null; }, get rewardKills() { return rewardKills; }, useStreak, get streakReady() { return streakReady.slice(); }, callNuke, get nukeReady() { return nukeReady || streakReady.includes('nuke'); }, get nukeAt() { return nukeAt; }, spawnHeli: () => grantHeli(), get heli() { return heli; }, get netHelis() { return [...netHelis.values()].map((h) => ({ id: h.id, owner: h.owner ? h.owner.name : '', hp: h.hp, alive: h.alive, pos: h.pos.toArray() })); }, get netNukeAt() { return netNukeAt; }, hurtHeli, get predator() { return predator; }, throwSmoke: () => throwTactical(), throwStun: () => throwShock(), throwShock: () => throwShock(), spawnShock: (owner, pos, vel) => spawnShock({ owner, pos: new V3(...pos), vel: new V3(...vel) }), get shocks() { return shocks; }, SHOCK, get smokes() { return smokes; }, get tacticals() { return tacticals; }, strikeAt: (x, z) => spawnSkyMissile({ x, z }, player), get strikes() { return strikes; }, STRIKE, PREDATOR, get gunKills() { return player ? player.gunKills : null; }, addWeaponKills: (w, n = 1) => { for (let i = 0; i < n; i++) noteWeaponKill(player, w); }, camoLevel,
   swingSaber: () => swingSaber(player),
   // Invasão 🎃
   get inv() { return inv; }, get invView() { return invView(); }, get invInv() { return invGfx.inv.slice(); }, get invSel() { return invGfx.sel; }, get invDrops() { return [...invGfx.drops.keys()]; }, get invPick() { return invPick; },

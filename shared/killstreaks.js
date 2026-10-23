@@ -23,7 +23,7 @@ export const GUNNER = {
 };
 export const NUKE = { delay: 5 }; // Fim da chapa: conta 5 s e estoura. Não usa rádio. O estouro acaba a partida (stepNukes).
 // Grelha da granja: avião alto que roda o mapa; quem chamou só aponta as armas (espeto, panela, caldeirão).
-export const AC130 = { life: 40, height: 62, spin: 0.16, orbit: 1.45, hp: 420,
+export const AC130 = { life: 40, height: 62, spin: 0.16, orbit: 1.45, hp: 420, hit: 4.6,
   espeto: { dmg: 18, rate: 0.12, spread: 0.01, radius: 0 },
   panela: { dmg: 70, rate: 0.8, spread: 0, radius: 3.2 },
   caldeirao: { dmg: 160, rate: 2.8, spread: 0, radius: 6.5 } };
