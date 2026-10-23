@@ -34,8 +34,12 @@
 //     fantasia:  ghostSheet {color, rim, opacity} · boneLimbs {color, glow, suit} · sash {color, belt, buckle, tabard}
 //                laserSword {blade} · armWraps {color, ys} · hoodDown {color, inner} · noseTube {color, plug} · desertScarf {color}
 //   shirt.details também aceita: 'bones' {color, glow} · 'tunicWrap' {color, inner} · 'stillsuit' {rib, tube, panel}
+//                       · 'star' {color, outline, x, y, size, small: [[θ, y, size]...]} · 'zigzag' {color, y} · 'diagStripes' {color} · 'hoodie' {color, zip}
+//   peças das skins novas: boiHorns {color, band} · ribbonSkirt {colors, band} · messyHair {color} · squareGlasses {color}
+//                sleeveStripes {color} · shortsStripes {color} · quiffHair {color, side} · beard {color} (bigode + barba por fazer)
+//                hoodStrings {color} · lanyard {color, logo} · longPants {color} · shoes também aceita {sole}
 //   face:  { paint: 'skull' }   pintura leve no rosto (bochechas/focinho continuam)
-//   eyes:  { iris: '#hex' }     tom da íris (opcional)
+//   eyes:  { iris: '#hex', ring: '#hex' }  tom da íris e anel escuro em volta (opcionais)
 //   float: true                 flutua de leve (bob) e solta um rastro fraquinho no jogo
 //   Peças novas: crie uma função em PARTS (costumes.js).
 
@@ -182,6 +186,58 @@ export const SKINS = [
       { type: 'noseTube', color: '#3a3e44', plug: '#8a8f96' },
       { type: 'armWraps', color: '#1b1d20', ys: [-0.12, -0.2, -0.28, -0.36] },
       { type: 'shoes', color: '#3a3026' },
+    ],
+  },
+  {
+    id: 'boi-caprichoso',
+    name: 'Boi Caprichoso',
+    shirt: {
+      color: '#1446b8', trim: '#ffffff', sleeveColor: '#0f3a9e',
+      details: [
+        { type: 'zigzag', color: '#ffffff', y: 0.47 },
+        { type: 'star', color: '#ffffff', outline: '#0b2a78', y: 0.8, size: 0.2, small: [[0.75, 0.95, 0.06], [-0.75, 0.95, 0.06], [1.4, 0.7, 0.07], [-1.4, 0.7, 0.07], [Math.PI, 0.85, 0.16], [2.4, 0.62, 0.06], [-2.4, 0.62, 0.06]] },
+      ],
+    },
+    pants: '#0b2a78',
+    parts: [
+      { type: 'boiHorns', color: '#fbfbf6', band: '#1446b8' },
+      { type: 'epaulettes', color: '#ffffff' },
+      { type: 'ribbonSkirt', colors: ['#1446b8', '#ffffff', '#0b2a78', '#ffffff', '#4f9bff'], band: '#ffffff' },
+      { type: 'socks', color: '#ffffff' },
+      { type: 'shoes', color: '#0b2a78', strap: '#ffffff' },
+    ],
+  },
+  {
+    id: 'docao-felipe',
+    name: 'Docão Felipe',
+    shirt: {
+      color: '#2c2c30', trim: '#1a1a1d', sleeveColor: '#2c2c30',
+      details: [{ type: 'diagStripes', color: '#17b394' }],
+      logo: { text: 'C!', color: '#f2f2f2', size: 0.11, x: -0.42, y: 0.92 },
+    },
+    pants: '#131315',
+    parts: [
+      { type: 'messyHair', color: '#3a2416' },
+      { type: 'squareGlasses', color: '#121214' },
+      { type: 'sleeveStripes', color: '#17b394' },
+      { type: 'shortsStripes', color: '#17b394' },
+      { type: 'shoes', color: '#141416', sole: '#f4f4f4', strap: '#f4f4f4' },
+    ],
+  },
+  {
+    id: 'docao-matheus',
+    name: 'Docão Matheus',
+    shirt: { color: '#1a1a1d', trim: '#0e0e10', sleeves: 'long', sleeveColor: '#1a1a1d', details: [{ type: 'hoodie', color: '#0e0e10', zip: '#a8acb2' }] },
+    pants: '#121214',
+    eyes: { iris: '#1f6b35', ring: '#0f3d1c' },
+    parts: [
+      { type: 'quiffHair', color: '#2e1c12', side: '#2a1b12' },
+      { type: 'beard', color: '#43291a' },
+      { type: 'hoodDown', color: '#1a1a1d', inner: '#0b0b0d' },
+      { type: 'hoodStrings', color: '#f4f4f4' },
+      { type: 'lanyard', color: '#d81e2a', logo: '#d81e2a' },
+      { type: 'longPants', color: '#121214' },
+      { type: 'shoes', color: '#f4f4f4', sole: '#d4d4d4', strap: '#e2e2e2' },
     ],
   },
 ];
