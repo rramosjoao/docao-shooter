@@ -1,0 +1,23 @@
+// Killer cam + tela cinza + painel de morte discreto. Uso: node tools/shot-killercam.mjs [urlDoSite] [saida.png]
+import { chromium } from 'playwright';
+const SITE = process.argv[2] || 'http://127.0.0.1:8170/', OUT = process.argv[3] || 'screenshots/killercam.png';
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const errors = []; page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); }); page.on('pageerror', (e) => errors.push(e.message));
+await page.addInitScript(() => { localStorage.setItem('docao.name', 'Matheus'); });
+await page.goto(SITE, { waitUntil: 'load' }); await page.waitForTimeout(3000);
+const G = (f, a) => page.evaluate(f, a), wait = (ms) => page.waitForTimeout(ms);
+await page.selectOption('#modeSel', 'dm'); await page.click('#playBtn'); await wait(2500);
+const r = await G(() => { const g = window.__docao, p = g.player, k = g.entities.find((e) => !e.isPlayer && e.alive); p.invulnUntil = 0; k.pos.set(p.pos.x + 6, p.pos.y, p.pos.z + 2); k.vel.set(0, 0, 0); g.damage(p, 500, k, 0, false); return { ok: !!k, alive: p.alive }; });
+console.log('morreu', JSON.stringify(r));
+await page.waitForFunction(() => window.__docao.time - window.__docao.player.deathAt > 2.2, null, { timeout: 60000 }); await wait(600);
+const s = await G(() => { const g = window.__docao, k = g.deathCam.killer; const c = g.camera.position, kp = k ? k.pos : null; return { gray: document.body.classList.contains('deadgray'), filter: getComputedStyle(document.getElementById('game')).filter, killer: !!k, dist: kp ? +Math.hypot(c.x - kp.x, c.z - kp.z).toFixed(1) : null, pick: getComputedStyle(document.getElementById('deathpick')).opacity, pickLeft: Math.round(document.getElementById('deathpick').getBoundingClientRect().left) }; });
+console.log(JSON.stringify(s));
+await page.screenshot({ path: OUT });
+await G(() => { const g = window.__docao; document.getElementById('respawnBtn').click(); g.respawn && 0; });
+await G(() => { const g = window.__docao; g.player.respawnAt = 0; });
+await page.keyboard.press('Space'); await wait(1500);
+const after = await G(() => ({ alive: window.__docao.player.alive, gray: document.body.classList.contains('deadgray') }));
+console.log('depois do respawn', JSON.stringify(after));
+console.log(errors.length ? 'ERROS: ' + errors.slice(0, 3).join(' | ') : 'sem erro no console');
+await browser.close();

@@ -1,0 +1,28 @@
+// Smoke: renascimento com botão (5 s + clique). Uso: SITE=http://localhost:8124/ [ONLINE=1] node test-respawn.mjs
+import { chromium } from 'playwright';
+const SITE = process.env.SITE || 'http://localhost:8124/', SHOT = process.env.SHOT || '';
+const fails = []; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FALHA') + ' ' + m); if (!c) fails.push(m); };
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+await page.goto(SITE, { waitUntil: 'load' }); await page.waitForTimeout(1500);
+const G = (fn, a) => page.evaluate(fn, a);
+await page.selectOption('#modeSel', 'dm'); await page.selectOption('#botCount', '4');
+await page.click('#playBtn'); await page.waitForTimeout(1200);
+await G(() => { for (const b of window.__docao.entities) if (!b.isPlayer) { b.frozen = true; b.passive = true; } });
+await G(() => { const g = window.__docao; g.player.invulnUntil = 0; g.kill(g.player); });
+const t0 = await G(() => window.__docao.time);
+await page.waitForFunction((t) => window.__docao.time >= t + 2, t0, { timeout: 30000 });
+let st = await G(() => ({ alive: window.__docao.player.alive, dis: document.getElementById('respawnBtn').disabled, txt: document.getElementById('respawnBtn').textContent, vis: !document.getElementById('deathpick').classList.contains('hidden'), msg: document.getElementById('centermsg').textContent }));
+console.log(st); ok(!st.alive && st.dis && /Renascer em/.test(st.txt) && st.vis, 'antes de 5 s: morto, botão desativado com contagem');
+await page.waitForFunction((t) => window.__docao.time >= t + 6.5, t0, { timeout: 30000 });
+st = await G(() => ({ alive: window.__docao.player.alive, dis: document.getElementById('respawnBtn').disabled, txt: document.getElementById('respawnBtn').textContent, msg: document.getElementById('centermsg').textContent }));
+console.log(st); ok(!st.alive && !st.dis, 'depois de 5 s: botão ativo e sem renascer sozinho');
+if (SHOT) await page.screenshot({ path: SHOT });
+const tb = await G(() => { const g = window.__docao, b = g.entities.find((e) => !e.isPlayer); b.frozen = false; b.invulnUntil = 0; g.kill(b); return g.time; });
+await page.click('#respawnBtn'); await page.waitForTimeout(500);
+ok(await G(() => window.__docao.player.alive), 'clicar em RENASCER renasce');
+await page.waitForFunction((t) => window.__docao.time >= t + 5.5, tb, { timeout: 40000 });
+ok(await G(() => window.__docao.entities.filter((e) => !e.isPlayer).every((e) => e.alive)), 'bot renasceu sozinho em 5 s');
+ok(!errs.length, 'sem erros na página ' + errs.join(' | '));
+await browser.close(); console.log(fails.length ? `${fails.length} FALHA(S)` : 'TUDO OK'); process.exit(fails.length ? 1 : 0);
