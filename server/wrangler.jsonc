@@ -6,9 +6,11 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
   "durable_objects": {
-    "bindings": [{ "name": "ROOMS", "class_name": "Room" }]
+    "bindings": [{ "name": "ROOMS", "class_name": "Room" }, { "name": "TRUCO_ROOMS", "class_name": "TrucoRoom" }]
   },
   // plano grátis: Durable Objects precisam ser SQLite-backed
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }, { "tag": "v2", "new_sqlite_classes": ["TrucoRoom"] }],
+  // Contas (login opcional). D1 de produção criado (docao-contas). Em `wrangler dev` o D1 é simulado local. Ver docs/LOGIN-DEPLOY.md
+  "d1_databases": [{ "binding": "DB", "database_name": "docao-contas", "database_id": "992d49c8-9c5f-48e9-80d0-d79c595ae896", "migrations_dir": "migrations" }],
   "observability": { "enabled": true }
 }
