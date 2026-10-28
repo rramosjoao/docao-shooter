@@ -569,6 +569,7 @@ export function makeDocao(skinOrId, opts = {}) {
     const rvL = worldRev(-1); rvL.position.set(0, -0.52, 0.05); rvL.rotation.set(-Math.PI / 2, -0.28, -0.12); arms[1].add(rvL);
     rv2.userData.extra = rvR; rv2.userData.twin = rvL; guns.push(rv2); // 24 = Dois Capatazes
     const tp = makeWorldShield(); tp.name = 'tampa'; tp.position.set(0, 0.98, 0.62); g.add(tp); guns.push(tp); // 25 = Tampa do Tacho
+    const goldKnife = makeKnife(1.7, 0.006, true); goldKnife.position.copy(kn.position); goldKnife.rotation.copy(kn.rotation); goldKnife.visible = false; arms[0].add(goldKnife); guns.push(goldKnife); // 26 = Faca Dourada
     backLid = makeWorldShield(); backLid.name = 'tampa-costas'; backLid.position.set(0, 1.15, -0.32); backLid.rotation.y = Math.PI; backLid.visible = false; g.add(backLid);
     for (const o of [sg, sn, bz, ps, cn, cb, kn, hold, uz, p9, nl, sm, xb, bw, fm, dk, d2r, d2l, mh, es, mg, lm, cd, rv, rv2, rvR, rvL, tp]) o.visible = false;
   }
@@ -803,7 +804,7 @@ function knifeShape(g, th, shape, mat, pos, segs = 8) {
   geo.translate(0, 0, -0.004); geo.rotateY(Math.PI / 2); // +x do perfil vira -z
   const o = new THREE.Mesh(geo, mat); o.position.copy(pos); g.add(o); if (th) outline(o, th); return o;
 }
-function fillChef(g, th) {
+function fillChef(g, th, golden = false) {
   if (!knifeLogoTex) knifeLogoTex = canvasTex(128, 64, (x, W, H) => {
     x.fillStyle = '#f5e6d0'; x.beginPath(); x.roundRect(4, 4, W - 8, H - 8, 16); x.fill();
     drawLogo(x, W / 2, H / 2, H * 0.62, '#e63946');
@@ -813,10 +814,11 @@ function fillChef(g, th) {
   s.moveTo(0, 0.012); s.lineTo(0.235, 0.012); s.quadraticCurveTo(0.285, 0.008, 0.305, -0.006);
   s.quadraticCurveTo(0.25, -0.042, 0.13, -0.05); s.lineTo(0, -0.05); s.closePath();
   const bg = new THREE.ExtrudeGeometry(s, { depth: 0.007, bevelEnabled: true, bevelThickness: 0.0025, bevelSize: 0.002, bevelSegments: 1, curveSegments: 10 });
-  bg.translate(0, 0, -0.0035); bg.rotateY(Math.PI / 2);
-  const blade = m(bg, toonWarm('#cfd6de', 0.1, {}, '#eef6ff')); blade.position.set(0, 0.018, -0.085);
-  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.0115, 0.006, 0.2), basic('#ffffff')); edge.position.set(0, -0.027, -0.2); g.add(edge);
-  m(new THREE.BoxGeometry(0.022, 0.07, 0.022), toon('#9aa3ad')).position.set(0, 0.0, -0.075);
+  bg.translate(0, 0, -0.0035); bg.rotateY(Math.PI / 2); // comprimento → -z, espessura → x
+  const blade = m(bg, toonWarm(golden ? '#ffc52e' : '#cfd6de', 0.1, {}, golden ? '#fff3a6' : '#eef6ff')); blade.position.set(0, 0.018, -0.085);
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.0115, 0.006, 0.2), basic('#ffffff')); edge.position.set(0, -0.027, -0.2); g.add(edge); // fio brilhante
+  m(new THREE.BoxGeometry(0.022, 0.07, 0.022), toon(golden ? '#d49918' : '#9aa3ad')).position.set(0, 0.0, -0.075); // reforço (bolster)
+  // cabo de madeira + rebites + logo
   const wood = toonWarm('#8b5a2b', 0.2, {}, '#c8813e');
   const h = m(new THREE.BoxGeometry(0.03, 0.05, 0.15), wood); h.position.set(0, -0.004, 0.005);
   const cap = m(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 12), wood); cap.rotation.z = Math.PI / 2; cap.position.set(0, -0.004, 0.08); cap.scale.set(1, 1, 1.1);
@@ -907,7 +909,8 @@ function fillButterfly(g, th, pal) {
 const KNIFE_FILL = { chef: fillChef, skeleton: fillSkeleton, karambit: fillKarambit, bayonet: fillBayonet, butterfly: fillButterfly };
 function fillKnife(g, kind, th, finish) {
   g.userData.bflyBlade = null; g.userData.bflyBite = null;
-  if (!KNIFE_FILL[kind] || kind === 'chef') { fillChef(g, th); return; }
+  if (kind === 'gold') { fillChef(g, th, true); return; }
+  if (!KNIFE_FILL[kind] || kind === 'chef') { fillChef(g, th, false); return; }
   KNIFE_FILL[kind](g, th, knifePal(finish));
 }
 // k 0 = aberta na mão, k 1 = aberta de novo. No meio a lâmina dá uma volta e o cabo de cima abre.
@@ -929,14 +932,17 @@ function dropKnife(group) {
   }
 }
 export function makeKnife(scale = 1, th = 0.004, kind = 'chef', finish = 'factory') {
+  const golden = kind === true || kind === 'gold';
   const g = new THREE.Group();
-  g.userData.knifeSkin = true; g.userData.knifeTh = th; g.userData.knifeKind = kind || 'chef'; g.userData.knifeFinish = finish || 'factory';
-  fillKnife(g, g.userData.knifeKind, th, g.userData.knifeFinish);
+  g.userData.knifeSkin = true; g.userData.knifeGold = golden; g.userData.knifeTh = th;
+  g.userData.knifeKind = golden ? 'chef' : (kind || 'chef'); g.userData.knifeFinish = golden ? 'factory' : (finish || 'factory');
+  fillKnife(g, golden ? 'gold' : g.userData.knifeKind, th, g.userData.knifeFinish);
   g.scale.setScalar(scale); return g;
 }
 // Troca o modelo sem mexer na empunhadura (posição, giro e escala do grupo continuam).
+// A faca dourada da Corrida Armada não aceita skin do Brechó.
 export function applyKnifeSkin(group, kind = 'chef', finish = 'factory') {
-  if (!group) return;
+  if (!group || group.userData.knifeGold) return;
   kind = KNIFE_FILL[kind] ? kind : 'chef';
   finish = KNIFE_FINISH[finish] ? finish : 'factory';
   if (kind === 'chef') finish = 'factory';

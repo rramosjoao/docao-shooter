@@ -146,6 +146,11 @@ export const WEAPONS = [
     shield: true, noAds: true, move: SHIELD.move, inspect: 'shield',
     desc: `Escudo · vida ${SHIELD.hp} · bloqueio frontal · golpe ${SHIELD.bash.dmg} · anda ${Math.round((1 - SHIELD.move) * 100)}% mais devagar` },
 ];
+// Exclusiva da Corrida Armada: ID próprio, fora do arsenal e das classes.
+export const GOLD_KNIFE = WEAPONS.length;
+WEAPONS.push({ ...WEAPONS[7], key: 'faca-dourada', name: 'Faca Dourada', short: 'Faca Dourada', chip: 'Ouro', noAds: true, desc: 'Corrida Armada · uma eliminação válida vence a partida' });
+export const isKnife = (i) => i === 7 || i === GOLD_KNIFE;
+
 // Penetração e collateral (regra em shared/penetration.js). pen = metros de parede fina por bala (caixote conta 45%);
 // pierce = corpos extras que a bala atravessa; pierceMul = dano que sobra a cada corpo. Sem entrada = não atravessa nada.
 const PEN_STATS = { rifle: [0.35], lmg: [0.4], commando: [0.3], famas: [0.35], p90: [0.25], uzi: [0.2], pistol: [0.2], sniper: [0.9, 2, 0.75], canhao: [1.6, 3, 0.85], carabina: [0.6, 1, 0.6], minigun: [0.4], capataz: [0.22], capataz2: [0.22] };
@@ -185,6 +190,7 @@ export const MELEE = {
   stab: { dmg: 75, range: 1.8, cone: 0.36, rate: 1.0 },
   backDot: -0.4, backDmg: 1000, speedMul: 1.15, draw: 0.2,
 };
+WEAPONS[GOLD_KNIFE].move = MELEE.speedMul; // a dourada corre como a faca de churrasqueiro
 export const SABER_COLORS = [
   { id: 'vermelho', hex: '#ff2a2a' },
   { id: 'azul', hex: '#3d7eff' },
@@ -206,5 +212,5 @@ export const BOT_DEFS = [
   { name: 'Farofa' }, { name: 'Pipoca' }, { name: 'Trufa' }, { name: 'Bolota' }, { name: 'Torresmo' }, { name: 'Paçoca' }, { name: 'Linguiça' }, { name: 'Quindim' }, { name: 'Coxinha' }, { name: 'Pururuca' },
 ];
 
-export const BOT_RANGE = [14, 4.5, 26, 14, 10, 34, 18, 1.2, 2.2, 8, 12, 6, 6, 16, 14, 20, 12, 2.2, 9, 14, 16, 16, 18, 10, 6, 4]; // 23 revólver (como a pistola), 24 akimbo (cola), 25 tampa (chega perto pra porrada)
+export const BOT_RANGE = [14, 4.5, 26, 14, 10, 34, 18, 1.2, 2.2, 8, 12, 6, 6, 16, 14, 20, 12, 2.2, 9, 14, 16, 16, 18, 10, 6, 4, 1.2]; // 23 revólver (como a pistola), 24 akimbo (cola), 25 tampa (chega perto pra porrada), 26 faca dourada (cola, igual a faca)
 export const TAG_COLORS = ['#7DF9FF', '#ffd27a', '#ff9fb6', '#9be37a', '#c9a4ff', '#ffb36b', '#9fd0ff', '#ffa3d8', '#b8f2e6', '#ffe9a8'];
