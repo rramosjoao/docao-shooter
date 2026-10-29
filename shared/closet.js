@@ -179,12 +179,19 @@ ITEMS.push(
   { id: 'd7', name: 'Passinho do Jamal', emoji: '🕺', price: 450, dance: 'jamal', line: 'Pé cruzando e ombro gingando' },
   { id: 'd8', name: 'Macarena', emoji: '🎶', price: 400, dance: 'macarena', line: 'Braço, braço, ombro, cabeça e rebola' },
 );
+// Facas (espaço "k"): não entram no visual do Docão. A cor desta leva é a de fábrica. Quem equipa troca o modelo da faca.
+ITEMS.push(
+  { id: 'k1', name: 'Skeleton Knife', emoji: '🔪', price: 500, knife: 'skeleton', line: 'Três furos pequenos na lâmina e um furo grande no meio. Cor de fábrica.' },
+  { id: 'k2', name: 'Karambit', emoji: '🪝', price: 500, knife: 'karambit', line: 'Garra curva e argola no dedo. Cor de fábrica.' },
+  { id: 'k3', name: 'Bayonetta', emoji: '🗡️', price: 500, knife: 'bayonet', line: 'Baioneta: lâmina reta, guarda cruzada e anel do cano. Cor de fábrica.' },
+);
 for (const it of ITEMS) it.slot = it.id[0];
-export const COSTUME_SLOT = 'c', DANCE_SLOT = 'd';
+export const COSTUME_SLOT = 'c', DANCE_SLOT = 'd', KNIFE_SLOT = 'k';
 export const isLookSlot = (k) => SLOTS.some(([x]) => x === k);
 export const danceItems = () => ITEMS.filter((i) => i.slot === DANCE_SLOT);
 export const itemForDance = (dance) => ITEMS.find((i) => i.dance === dance) || null;
 export const itemById = (id) => ITEMS.find((i) => i.id === id) || null;
+export const knifeKind = (id) => { const i = itemById(id); return (i && i.knife) || ''; };
 export const teamItems = (team) => ITEMS.filter((i) => i.team === team).sort((a, b) => (a.teamOrder | 0) - (b.teamOrder | 0) || (a.id < b.id ? -1 : 1));
 export const itemPrice = (id) => { const i = itemById(id); return i ? i.price : 0; };
 // Padrão de graça: não passa pela compra nem precisa de linha na mochila. Preço 0 sozinho também conta, pra não cobrar por engano.

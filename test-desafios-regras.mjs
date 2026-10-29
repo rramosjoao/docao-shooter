@@ -69,7 +69,7 @@ function mk(mode = 'dm', map = 'arena') {
 
 // ---- gravação no D1 (SQLite em memória com as migrações) ----
 const db = new DatabaseSync(':memory:');
-for (const f of ['0001_contas.sql', '0002_loja.sql', '0003_desafios.sql', '0004_saldo_inicial.sql']) db.exec(readFileSync(new URL('./server/migrations/' + f, import.meta.url), 'utf8'));
+for (const f of ['0001_contas.sql', '0002_loja.sql', '0003_desafios.sql', '0004_saldo_inicial.sql', '0005_faca.sql']) db.exec(readFileSync(new URL('./server/migrations/' + f, import.meta.url), 'utf8'));
 const wrap = (sql, args = []) => ({ sql, args, bind(...a) { return wrap(sql, a); },
   async all() { return { results: db.prepare(sql).all(...args) }; }, async first() { return db.prepare(sql).get(...args) || null; },
   async run() { const r = db.prepare(sql).run(...args); return { meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; } });

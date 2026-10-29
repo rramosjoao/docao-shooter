@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { kickRecoil, stepRecoil, resetRecoil, cancelRecoilReturn } from './shared/recoil.js';
 import { makeWardrobeCase } from './menu-wardrobe.js';
 import { makeMenuBackdrop } from './menu-backdrop.js';
-import { makeDocao, makeFPArms, makeFPForearm, poseFPForearm, setPose, setCrouchPose, toon, outline, makeCup, makeRocket, drawLogo, makeKnife, setExpression, updateExpression, makeNukeRider } from './docao.js';
+import { makeDocao, makeFPArms, makeFPForearm, poseFPForearm, setPose, setCrouchPose, toon, outline, makeCup, makeRocket, drawLogo, makeKnife, applyKnifeSkin, setExpression, updateExpression, makeNukeRider } from './docao.js';
 import { DANCES, PAID_DANCE_LIST, isPaidDance, normDance, poseVictory, makeShadowDancer, hideVictoryGuns, resetVictoryPose } from './victory-dance.js';
 import { DANCE_TIME, danceId } from './shared/emote.js';
 import { makeFPSniper, poseSniperBolt } from './sniper-view.js';
@@ -61,6 +61,7 @@ import { SHIELD, isShieldW, shieldRaised, shieldOnBack, resetShield, shieldStage
 import { makeFPShield } from './shield-view.js';
 import { rounds, spendRound, drumsFull, drumsEmpty, refillDrums, resetDrums, setDrum, rollFumble, pickBotSecondary, akimboReady, ammoLow } from './shared/revolver.js';
 import { getAccount, getItems, onAccount, loadMe, saveSkin as saveAcctSkin, dropSession } from './account.js';
+import { knifeKind } from './shared/closet.js';
 import { initAccountUI } from './account-ui.js';
 import { initCloset } from './closet-ui.js';
 import { bindGrenadeVoice, playGrenadeVoice, grenadeVoiceEnabled, setGrenadeVoiceEnabled } from './grenade-voice.js';
@@ -3190,6 +3191,13 @@ const fp = (() => {
   const brass = add(new THREE.CylinderGeometry(0.012, 0.012, 0.045, 6), toon(0xd9a441), 0, 0, 0, root, 0); brass.visible = false; brass.rotation.z = Math.PI / 2; // molde da cápsula (uma malha só, reaproveitada)
   return { root, guns, flash, setSkin, cup, cupHand, cupThrowT: 0, kick: 0, bob: 0, flashT: 0, pumpPart, get pumpHand() { return pumpHand; }, pumpShoulder, rocketTip, slide, fpRef, actionT: 0, actionLen: 1, shellT: 0, stringT: 0, kr, kpiv, rMag, rCh, cMag, cCh, pMag, uMag, uCh, p90Mag, p90Ch, nStrip, semiMag, semiCh, lmgMag, lmgCh, lmgBarrel, brass, discLoaded, famasMag, famasCh, famasCase, cornCob, cornCore, cornCrank, cornBits, cornKernels, cornCrankT: 0, sling, mini: { group: mini, barrels: mgBarrels, glow: mgGlow, glowMat: mgGlowMat }, mgBox, mgCase, cycT: 0, climb: 0, sShell, sRound, loadRocket, drops: [], reloadSeen: 0, knifeT: 9, knifeKind: 'slash', knifeDrawT: 0 };
 })();
+function applyHeldKnife(kind) {
+  const mesh = fp.kpiv && fp.kpiv.children.find((c) => c.userData.knifeSkin);
+  if (mesh) applyKnifeSkin(mesh, kind || 'chef');
+}
+function applyWorldKnife(e, id) {
+  if (e && e.model && e.model.guns && e.model.guns[KNIFE]) applyKnifeSkin(e.model.guns[KNIFE], knifeKind(id) || 'chef');
+}
 fp.tablet = makeTablet(); fp.laptop = makeLaptop(); fp.radio = makeRadio(); fpScene.add(fp.tablet, fp.laptop, fp.radio);
 // Mãos dentro da arma (pump, ferrolho, braço da faca) não entram na camuflagem nem na miniatura.
 function markWeaponHands() {
@@ -5222,6 +5230,10 @@ function buildDancePicks() {
 }
 buildDancePicks();
 document.addEventListener('docao-dance-pick', (e) => setDance(e.detail));
+document.addEventListener('docao-knife-pick', (e) => {
+  applyHeldKnife(knifeKind(e.detail) || 'chef');
+  if (online && online.net) online.net.send({ t: 'prof', knife: e.detail || '' });
+});
 function layoutDanceCast() {
   danceCast.forEach((d) => {
     if (!d.model) { d.model = makeShadowDancer(); danceScene.add(d.model.group); }
@@ -5433,6 +5445,7 @@ function startGame(mapId) {
   flashMsg(mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : `Mapa: ${currentMap.name} · bots ${diffWord}`); refreshModeHud();
   for (const ev of bombEv) onBombEvent(ev);
   $('menu').classList.add('hidden'); $('gameover').classList.add('hidden'); $('pause').classList.add('hidden'); $('hud').classList.remove('hidden'); $('socialHud').classList.remove('hidden'); $('voiceHud').classList.add('hidden'); chatSetRoom(true); // offline: o chat fica (pros códigos), sem voz $('overChat').classList.add('hidden');
+  applyHeldKnife(knifeKind(getAccount() && getAccount().knife));
   camera.clearViewOffset(); state = 'playing'; lockPointer();
 }
 function endGame() {
@@ -6662,7 +6675,7 @@ function remoteEnt(info) {
   }
   const e = makeEntity(info.name, false, info.skin, info.tag || '#ffffff');
   Object.assign(e, { id: info.id, remote: true, netId: info.id, bot: !!info.bot, buf: [], kills: info.kills || 0, deaths: info.deaths || 0, alive: false, primary: info.primary || 0, ping: 0 });
-  e.model.group.visible = false; setWeapon(e, info.w || 0); e.slots = [e.primary, e.secondary ?? PISTOL, e.melee ?? KNIFE]; e.caps = info.caps || 0; applyTeam(e, info.team ?? -1);
+  e.model.group.visible = false; setWeapon(e, info.w || 0); e.slots = [e.primary, e.secondary ?? PISTOL, e.melee ?? KNIFE]; e.caps = info.caps || 0; applyTeam(e, info.team ?? -1); if (info.kn) applyWorldKnife(e, info.kn);
   o.ents.set(info.id, e); entities.push(e); return e;
 }
 function removeEnt(id) {
@@ -6684,7 +6697,7 @@ function startOnlineMatch(m) {
   player = makeEntity(me.name, true, me.skin, '#ffd27a'); player.netId = player.id = o.myId; player.sq = 0; player.alive = false; player.respawnAt = Infinity;
   player.kills = me.kills || 0; player.deaths = me.deaths || 0; player.gunKills = WEAPONS.map(() => 0); revengeName = null; resetFeedback(); resetMatchCamos();
   player.primary = player.nextPrimary = selectedPrimary; player.nextSecondary = selectedSecondary; player.nextMelee = selectedMelee; player.slots = [selectedPrimary, selectedSecondary, selectedMelee]; setWeapon(player, selectedPrimary); // até o servidor mandar o renascimento
-  entities.push(player); o.ents.set(o.myId, player); fp.setSkin(me.skin); player.caps = me.caps || 0; applyTeam(player, me.team ?? -1);
+  entities.push(player); o.ents.set(o.myId, player); fp.setSkin(me.skin); applyHeldKnife(knifeKind(me.kn)); player.caps = me.caps || 0; applyTeam(player, me.team ?? -1);
   for (const info of m.ents) remoteEnt(info);
   invApplyLook(invMode()); if (invMode()) for (const [id, ki, pos] of m.drops || []) invAddDrop(id, DROP_KEYS[ki], pos);
   if (mode === 'bomb' && m.bomb) setupBomb({ sites: m.bomb.sites.map(([x, y, z], i) => ({ x, y, z, name: SITE_NAMES[i] })), atk: m.bomb.atk, def: m.bomb.def, pts: m.bomb.pts ? m.bomb.pts.map(([x, y, z]) => ({ x, y, z })) : undefined }, unpackBomb(m.bomb.s)); else if (mode === 'bomb') mode = 'dm';
@@ -6911,6 +6924,7 @@ function netEvent(ev) {
     const at = a3v(ev[3]); saberSparks(at, ev[2] === 2 ? 16 : 8);
     if (ev[2] === 2) saberSfx.parry(true); else if (ev[2] === 3) saberSfx.spinHit(); else saberSfx.clash();
   } else if (k === 'j') { remoteEnt(ev[1]); }
+  else if (k === 'jkn') { const e = entOf(ev[1]); if (e === player) applyHeldKnife(knifeKind(ev[2])); else applyWorldKnife(e, ev[2]); }
   else if (k === 'l') { removeEnt(ev[1]); }
 }
 function personalEvent(ev) {
@@ -7500,4 +7514,5 @@ window.__docao = { get state() { return state; }, toMenu: () => toMenu(), benchO
   invUse: () => invUsePower(), invCycle: () => invCycle(), invOpenPick: () => invOpenPick(), invEquipNow, INV, POWERS, ZOMBIES, INV_MAPS, makeZombieEnt, get invHal() { return invGfx.hal; }, get invMusic() { return invMusic && { on: invMusic.on, level: invMusic.level }; },
   invGive: (list) => { if (inv && player) { player.inv = list.slice(0, INV.INV_MAX); invSetInv(player.inv.map((k) => POWER_KEYS.indexOf(k))); } else if (online) online.net.send({ t: 'testInv', give: list }); },
   bomb: bombTest,
+  makeKnife,
 };
