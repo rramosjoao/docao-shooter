@@ -9,17 +9,17 @@ import { poseVictory, resetVictoryPose, ALL_DANCES, isPaidDance, normDance } fro
 import './costumes.js';
 import { getAccount, getItems, getEarn, getChal, onAccount, refreshStats, equipLook, buyItem, equipKnife } from './account.js';
 import { CHAL_PER_DAY, TIERS } from './shared/challenges.js';
-import { COLORS, SLOTS, ITEMS, SHOP_TEAMS, CURRENCY, COIN_ICON, SHOP_NAME, SHOP_EMOJI, SHOP_BUTTON, DEFAULT_LOOK, COSTUME_SLOT, DANCE_SLOT, KNIFE_SLOT, encodeLook, parseLook, itemById, itemForDance, isFreeItem, teamItems, knifeKind } from './shared/closet.js';
+import { COLORS, SLOTS, ITEMS, SHOP_TEAMS, CURRENCY, COIN_ICON, SHOP_NAME, SHOP_EMOJI, SHOP_BUTTON, DEFAULT_LOOK, COSTUME_SLOT, DANCE_SLOT, KNIFE_SLOT, KNIFE_MODELS, KNIFE_COLORS, encodeLook, parseLook, itemById, itemForDance, isFreeItem, teamItems } from './shared/closet.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let look = { ...DEFAULT_LOOK, items: {} }, tab = 'look', trial = null, busy = false, three = null, raf = 0, pendingBuy = null;
 
 const currentCode = () => { const items = { ...look.items }; if (trial && trial.slot !== DANCE_SLOT && trial.slot !== KNIFE_SLOT) { if (trial.slot !== COSTUME_SLOT) delete items[COSTUME_SLOT]; items[trial.slot] = trial.id; } return encodeLook({ shirt: look.shirt, pants: look.pants, items }); };
-const previewKnifeKind = () => {
-  if (trial) { const it = itemById(trial.id); if (it && it.knife) return it.knife; }
+const previewKnife = () => {
+  if (trial) { const it = itemById(trial.id); if (it && it.knife) return it; }
   const id = getAccount() && getAccount().knife;
-  return id && owned(id) ? knifeKind(id) : '';
+  return id && owned(id) ? itemById(id) : null;
 };
 const msg = (t, ok = false) => { const m = $('closetMsg'); m.textContent = t || ''; m.style.color = ok ? '#2a6f4a' : ''; };
 
@@ -34,11 +34,11 @@ function startThree() {
   bindSpin(canvas);
 }
 function showModel() {
-  if (!three) return; const code = currentCode(), kind = previewKnifeKind(), key = code + '|' + kind;
+  if (!three) return; const code = currentCode(), held = previewKnife(), key = code + '|' + (held ? held.id : '');
   if (three.code === key && three.model) return;
   if (three.model) three.scene.remove(three.model.group); three.code = key;
   three.model = makeDocao(code, { withGun: false, pose: 'idle' });
-  if (kind) { const kn = makeKnife(1.7, 0.006, kind); kn.rotation.set(-Math.PI / 2, 0, 0); kn.position.set(0, -0.6, 0.02); three.model.arms[0].add(kn); }
+  if (held) { const kn = makeKnife(1.7, 0.006, held.knife, held.finish); kn.rotation.set(-Math.PI / 2, 0, 0); kn.position.set(0, -0.6, 0.02); three.model.arms[0].add(kn); }
   three.scene.add(three.model.group); three.last = 0;
 }
 // Prévia PARADA, de frente. Só gira se a pessoa arrastar o boneco ou apertar ◀ ▶ (e "Frente" volta pro centro).
@@ -82,8 +82,12 @@ function renderLook() {
     h += `<div class="closet-slot"><h4>${name}${k === COSTUME_SLOT ? ' <small>(troca camiseta, shorts e peças de uma vez)</small>' : ''}</h4><div class="closet-chips"><button type="button" data-slot="${k}" data-item=""${!look.items[k] ? ' class="on"' : ''}>Nada</button>${mine.map((i) => `<button type="button" data-slot="${k}" data-item="${i.id}"${look.items[k] === i.id ? ' class="on"' : ''}>${i.emoji} ${esc(i.name)}${isFreeItem(i.id) ? ' · grátis' : ''}</button>`).join('')}${mine.length ? '' : '<span class="closet-note">Nada na mochila ainda. Veja a Loja!</span>'}</div></div>`;
   }
   const curK = (getAccount() && getAccount().knife) || '';
-  const mineK = ITEMS.filter((i) => i.knife && owned.has(i.id));
-  h += `<div class="closet-slot"><h4>Faca</h4><div class="closet-chips"><button type="button" data-knife=""${!curK ? ' class="on"' : ''}>Faca de churrasqueiro</button>${mineK.map((i) => `<button type="button" data-knife="${i.id}"${curK === i.id ? ' class="on"' : ''}>${i.emoji} ${esc(i.name)}</button>`).join('')}${mineK.length ? '' : '<span class="closet-note">As outras estão na Loja, por 500.</span>'}</div></div>`;
+  h += `<div class="closet-slot"><h4>Faca</h4><div class="closet-chips"><button type="button" data-knife=""${!curK ? ' class="on"' : ''}>Faca de churrasqueiro</button></div></div>`;
+  for (const model of KNIFE_MODELS) {
+    const mine = ITEMS.filter((i) => i.knife === model.knife && owned.has(i.id));
+    const chips = mine.map((i) => { const color = KNIFE_COLORS.find((c) => c.finish === i.finish); return `<button type="button" data-knife="${i.id}"${curK === i.id ? ' class="on"' : ''}>${esc(color ? color.name : i.name)}</button>`; }).join('');
+    h += `<div class="closet-slot"><h4>${model.emoji} ${esc(model.name)}</h4><div class="closet-chips">${chips || '<span class="closet-note">Nenhuma cor na mochila. A Loja tem Fábrica, Rusty, Rainbow, Sapphire, Emerald e Ruby.</span>'}</div></div>`;
+  }
   const cur = curDance(), mineD = ALL_DANCES.filter((d) => !isPaidDance(d.id) || owned.has(d.item));
   h += `<div class="closet-slot"><h4>Dança da vitória (tecla B)</h4><div class="closet-chips">${mineD.map((d) => `<button type="button" data-dance-pick="${d.id}"${cur === d.id ? ' class="on"' : ''}>💃 ${esc(d.name)}</button>`).join('')}</div></div>`;
   h += '<button type="button" id="closetSave" class="ticket-btn">SALVAR E USAR ESTE VISUAL</button><p class="closet-note">As skins da lista continuam no menu. O visual salvo vale nas partidas online com conta.</p>';
@@ -111,7 +115,10 @@ function renderShop() {
     if (!list.length) continue;
     h += `<div class="closet-sec"><h4>${esc(name)}</h4><div class="closet-grid">${list.map((i) => shopCard(i, owned, coins)).join('')}</div></div>`;
   }
-  h += `<div class="closet-sec"><h4>Facas <small>(cor de fábrica)</small></h4><div class="closet-grid">${ITEMS.filter((i) => i.slot === KNIFE_SLOT).map((i) => shopCard(i, owned, coins)).join('')}</div></div>`;
+  for (const model of KNIFE_MODELS) {
+    const list = ITEMS.filter((i) => i.knife === model.knife);
+    h += `<div class="closet-sec"><h4>${model.emoji} ${esc(model.name)} <small>(escolha a cor)</small></h4><div class="closet-grid">${list.map((i) => shopCard(i, owned, coins)).join('')}</div></div>`;
+  }
   h += `<div class="closet-sec"><h4>Danças da vitória <small>(tecla B)</small></h4><div class="closet-grid">${ITEMS.filter((i) => i.slot === DANCE_SLOT).map((i) => shopCard(i, owned, coins)).join('')}</div></div>`;
   $('closetShop').innerHTML = h;
 }

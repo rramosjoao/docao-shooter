@@ -753,12 +753,51 @@ export function makeRocket(scale = 1) {
 
 // ---------- Facas ----------
 // Origem = centro da empunhadura; lâmina aponta pra -z, fio pra -y, espessura em x. Usada em 1ª e 3ª pessoa.
-// kind: chef (churrasqueiro), skeleton (furo grande e três pequenos), karambit (garra + argola), bayonet (baioneta / Bayonetta).
-// As três da loja nascem na cor de fábrica: aço e cabo escuro, sem pintura especial.
+// kind: chef (churrasqueiro), skeleton, karambit, bayonet.
+// finish: factory, rusty, rainbow, sapphire, emerald, ruby. O churrasqueiro não tem pintura.
 let knifeLogoTex = null;
-const knifeSteel = () => toonWarm('#d5dde6', 0.1, {}, '#f4f8ff');
-const knifeDark = () => toon('#1a1c20');
-const knifeMetal = () => toon('#8d939c');
+const KNIFE_FINISH = {
+  factory: { steel: '#d5dde6', warm: '#f4f8ff', metal: '#8d939c', dark: '#1a1c20', edge: '#ffffff', fuller: '#8aa0b4' },
+  rusty: { steel: '#8a4a28', warm: '#e08a40', metal: '#6a3a22', dark: '#2a1810', edge: '#e2b56a', fuller: '#5c3018', rust: true },
+  rainbow: { steel: '#f4f4f8', warm: '#ffffff', metal: '#d8d8e4', dark: '#1a1c20', edge: '#ffffff', fuller: '#ffffff', rainbow: true },
+  sapphire: { steel: '#1d4ed8', warm: '#9ec5ff', metal: '#12358f', dark: '#0a1020', edge: '#e7f1ff', fuller: '#16367a' },
+  emerald: { steel: '#0f9d58', warm: '#8dffc0', metal: '#0b6b3a', dark: '#07140e', edge: '#e9fff0', fuller: '#0d5a32' },
+  ruby: { steel: '#d0123a', warm: '#ff9aaf', metal: '#8a142c', dark: '#1a0a0e', edge: '#ffe8ee', fuller: '#7a1830' },
+};
+function tintVerts(mesh, fn) {
+  const geo = mesh.geometry; if (!geo || !geo.attributes.position) return;
+  const pos = geo.attributes.position, colors = new Float32Array(pos.count * 3), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) { fn(c, pos.getX(i), pos.getY(i), pos.getZ(i)); colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b; }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  mesh.material.vertexColors = true; mesh.material.needsUpdate = true;
+}
+function knifePal(finish) {
+  const f = KNIFE_FINISH[finish] || KNIFE_FINISH.factory;
+  const dress = (mesh) => {
+    if (!mesh) return mesh;
+    if (f.rainbow) {
+      const geo = mesh.geometry; geo.computeBoundingBox(); const bb = geo.boundingBox;
+      const dx = bb.max.x - bb.min.x, dy = bb.max.y - bb.min.y, dz = bb.max.z - bb.min.z;
+      const axis = dx >= dy && dx >= dz ? 'x' : dy >= dz ? 'y' : 'z';
+      const min = bb.min[axis], span = Math.max(1e-4, bb.max[axis] - min);
+      tintVerts(mesh, (c, x, y, z) => { const p = axis === 'x' ? x : axis === 'y' ? y : z; c.setHSL((((p - min) / span) % 1) * 0.92, 0.88, 0.52); });
+    } else if (f.rust) {
+      tintVerts(mesh, (c, x, y, z) => {
+        const n = Math.sin(x * 90 + z * 40) * Math.cos(y * 70 + z * 25);
+        c.set(n > 0.35 ? '#d4783a' : n > -0.15 ? '#8d4b28' : '#3e2416');
+      });
+    }
+    return mesh;
+  };
+  return {
+    steel: () => toonWarm(f.steel, 0.14, {}, f.warm),
+    metal: () => toon(f.metal),
+    dark: () => toon(f.dark),
+    edge: () => basic(f.edge),
+    fuller: () => toon(f.fuller),
+    dress,
+  };
+}
 function knifeShape(g, th, shape, mat, pos, segs = 8) {
   const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.008, bevelEnabled: true, bevelThickness: 0.0016, bevelSize: 0.0012, bevelSegments: 1, curveSegments: segs });
   geo.translate(0, 0, -0.004); geo.rotateY(Math.PI / 2); // +x do perfil vira -z
@@ -785,7 +824,7 @@ function fillChef(g, th) {
   for (const sx of [-1, 1]) { const lg = new THREE.Mesh(new THREE.PlaneGeometry(0.04, 0.02), new THREE.MeshBasicMaterial({ map: knifeLogoTex, transparent: true })); lg.position.set(sx * 0.0162, -0.004, 0.022); lg.rotation.y = sx * Math.PI / 2; g.add(lg); }
 }
 // Skeleton: ponta afilada, três furos pequenos na lâmina e um furo grande no meio, na guarda. Cabo escuro canelado.
-function fillSkeleton(g, th) {
+function fillSkeleton(g, th, pal) {
   const m = (geo, mat, t = th) => { const o = new THREE.Mesh(geo, mat); g.add(o); if (t) outline(o, t); return o; };
   const s = new THREE.Shape();
   s.moveTo(-0.02, -0.016);
@@ -804,16 +843,16 @@ function fillSkeleton(g, th) {
   for (const [cx, cy, r] of [[0.068, 0.006, 0.0065], [0.096, 0.008, 0.0056], [0.122, 0.01, 0.0048]]) {
     const hole = new THREE.Path(); hole.absellipse(cx, cy, r, r, 0, Math.PI * 2, true); s.holes.push(hole);
   }
-  knifeShape(g, Math.min(th, 0.0032), s, knifeSteel(), new THREE.Vector3(0, 0.002, -0.03), 16);
-  m(new THREE.BoxGeometry(0.024, 0.03, 0.1), knifeDark()).position.set(0, -0.002, 0.042);
-  for (const z of [0.002, 0.024, 0.046, 0.068]) m(new THREE.BoxGeometry(0.028, 0.034, 0.007), knifeMetal(), 0.002).position.set(0, -0.002, z);
+  pal.dress(knifeShape(g, Math.min(th, 0.0032), s, pal.steel(), new THREE.Vector3(0, 0.002, -0.03), 16));
+  m(new THREE.BoxGeometry(0.024, 0.03, 0.1), pal.dark()).position.set(0, -0.002, 0.042);
+  for (const z of [0.002, 0.024, 0.046, 0.068]) pal.dress(m(new THREE.BoxGeometry(0.028, 0.034, 0.007), pal.metal(), 0.002)).position.set(0, -0.002, z);
   const pom = new THREE.Shape();
   pom.absellipse(0, 0, 0.015, 0.017, 0, Math.PI * 2, false);
   const lace = new THREE.Path(); lace.absellipse(0.004, 0, 0.005, 0.005, 0, Math.PI * 2, true); pom.holes.push(lace);
-  knifeShape(g, 0.0025, pom, knifeMetal(), new THREE.Vector3(0, -0.002, 0.1), 12);
+  pal.dress(knifeShape(g, 0.0025, pom, pal.metal(), new THREE.Vector3(0, -0.002, 0.1), 12));
 }
 // Karambit: a garra sai da frente do cabo, desce e aponta pra frente. A argola fica no fim do cabo.
-function fillKarambit(g, th) {
+function fillKarambit(g, th, pal) {
   const m = (geo, mat, t = th) => { const o = new THREE.Mesh(geo, mat); g.add(o); if (t) outline(o, t); return o; };
   const s = new THREE.Shape();
   s.moveTo(0.0, 0.012);
@@ -821,54 +860,63 @@ function fillKarambit(g, th) {
   s.quadraticCurveTo(0.22, -0.1, 0.12, -0.09);
   s.quadraticCurveTo(0.14, -0.02, 0.0, -0.01);
   s.closePath();
-  knifeShape(g, th, s, knifeSteel(), new THREE.Vector3(0, -0.01, -0.06));
-  m(new THREE.BoxGeometry(0.03, 0.036, 0.09), knifeDark()).position.set(0, 0, 0.02);
-  m(new THREE.BoxGeometry(0.04, 0.016, 0.012), knifeMetal()).position.set(0, 0, -0.03);
-  const ring = m(new THREE.TorusGeometry(0.024, 0.0055, 8, 16), knifeSteel(), 0.003);
+  pal.dress(knifeShape(g, th, s, pal.steel(), new THREE.Vector3(0, -0.01, -0.06)));
+  m(new THREE.BoxGeometry(0.03, 0.036, 0.09), pal.dark()).position.set(0, 0, 0.02);
+  pal.dress(m(new THREE.BoxGeometry(0.04, 0.016, 0.012), pal.metal())).position.set(0, 0, -0.03);
+  const ring = pal.dress(m(new THREE.TorusGeometry(0.024, 0.0055, 8, 16), pal.steel(), 0.003));
   ring.rotation.y = Math.PI / 2; ring.position.set(0, 0, 0.086);
 }
 // Bayonetta (baioneta): lâmina reta de ponta cortada, guarda cruzada e o anel que entrava no cano.
-function fillBayonet(g, th) {
+function fillBayonet(g, th, pal) {
   const m = (geo, mat, t = th) => { const o = new THREE.Mesh(geo, mat); g.add(o); if (t) outline(o, t); return o; };
   const s = new THREE.Shape();
   s.moveTo(0, 0.012); s.lineTo(0.3, 0.012); s.lineTo(0.38, -0.002); s.lineTo(0.32, -0.02); s.lineTo(0, -0.02); s.closePath();
-  knifeShape(g, th, s, knifeSteel(), new THREE.Vector3(0, 0.008, -0.07));
-  const fuller = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.006, 0.22), toon('#8aa0b4')); fuller.position.set(0, 0.012, -0.2); g.add(fuller);
-  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.004, 0.26), basic('#ffffff')); edge.position.set(0, -0.012, -0.22); g.add(edge);
-  m(new THREE.BoxGeometry(0.09, 0.012, 0.014), knifeMetal()).position.set(0, 0.004, -0.055);
-  const hoop = m(new THREE.TorusGeometry(0.016, 0.004, 6, 12), knifeMetal(), 0.003);
+  pal.dress(knifeShape(g, th, s, pal.steel(), new THREE.Vector3(0, 0.008, -0.07)));
+  const fuller = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.006, 0.22), pal.fuller()); fuller.position.set(0, 0.012, -0.2); g.add(fuller); pal.dress(fuller);
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.004, 0.26), pal.edge()); edge.position.set(0, -0.012, -0.22); g.add(edge);
+  pal.dress(m(new THREE.BoxGeometry(0.09, 0.012, 0.014), pal.metal())).position.set(0, 0.004, -0.055);
+  const hoop = pal.dress(m(new THREE.TorusGeometry(0.016, 0.004, 6, 12), pal.metal(), 0.003));
   hoop.rotation.x = Math.PI / 2; hoop.position.set(0.038, 0.004, -0.07);
-  m(new THREE.BoxGeometry(0.026, 0.032, 0.11), knifeDark()).position.set(0, 0, 0.012);
-  for (const z of [-0.02, 0.03]) for (const sx of [-1, 1]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.004, 8), knifeMetal()); r.rotation.z = Math.PI / 2; r.position.set(sx * 0.014, 0, z); g.add(r); }
-  m(new THREE.CylinderGeometry(0.016, 0.018, 0.02, 10), knifeMetal()).rotation.z = Math.PI / 2;
+  m(new THREE.BoxGeometry(0.026, 0.032, 0.11), pal.dark()).position.set(0, 0, 0.012);
+  for (const z of [-0.02, 0.03]) for (const sx of [-1, 1]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.004, 8), pal.metal()); r.rotation.z = Math.PI / 2; r.position.set(sx * 0.014, 0, z); g.add(r); pal.dress(r); }
+  pal.dress(m(new THREE.CylinderGeometry(0.016, 0.018, 0.02, 10), pal.metal())).rotation.z = Math.PI / 2;
   g.children[g.children.length - 1].position.set(0, 0, 0.078);
 }
 const KNIFE_FILL = { chef: fillChef, skeleton: fillSkeleton, karambit: fillKarambit, bayonet: fillBayonet };
-function fillKnife(g, kind, th) { (KNIFE_FILL[kind] || fillChef)(g, th); }
+function fillKnife(g, kind, th, finish) {
+  if (!KNIFE_FILL[kind] || kind === 'chef') { fillChef(g, th); return; }
+  KNIFE_FILL[kind](g, th, knifePal(finish));
+}
 function dropKnife(group) {
   for (const c of group.children.slice()) {
     group.remove(c);
-    c.traverse((o) => { if (o.geometry && !(o.userData && o.userData.isOutline)) o.geometry.dispose(); });
+    c.traverse((o) => {
+      if (!o.isMesh || (o.userData && o.userData.isOutline)) return;
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && o.material.dispose) o.material.dispose();
+    });
   }
 }
-export function makeKnife(scale = 1, th = 0.004, kind = 'chef') {
+export function makeKnife(scale = 1, th = 0.004, kind = 'chef', finish = 'factory') {
   const g = new THREE.Group();
-  g.userData.knifeSkin = true; g.userData.knifeTh = th; g.userData.knifeKind = kind || 'chef';
-  fillKnife(g, g.userData.knifeKind, th);
+  g.userData.knifeSkin = true; g.userData.knifeTh = th; g.userData.knifeKind = kind || 'chef'; g.userData.knifeFinish = finish || 'factory';
+  fillKnife(g, g.userData.knifeKind, th, g.userData.knifeFinish);
   g.scale.setScalar(scale); return g;
 }
 // Troca o modelo sem mexer na empunhadura (posição, giro e escala do grupo continuam).
-export function applyKnifeSkin(group, kind = 'chef') {
+export function applyKnifeSkin(group, kind = 'chef', finish = 'factory') {
   if (!group) return;
   kind = KNIFE_FILL[kind] ? kind : 'chef';
-  if (group.userData.knifeKind === kind && group.children.length) return;
+  finish = KNIFE_FINISH[finish] ? finish : 'factory';
+  if (kind === 'chef') finish = 'factory';
+  if (group.userData.knifeKind === kind && group.userData.knifeFinish === finish && group.children.length) return;
   const scale = group.scale.x || 1;
   const th = group.userData.knifeTh || 0.006;
   dropKnife(group);
   group.scale.setScalar(1);
-  fillKnife(group, kind, th);
+  fillKnife(group, kind, th, finish);
   group.scale.setScalar(scale);
-  group.userData.knifeSkin = true; group.userData.knifeTh = th; group.userData.knifeKind = kind;
+  group.userData.knifeSkin = true; group.userData.knifeTh = th; group.userData.knifeKind = kind; group.userData.knifeFinish = finish;
 }
 
 // ---------- expressão: 'neutral' (sorrisão) e 'angry' (bravo ao atirar/golpear) ----------
