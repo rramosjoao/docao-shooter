@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="hud-death.css">
 <link rel="stylesheet" href="acessorios.css">
 <link rel="stylesheet" href="truco.css">
+<link rel="stylesheet" href="uno.css">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 </head>
 <body>
@@ -155,6 +156,7 @@
       <div id="gameSwitch" role="tablist" aria-label="Jogo">
         <button type="button" id="modeShoot" class="on">Tiroteio</button>
         <button type="button" id="modeTruco">Truco</button>
+        <button type="button" id="modeUno">UNO</button>
       </div>
       <section id="menu-match" aria-label="Preparar partida" tabindex="0">
         <div class="section-heading"><span class="ticket-stamp" aria-hidden="true"><svg viewBox="0 0 96 96">
@@ -210,6 +212,25 @@
           </div>
           <div id="trucoJoinRow"><input id="trucoCode" maxlength="4" placeholder="CÓDIGO" autocomplete="off" spellcheck="false"><button type="button" id="trucoJoin">Entrar</button></div>
           <p id="trucoMenuErr"></p>
+        </section>
+        <section id="unoPanel" hidden aria-label="UNO">
+          <div class="uno-cover" aria-hidden="true"><i class="r"></i><i class="y"></i><i class="g"></i><i class="b"></i><b>UNO DO DOCÃO</b></div>
+          <p class="uno-blurb">7 cartas. +2 empilha em +2, +4 empilha em +4. Grita UNO com uma carta na mão.</p>
+          <label><span class="field-caption">Pessoas</span>
+            <select id="unoSeatsSel"><option value="2">2 pessoas</option><option value="4" selected>4 pessoas</option><option value="6">6 pessoas</option></select>
+          </label>
+          <label><span class="field-caption">Nível</span>
+            <select id="unoLevelSel"><option value="facil">Facinho</option><option value="medio" selected>Médio</option><option value="pro">Docão Profissional</option></select>
+          </label>
+          <label><span class="field-caption">Meta</span>
+            <select id="unoTargetSel"><option value="200">200 pontos</option><option value="500" selected>500 pontos</option></select>
+          </label>
+          <div class="uno-actions">
+            <button type="button" id="unoBots">Jogar com bots</button>
+            <button type="button" id="unoCreate" class="alt">Criar sala</button>
+          </div>
+          <div id="unoJoinRow"><input id="unoCode" maxlength="4" placeholder="CÓDIGO" autocomplete="off" spellcheck="false"><button type="button" id="unoJoin">Entrar</button></div>
+          <p id="unoMenuErr"></p>
         </section>
       </section>
       <section id="menu-arsenal" aria-label="Arsenal" tabindex="0" hidden>
@@ -591,7 +612,54 @@
     </div>
   </div>
 </div>
+<div id="unoApp" aria-label="Mesa de UNO">
+  <canvas id="unoCanvas"></canvas>
+  <div id="unoHud">
+    <div id="unoScore"></div>
+    <div id="unoBanner"></div>
+    <div id="unoClock"><i></i></div>
+    <div id="unoColors"></div>
+    <div id="unoActs"></div>
+    <p id="unoHint"></p>
+    <div id="unoTop"><button type="button" id="unoEmoteBtn">Sinais</button><button type="button" id="unoLeave">Sair</button></div>
+    <div id="unoChat">
+      <div id="unoLog" class="chatlog" data-chat="keep"></div>
+      <form id="unoSay"><input id="unoSayInput" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Mensagem da mesa"></form>
+    </div>
+    <div id="unoVoice" class="voicebox" data-voicebox>
+      <button type="button" class="small" data-voice="off">Mudo</button>
+      <button type="button" class="small" data-voice="all">Mesa</button>
+      <button type="button" class="small" data-mic="hold">Apertar</button>
+      <button type="button" class="small" data-mic="open">Aberto</button>
+    </div>
+    <div id="unoEmotes"></div>
+    <div id="unoToast" style="display:none"></div>
+    <div id="unoLobby" class="box" style="display:none">
+      <h2>Mesa de UNO</h2>
+      <p id="unoLobbyCode"></p>
+      <div id="unoSetup">
+        <label>Pessoas
+          <select id="unoLobbySeats"><option value="2">2</option><option value="4" selected>4</option><option value="6">6</option></select>
+        </label>
+        <label>Nível
+          <select id="unoLobbyLevel"><option value="facil">Facinho</option><option value="medio" selected>Médio</option><option value="pro">Docão Profissional</option></select>
+        </label>
+        <label>Meta
+          <select id="unoLobbyTarget"><option value="200">200</option><option value="500" selected>500</option></select>
+        </label>
+      </div>
+      <div id="unoSeats"></div>
+      <label><input type="checkbox" id="unoFill" checked> Completar com bots</label>
+      <div><button type="button" id="unoStart">Iniciar partida</button><button type="button" id="unoCopy" class="alt">Copiar link</button></div>
+    </div>
+    <div id="unoOver" class="box" style="display:none">
+      <h2 id="unoOverTitle">Fim de jogo</h2>
+      <button type="button" id="unoAgain">Jogar de novo</button>
+    </div>
+  </div>
+</div>
 <script type="module" src="main.js"></script>
 <script type="module" src="truco.js"></script>
+<script type="module" src="uno.js"></script>
 </body>
 </html>
