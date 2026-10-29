@@ -4,6 +4,14 @@ Jogue em **https://docao.mvalentim.dev**
 
 ---
 
+## v1.30 — Tranco na luneta, Granja mais lenta e red dot 🎯🐷
+
+🎯 **RED DOT NOS FUZIS.** Fuzil Pururuca, FAMAS da Pocilga e Commando da Granja nascem com a **Red dot da granja** no trilho (dá pra voltar pra massa de milho na bancada). Mirando, o ponto fica no meio, a cruz do HUD some e o zoom é curto (~1,19×). **O coice da câmera some enquanto você mira pelo ponto** — no quadril o fuzil recua como antes. SMG e metralhadora não ganharam a lente.
+
+🔭 **CARABINA DA GRANJA.** O pente agora é **5** (a reserva continua 40). A luneta demora **0,24 s** pra entrar, 60% mais lenta que as outras snipers, e a lente só cobre a tela quando a arma já chegou no ombro.
+
+😵 **FLINCH NA LUNETA.** Quem está de scope com sniper e leva tiro toma um tranco pra cima, com um pouco de lado, e a mira volta em cerca de **0,32 s**. Tiro seguido não empilha sem fim. Fora da luneta o tranco fica bem menor (18%), pra punir quem fica parado de scope sem reescrever o duelo de fuzil. Vale tiro de bot.
+
 ## v1.29 — DocYuri, DocOny e o Time Tech 💙🎾🐷 (27/10/2026)
 💙 **DOCYURI CHEGOU DE BIGODE.** Fantasia nova no Brechó da Porca Véia, **de graça** com o resto do Time Tech: cabelo castanho bagunçado, bigode fino embaixo do focinho — sem barba no queixo, que o Yuri não pediu —, moletom azul com zíper e o **C!** no peito, calça escura e sapato preto de sola clara. Id `c13`. O desenho é do **Yuri do Nascimento Grigoletti** — o porco só emprestou o focinho. Clica no cartão pra ver; não tem COMPRAR, é padrão.
 🎾 **DOCONY CHEGOU DE RAQUETE.** No mesmo balcão, também **de graça**: camiseta neon de manga curta, shorts cinza de atleta (curto, sem calça), cabelo castanho bagunçado, bigode fino com mosquinha, sapato escuro e a **raquete de beach tennis nas costas** — face vermelha, aro preto, detalhe verde, alça no ombro. Id `c14`. O desenho é do **Ony** — o porco só emprestou o focinho, a raquete ele não devolve.

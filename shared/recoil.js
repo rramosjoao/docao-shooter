@@ -26,6 +26,8 @@ export function cancelRecoilReturn(p) {
 }
 export function kickRecoil(p, w, now, ads = 0, scoped = ads >= 0.85) {
   if (!(w.recoil > 0) || w.melee || w.saber) return;
+  // Red dot no ADS: o ponto fica no alvo. O coice do quadril (ads baixo) continua.
+  if (w.redDot && ads >= (w.redDotAds ?? 0.85)) return;
   const prof = recoilProfile(w, scoped);
   if (!p.recoil || p.recoil.key !== w.key) resetRecoil(p);
   const r = p.recoil ||= { key: w.key, shots: 0, last: -Infinity, pitch: 0, yaw: 0, profile: prof };
