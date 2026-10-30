@@ -1,6 +1,6 @@
 // Sons das três snipers. Os arquivos são síntese original (tools/synth-sniper-audio.py),
 // não samples de jogo. Entram no master do jogo: o botão de silenciar continua valendo.
-// Crack, corpo, cauda e ferrolho já estão no arquivo. Aqui só variação, distância e teto:
+// Crack, thump e ferrolho já estão no arquivo — sem eco. Aqui só variação, distância e ganho:
 // um buffer por amostra, reusado; cada tiro cria poucos nós e solta no fim.
 const FILES = {
   'torresmo-near-a': './assets/audio/sniper/torresmo-near-a.ogg',
@@ -20,7 +20,7 @@ const FILES = {
   'carabina-reload': './assets/audio/sniper/carabina-reload.ogg',
 };
 const NAME = { sniper: 'torresmo', canhao: 'canhao', carabina: 'carabina' };
-// Pico do arquivo ~0,92, já limitado. O master do jogo é 0,4: estes ganhos deixam a
+// Pico do arquivo ~0,86, já limitado. O master do jogo é 0,4: estes ganhos deixam a
 // sniper mais alta que o fuzil e a escopeta, com o Canhão no topo, sem passar de 1 na saída.
 const SHOT_GAIN = { sniper: 1.95, canhao: 2.2, carabina: 1.7 };
 const BOLT_GAIN = { sniper: 0.62, canhao: 0.72, carabina: 0.48 };
