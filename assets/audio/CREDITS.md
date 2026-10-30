@@ -15,12 +15,12 @@ Gerados por `tools/synth-sniper-audio.py` (numpy). Cada tiro é síntese procedu
 onda N do estalo supersônico, ruído de choque, corpo com queda de pitch, saturação
 leve e cauda de terreiro (reflexos borrados que decaem — não um segundo tiro).
 O ferrolho é atrito de aço e impacto curto, no tempo da animação. Codificado em
-Ogg Vorbis com ffmpeg (`libvorbis`, qualidade 5). Não há sample de banco
+Ogg Vorbis com ffmpeg (`libvorbis`, qualidade 8). Não há sample de banco
 (Freesound, Sonniss ou outro) nem áudio de terceiros: a licença é a do próprio jogo.
 
-A Carabina é seca e aguda, o Torresmo leva o crack crocante no meio, o Canhão é o
-boom grave com cauda longa. A recarga da Carabina tem um assobio bem baixo, de
-propósito.
+O tiro não tem eco nem slapback. O peso é o thump (cerca de 40–120 Hz) e o crack.
+A Carabina é a mais curta e aguda, o Torresmo fica no meio, o Canhão é o grave
+mais longo. A recarga da Carabina tem um assobio bem baixo, de propósito.
 
 Para regerar:
 

@@ -17,7 +17,9 @@ for (const style of ['carabina', 'torresmo', 'canhao']) ok(!!byStyle[style], `${
 const sfx = readFileSync(new URL('./sniper-sfx.js', import.meta.url), 'utf8');
 const zumbiSfx = readFileSync(new URL('./modo/zumbi/sniper-sfx.js', import.meta.url), 'utf8');
 ok(sfx === zumbiSfx, 'modo zumbi usa o mesmo player de sniper');
-ok(!sfx.includes('createConvolver'), 'o tiro não cria convolução (a cauda já está no buffer)');
+ok(!sfx.includes('createConvolver') && !sfx.includes('createWaveShaper'), 'o tiro não cria reverb nem um limiter que achata o volume');
+ok(sfx.includes('dist < 1.5'), 'o tiro do próprio jogador não passa por lowpass');
+ok(sfx.includes('canhao: 2.2') && sfx.includes('sniper: 1.95') && sfx.includes('carabina: 1.7'), 'ganho: Canhão mais alto que Torresmo, Torresmo mais alto que Carabina');
 ok(sfx.includes('bufs[id] = b'), 'cada amostra é decodificada uma vez e reusada');
 ok(/0\.965 \+ Math\.random\(\) \* 0\.07/.test(sfx), 'cada tiro varia o tom (±3,5%)');
 ok(/0\.90 \+ Math\.random\(\) \* 0\.14/.test(sfx), 'cada tiro varia o volume');
@@ -128,7 +130,7 @@ for (const style of ['carabina', 'torresmo', 'canhao']) {
     const a = readFileSync(new URL(`${style}-${part}.ogg`, rootDir));
     const b = readFileSync(new URL(`${style}-${part}.ogg`, zumbiDir));
     ok(a.equals(b), `${style}-${part}.ogg igual no modo zumbi`);
-    ok(a.length < 90000, `${style}-${part}.ogg leve (${a.length} B)`);
+    ok(a.length < 150000, `${style}-${part}.ogg leve (${a.length} B)`);
   }
 
   const p = peak(near);
@@ -136,12 +138,13 @@ for (const style of ['carabina', 'torresmo', 'canhao']) {
   const hf = share(near, 0, 0.012, 'hp', 4000);
   const sub = share(near, 0, 0.18, 'lp', 120);
   const tail = tailSeconds(near);
-  const late = peak(near, style === 'canhao' ? 0.16 : style === 'carabina' ? 0.07 : 0.11) / p;
-  measured[style] = { hf, sub, tail, atk: atk / p, late };
-  console.log(`  ${style}: agudo ${hf.toFixed(3)}  grave ${sub.toFixed(3)}  cauda ${tail.toFixed(2)}s  ataque ${(atk / p).toFixed(2)}  pico tardio ${late.toFixed(2)}`);
+  const bodyEnd = style === 'canhao' ? 0.82 : style === 'torresmo' ? 0.52 : 0.36;
+  const echo = peak(near, bodyEnd) / p;
+  measured[style] = { hf, sub, tail, atk: atk / p, echo };
+  console.log(`  ${style}: agudo ${hf.toFixed(3)}  grave ${sub.toFixed(3)}  corpo ${tail.toFixed(2)}s  ataque ${(atk / p).toFixed(2)}  eco ${echo.toFixed(3)}`);
 
   ok(atk / p > 0.45, `${w.name}: o estalo chega nos primeiros 5 ms (${(atk / p).toFixed(2)} do pico)`);
-  ok(late < 0.62, `${w.name}: a cauda não é um segundo tiro (pico tardio ${late.toFixed(2)})`);
+  ok(echo < 0.08, `${w.name}: depois do estrondo não sobra eco (${echo.toFixed(3)})`);
   ok(corr(near, nearB, 0.08, Math.min(0.7, near.length / FS - 0.05)) < 0.85, `${w.name}: as duas variações de perto não são a mesma amostra`);
 
   const nearHf = 20 * Math.log10(rms(biquad(near, 'hp', 3500), 0, near.length / FS) + 1e-12);
@@ -158,14 +161,15 @@ for (const style of ['carabina', 'torresmo', 'canhao']) {
   ok(rms(reload, meta.reload_frac.close * w.reload, meta.reload_frac.close * w.reload + 0.05) > 0.015, `${w.name}: ferrolho fecha na recarga`);
 }
 
-ok(measured.carabina.hf > measured.torresmo.hf + 0.08 && measured.torresmo.hf > measured.canhao.hf + 0.08, 'estalo: Carabina mais aguda que Torresmo, Torresmo mais que Canhão');
-ok(measured.canhao.sub > measured.torresmo.sub + 0.05 && measured.torresmo.sub > measured.carabina.sub + 0.04, 'grave: Canhão > Torresmo > Carabina');
-ok(measured.carabina.tail + 0.35 < measured.torresmo.tail && measured.torresmo.tail + 0.5 < measured.canhao.tail, 'cauda: Carabina curta, Torresmo no meio, Canhão longa');
+ok(measured.carabina.hf > measured.torresmo.hf + 0.04 && measured.torresmo.hf > measured.canhao.hf + 0.08, 'estalo: Carabina mais aguda que Torresmo, Torresmo mais que Canhão');
+ok(measured.canhao.sub > measured.torresmo.sub + 0.02 && measured.torresmo.sub > measured.carabina.sub + 0.08, 'grave: Canhão > Torresmo > Carabina');
+ok(measured.carabina.tail < measured.torresmo.tail && measured.torresmo.tail < measured.canhao.tail, 'o corpo do Canhão dura mais; a Carabina apaga primeiro');
+ok(measured.canhao.tail < 1.15 && measured.carabina.tail < 0.45, 'sem cauda de eco: o som morre com o estrondo');
 
 const decays = {
-  carabina: [0.12, 0.28, 0.5, 0.72],
-  torresmo: [0.2, 0.45, 1.15, 1.5],
-  canhao: [0.25, 0.55, 1.6, 2.1],
+  carabina: [0.0, 0.06, 0.36, 0.48],
+  torresmo: [0.0, 0.08, 0.52, 0.68],
+  canhao: [0.02, 0.1, 0.82, 1.02],
 };
 for (const [style, [a, b, c, d]] of Object.entries(decays)) {
   const x = decode(new URL(`${style}-near-a.ogg`, rootDir));

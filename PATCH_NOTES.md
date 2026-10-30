@@ -12,7 +12,9 @@ Jogue em **https://docao.mvalentim.dev**
 - **Sniper Torresmo:** crack crocante (o torresmo mesmo) em cima de um boom de sniper média, com eco de terreiro que decai.
 - **Canhão do Barril:** anti-material. Boom enorme, freio de boca e cauda longa. De longe vira trovão, mais grave e mais eco.
 
-O ferrolho continua grudado na animação: abre, puxa, solta a cápsula e fecha. Cada tiro muda um fio de tom e de volume pra não virar metrônomo. Quem está longe ouve mais grave, mais abafado e com mais cauda. As outras armas não mudaram de som.
+O ferrolho continua grudado na animação: abre, puxa, solta a cápsula e fecha. Cada tiro muda um fio de tom e de volume pra não virar metrônomo. Quem está longe ouve mais grave e mais abafado, sem eco. As outras armas não mudaram de som.
+
+O primeiro passe ainda soava pequeno: o filtro de DC comia tudo abaixo de ~150 Hz, um waveshaper travava o volume e a cauda de sala deixava o tiro numa caixinha. Saiu o eco. Ficou o thump (40–120 Hz), o crack e um ganho mais alto que o fuzil — o Canhão é o mais pesado.
 
 ## Próxima versão — Luneta da Carabina
 

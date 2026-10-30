@@ -20,9 +20,9 @@ const FILES = {
   'carabina-reload': './assets/audio/sniper/carabina-reload.ogg',
 };
 const NAME = { sniper: 'torresmo', canhao: 'canhao', carabina: 'carabina' };
-// Pico do arquivo ~0,89. Depois do master (0,4) fica na faixa da escopeta/fuzil, sem passar de 1.
-// Canhão um pouco mais alto (anti-material); carabina mais contida.
-const SHOT_GAIN = { sniper: 0.92, canhao: 1.08, carabina: 0.70 };
+// Pico do arquivo ~0,92, já limitado. O master do jogo é 0,4: estes ganhos deixam a
+// sniper mais alta que o fuzil e a escopeta, com o Canhão no topo, sem passar de 1 na saída.
+const SHOT_GAIN = { sniper: 1.95, canhao: 2.2, carabina: 1.7 };
 const BOLT_GAIN = { sniper: 0.62, canhao: 0.72, carabina: 0.48 };
 const RELOAD_GAIN = { sniper: 0.70, canhao: 0.78, carabina: 0.52 };
 // Longe, o Canhão vira boom; a Carabina ainda leva um pouco do estalo.
@@ -35,18 +35,6 @@ for (const [id, url] of Object.entries(FILES)) {
     console.warn('sniper áudio:', e.message);
     return null;
   });
-}
-
-function clipCurve() {
-  const n = 2049, c = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const x = (i / (n - 1)) * 2 - 1;
-    const ax = Math.abs(x);
-    // linear até 0,82 — o crack passa inteiro. Só o excesso dobra.
-    const y = ax <= 0.82 ? ax : 0.82 + 0.16 * Math.tanh((ax - 0.82) / 0.14);
-    c[i] = Math.sign(x) * Math.min(0.98, y);
-  }
-  return c;
 }
 
 export function createSniperSfx() {
@@ -66,11 +54,9 @@ export function createSniperSfx() {
     ctx = audioCtx;
     bus = ctx.createGain();
     bus.gain.value = 1;
-    const shaper = ctx.createWaveShaper();
-    shaper.curve = clipCurve();
-    shaper.oversample = '2x';
-    bus.connect(shaper);
-    shaper.connect(dest);
+    // Sem waveshaper: a curva antiga travava a saída em ~0,98 e, com o master em 0,4,
+    // a sniper não passava de ~0,39 — mais baixa que a escopeta. O arquivo já vem limitado.
+    bus.connect(dest);
     for (const id of Object.keys(FILES)) {
       raw[id].then((ab) => {
         if (!ab || bufs[id] || !ctx) return null;
@@ -92,14 +78,19 @@ export function createSniperSfx() {
     const src = ctx.createBufferSource();
     src.buffer = bufs[id];
     src.playbackRate.value = rate;
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = cutoff;
-    lp.Q.value = 0.65;
     const g = ctx.createGain();
     g.gain.value = gain;
-    src.connect(lp);
-    let last = lp;
+    let lp = null;
+    let last = src;
+    // Perto, lowpass só embota o crack. O grave não precisa de filtro. Longe, o ar come o agudo.
+    if (cutoff < 14000) {
+      lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = cutoff;
+      lp.Q.value = 0.7;
+      src.connect(lp);
+      last = lp;
+    }
     if (pan && ctx.createStereoPanner) {
       const panner = ctx.createStereoPanner();
       panner.pan.value = Math.max(-1, Math.min(1, pan));
@@ -111,7 +102,7 @@ export function createSniperSfx() {
     src.start();
     const rec = { src, g };
     src.onended = () => {
-      try { src.disconnect(); lp.disconnect(); g.disconnect(); } catch (e) { /* já solto */ }
+      try { src.disconnect(); if (lp) lp.disconnect(); g.disconnect(); } catch (e) { /* já solto */ }
       if (asFoley) foley = foley.filter((x) => x !== rec);
     };
     if (asFoley) foley.push(rec);
@@ -141,9 +132,10 @@ export function createSniperSfx() {
     const jitter = 0.90 + Math.random() * 0.14;
     const base = SHOT_GAIN[key] * vol * jitter;
     const variant = Math.random() < 0.5 ? 'a' : 'b';
-    const cut = cutoffFor(dist, w);
+    const close = dist < 1.5;
+    const cut = close ? 20000 : cutoffFor(dist, w);
     if (near > 0.04) playBuf(n + '-near-' + variant, near * base, cut, rate, pan, false);
-    if (far > 0.04) playBuf(n + '-far', far * base * 1.08, Math.min(cut, FAR_CUT[key]), rate, pan, false);
+    if (far > 0.04) playBuf(n + '-far', far * base, Math.min(cut, FAR_CUT[key]), rate, pan, false);
     note({ ev: 'shot', key, dist: Math.round(dist), far: +w.toFixed(2) });
     return true;
   }

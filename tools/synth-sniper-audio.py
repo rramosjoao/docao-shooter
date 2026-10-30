@@ -2,12 +2,14 @@
 """Sintetiza os sons das snipers do Docão Shooter.
 
 Tudo é gerado aqui (numpy + ffmpeg). Não usa sample de jogo, vídeo ou banco.
-Cada tiro cola quatro coisas de um ferrolho de verdade:
+Cada tiro é o estrondo seco, sem eco nem sala:
 
 - crack supersônico (onda N + ruído de choque, ataque de poucos samples);
-- corpo do disparo (bark, Friedlander e grave com queda de pitch, saturado);
-- cauda de terreiro (reflexos espalhados + leito que decai, sem segundo tiro);
-- ferrolho mecânico no tempo de poseSniperBolt / da recarga em main.js.
+- thump em 40–120 Hz (cosseno com queda de pitch, no sample zero) e low-mid largo;
+- saturação leve e limiter, pico abaixo de 0 dBFS;
+- o que sobra depois é só o decaimento do próprio corpo, não reflexo.
+
+O ferrolho mecânico continua no tempo de poseSniperBolt / da recarga em main.js.
 
 Identidade (coerente com shared/rules.js):
 
@@ -50,45 +52,26 @@ RELOAD_CLOSE = 0.86
 # Ganhos são relativos e entram ANTES da saturação. O pico final é normalizado.
 PROFILES = {
     "light": {
-        "near": 1.15,
-        "far": 1.55,
-        "n_pos": 0.00018,
-        "n_g": 0.85,
-        "crack_band": (4800, 12500),
-        "crack_tau": 0.0036,
-        "crack_g": 1.0,
-        "bark_band": (1600, 3400),
-        "bark_tau": 0.028,
-        "bark_g": 0.42,
-        "body_td": 0.0055,
-        "body_lp": 780,
-        "body_g": 0.30,
-        "sub_f0": 150,
-        "sub_f1": 90,
-        "sub_dur": 0.09,
-        "sub_tau": 0.038,
-        "sub_g": 0.10,
-        "sub_drive": 1.3,
-        "drive": 1.35,
-        "comp": 2.2,
-        "ring_f": 2680,
-        "ring_tau": 0.09,
-        "ring_g": 0.07,
+        "near": 0.50,
+        "n_pos": 0.00016,
+        "n_g": 1.05,
+        "crack_band": (4200, 14000),
+        "crack_tau": 0.0032,
+        "crack_g": 1.05,
+        "bark_band": (900, 2600),
+        "bark_tau": 0.018,
+        "bark_g": 0.22,
+        "lowmid_band": (150, 380),
+        "lowmid_tau": 0.045,
+        "lowmid_g": 0.38,
+        "kick_f0": 108,
+        "kick_f1": 64,
+        "kick_dur": 0.16,
+        "kick_tau": 0.05,
+        "kick_g": 0.78,
         "mech_f": 3400,
-        "mech_g": 0.16,
-        "ground_t": 0.007,
-        "ground_lp": 900,
-        "ground_g": 0.18,
-        "tail_g": 0.22,
-        "tail_rt": 0.28,
-        "tail_bright": 3400,
-        "tail_rumble": 0.05,
-        "excite": 0.035,
-        "refl": [(0.014, 0.18, 5000), (0.038, 0.13, 3200), (0.09, 0.08, 1800), (0.22, 0.05, 1200)],
-        "far_lp": 1680,
-        "far_pre": 0.016,
-        "width": 0.10,
-        "dry_peak": 0.74,
+        "mech_g": 0.08,
+        "far_lp": 1500,
         "f_open": 2500,
         "f_close": 1680,
         "f_shell": 3900,
@@ -99,44 +82,27 @@ PROFILES = {
         "whistle": True,
     },
     "mid": {
-        "near": 2.15,
-        "far": 2.65,
-        "n_pos": 0.00032,
-        "n_g": 0.78,
-        "crack_band": (2600, 8600),
-        "crack_tau": 0.0065,
-        "crack_g": 0.88,
+        "near": 0.72,
+        "n_pos": 0.00028,
+        "n_g": 0.95,
+        "crack_band": (2400, 9000),
+        "crack_tau": 0.0048,
+        "crack_g": 0.92,
         "crackle": True,
-        "bark_band": (700, 1900),
-        "bark_tau": 0.055,
-        "bark_g": 0.62,
-        "body_td": 0.012,
-        "body_lp": 420,
-        "body_g": 0.58,
-        "sub_f0": 96,
-        "sub_f1": 52,
-        "sub_dur": 0.22,
-        "sub_tau": 0.09,
-        "sub_g": 0.42,
-        "sub_drive": 1.8,
-        "drive": 1.85,
-        "comp": 3.0,
+        "bark_band": (1400, 4200),
+        "bark_tau": 0.016,
+        "bark_g": 0.16,
+        "lowmid_band": (140, 320),
+        "lowmid_tau": 0.07,
+        "lowmid_g": 0.48,
+        "kick_f0": 82,
+        "kick_f1": 44,
+        "kick_dur": 0.32,
+        "kick_tau": 0.09,
+        "kick_g": 1.15,
         "mech_f": 1850,
-        "mech_g": 0.20,
-        "ground_t": 0.009,
-        "ground_lp": 480,
-        "ground_g": 0.32,
-        "tail_g": 0.36,
-        "tail_rt": 0.62,
-        "tail_bright": 2200,
-        "tail_rumble": 0.18,
-        "excite": 0.07,
-        "refl": [(0.013, 0.22, 4200), (0.041, 0.18, 2600), (0.092, 0.12, 1600),
-                 (0.19, 0.09, 1100), (0.41, 0.07, 780), (0.68, 0.045, 560)],
-        "far_lp": 980,
-        "far_pre": 0.026,
-        "width": 0.20,
-        "dry_peak": 0.70,
+        "mech_g": 0.10,
+        "far_lp": 900,
         "f_open": 1540,
         "f_close": 860,
         "f_shell": 2300,
@@ -146,45 +112,29 @@ PROFILES = {
         "reload_g": 1.0,
     },
     "heavy": {
-        "near": 3.15,
-        "far": 3.55,
-        "n_pos": 0.00072,
-        "n_g": 1.05,
-        "crack_band": (1400, 6200),
-        "crack_tau": 0.007,
-        "crack_g": 0.72,
-        "bark_band": (180, 720),
-        "bark_tau": 0.11,
-        "bark_g": 0.78,
-        "body_td": 0.028,
-        "body_lp": 160,
-        "body_g": 0.72,
-        "sub_f0": 58,
-        "sub_f1": 28,
-        "sub_dur": 0.48,
-        "sub_tau": 0.20,
-        "sub_g": 1.0,
-        "sub_drive": 2.4,
-        "sub2_f": 34,
-        "drive": 2.6,
-        "comp": 4.2,
+        "near": 1.05,
+        "n_pos": 0.00055,
+        "n_g": 0.72,
+        "crack_band": (1800, 7000),
+        "crack_tau": 0.004,
+        "crack_g": 0.78,
+        "bark_band": (900, 2400),
+        "bark_tau": 0.02,
+        "bark_g": 0.14,
+        "lowmid_band": (80, 220),
+        "lowmid_tau": 0.11,
+        "lowmid_g": 0.62,
+        "kick_f0": 62,
+        "kick_f1": 32,
+        "kick_dur": 0.58,
+        "kick_tau": 0.16,
+        "kick_g": 1.45,
+        "kick2_f0": 40,
+        "kick2_f1": 24,
         "brake": True,
         "mech_f": 640,
-        "mech_g": 0.28,
-        "ground_t": 0.012,
-        "ground_lp": 220,
-        "ground_g": 0.48,
-        "tail_g": 0.42,
-        "tail_rt": 0.85,
-        "tail_bright": 900,
-        "tail_rumble": 0.55,
-        "excite": 0.14,
-        "refl": [(0.016, 0.26, 1400), (0.048, 0.22, 900), (0.11, 0.16, 640),
-                 (0.24, 0.12, 480), (0.46, 0.09, 360), (0.78, 0.07, 280), (1.25, 0.05, 220)],
-        "far_lp": 620,
-        "far_pre": 0.034,
-        "width": 0.16,
-        "dry_peak": 0.66,
+        "mech_g": 0.12,
+        "far_lp": 520,
         "f_open": 520,
         "f_close": 280,
         "f_shell": 740,
@@ -213,14 +163,41 @@ def sinc_kernel(cutoff: float, taps: int = 191) -> np.ndarray:
     return h
 
 
-def lowpass(x: np.ndarray, cutoff: float, taps: int = 127) -> np.ndarray:
+def lowpass(x: np.ndarray, cutoff: float, taps: int | None = None) -> np.ndarray:
     if x.size < 8:
         return x
-    return np.convolve(x, sinc_kernel(cutoff, taps), mode="same")
+    if taps is None:
+        # O núcleo precisa cobrir o período do corte. 127 taps em 20 Hz virava highpass de ~200 Hz.
+        taps = int(FS / max(cutoff, 20.0) * 3.5)
+        taps = max(63, min(4095, taps))
+        if taps % 2 == 0:
+            taps += 1
+    y = np.convolve(x, sinc_kernel(cutoff, taps), mode="same")
+    if y.size == x.size:
+        return y
+    if y.size > x.size:
+        start = (y.size - x.size) // 2
+        return y[start : start + x.size]
+    out = np.zeros_like(x)
+    out[: y.size] = y
+    return out
 
 
-def highpass(x: np.ndarray, cutoff: float, taps: int = 127) -> np.ndarray:
+def highpass(x: np.ndarray, cutoff: float, taps: int | None = None) -> np.ndarray:
     return x - lowpass(x, cutoff, taps)
+
+
+def dc_block(x: np.ndarray, cutoff: float = 12.0) -> np.ndarray:
+    """Um polo só. O highpass por sinc curto subia o corte pra ~150 Hz e comia o grave."""
+    r = math.exp(-2 * math.pi * max(cutoff, 5.0) / FS)
+    y = np.empty_like(x)
+    prev_x = 0.0
+    prev_y = 0.0
+    for i, s in enumerate(x):
+        prev_y = float(s) - prev_x + r * prev_y
+        prev_x = float(s)
+        y[i] = prev_y
+    return y
 
 
 def bandpass(x: np.ndarray, lo: float, hi: float) -> np.ndarray:
@@ -281,22 +258,23 @@ def n_wave(pos_s: float, neg_ratio: float = 0.7) -> np.ndarray:
     return y
 
 
-def pitch_drop(f0: float, f1: float, dur: float, tau: float, drive: float) -> np.ndarray:
-    """Grave que despenca de tom — pressão de boca, não um seno parado."""
+def kick(f0: float, f1: float, dur: float, tau: float, rng: np.random.Generator) -> np.ndarray:
+    """Thump de boca: cosseno que já nasce no pico e despenca de tom. Não é eco."""
     n = max(8, int(dur * FS))
     t = np.arange(n) / FS
-    f0 = max(f0, 20.0)
-    f1 = max(f1, 18.0)
+    f0 = max(22.0, f0 * (0.97 + float(rng.random()) * 0.06))
+    f1 = max(18.0, f1)
     k = math.log(f1 / f0) / max(dur, 1e-3)
     if abs(k) < 1e-6:
         phase = 2 * math.pi * f0 * t
     else:
         phase = (2 * math.pi * f0 / k) * (np.exp(k * t) - 1.0)
     amp = np.exp(-t / max(tau, 1e-3))
-    y = np.sin(phase) * amp
-    d = max(drive, 1.01)
-    y = np.tanh(y * d) / math.tanh(d)
-    return y
+    body = np.cos(phase) * amp
+    punch = np.exp(-t / 0.007)
+    air = lowpass(rng.standard_normal(n), min(180.0, f0 * 1.6)) * amp
+    y = body * 0.82 + punch * 0.48 + air * 0.2
+    return np.tanh(y * 1.25) / math.tanh(1.25)
 
 
 def metal_click(f0: float, dur: float, rng: np.random.Generator, bright: float = 1.0) -> np.ndarray:
@@ -325,10 +303,6 @@ def scrape(dur: float, lo: float, hi: float, rng: np.random.Generator, ridges: f
     rel = np.exp(-t / max(dur * 0.55, 0.03))
     y = y[:n] * mod * wob * att * rel
     return unit(y)
-
-
-def dc_block(x: np.ndarray) -> np.ndarray:
-    return highpass(x, 28.0, taps=255)
 
 
 def compress(x: np.ndarray, thresh: float, ratio: float) -> np.ndarray:
@@ -401,99 +375,77 @@ def stereo_from(mono: np.ndarray, width: float, rng: np.random.Generator) -> np.
     return np.stack([left, right], axis=0)
 
 
+def limit(x: np.ndarray, ceiling: float = 0.86) -> np.ndarray:
+    """Joelho macio. Acima de ~0,7 comprime até o teto, sem rebaixar o corpo inteiro."""
+    ax = np.abs(x)
+    knee = ceiling * 0.72
+    span = max(ceiling - knee, 1e-4)
+    over = np.clip((ax - knee) / span, 0, 8)
+    shaped = knee + span * np.tanh(over)
+    y = np.where(ax <= knee, x, np.sign(x) * shaped)
+    return np.clip(y, -ceiling, ceiling)
+
+
 def mix_shot(kind: str, rng: np.random.Generator, far: bool) -> np.ndarray:
     p = PROFILES[kind]
-    dur = p["far"] if far else p["near"]
+    dur = p["near"]
     n = int(dur * FS)
     dry = np.zeros(n)
-    j = 0.94 + float(rng.random()) * 0.12
+    j = 0.96 + float(rng.random()) * 0.08
 
-    place(dry, 0.0, unit(metal_click(p["mech_f"], 0.01, rng, 0.7)), p["mech_g"])
+    place(dry, 0.0, unit(metal_click(p["mech_f"], 0.008, rng, 0.55)), p["mech_g"])
 
-    nw = n_wave(p["n_pos"] * (0.92 + float(rng.random()) * 0.16))
+    nw = n_wave(p["n_pos"] * (0.94 + float(rng.random()) * 0.12))
     place(dry, 0.0, unit(nw), p["n_g"] * j)
-    crack_n = int(0.05 * FS)
-    crack = bandpass(noise(0.05, rng), *p["crack_band"]) * env_exp(crack_n, p["crack_tau"])
+    crack_n = int(0.04 * FS)
+    crack = bandpass(noise(0.04, rng), *p["crack_band"]) * env_exp(crack_n, p["crack_tau"])
     place(dry, 0.0, unit(crack), p["crack_g"] * j)
 
     if p.get("crackle"):
-        # Torresmo: segundo estalo curtíssimo, o "crocante", ainda dentro do mesmo tiro.
-        place(dry, 0.0017, unit(n_wave(p["n_pos"] * 0.62)), p["n_g"] * 0.34)
-        c2n = int(0.018 * FS)
-        c2 = bandpass(noise(0.018, rng), 5200, 12000) * env_exp(c2n, 0.0024)
-        place(dry, 0.0015, unit(c2), 0.22)
+        # Torresmo: segundo estalo curtíssimo, ainda no mesmo transiente.
+        place(dry, 0.0014, unit(n_wave(p["n_pos"] * 0.55)), p["n_g"] * 0.38)
+        c2n = int(0.012 * FS)
+        c2 = bandpass(noise(0.012, rng), 5500, 13000) * env_exp(c2n, 0.0018)
+        place(dry, 0.0012, unit(c2), 0.28)
 
-    bark_n = int(0.32 * FS)
-    bark = bandpass(noise(0.32, rng), *p["bark_band"]) * env_exp(bark_n, p["bark_tau"])
-    place(dry, 0.0004, unit(bark), p["bark_g"])
+    bark_n = int(0.12 * FS)
+    bark = bandpass(noise(0.12, rng), *p["bark_band"]) * env_exp(bark_n, p["bark_tau"])
+    place(dry, 0.0, unit(bark), p["bark_g"])
 
-    body = lowpass(friedlander(0.36, p["body_td"]), p["body_lp"])
-    place(dry, 0.0, unit(body), p["body_g"])
+    lm_n = int(min(0.28, p["lowmid_tau"] * 4) * FS)
+    lowmid = bandpass(noise(lm_n / FS + 0.01, rng), *p["lowmid_band"])[:lm_n]
+    lowmid = lowmid * env_exp(lowmid.size, p["lowmid_tau"])
+    place(dry, 0.0, unit(lowmid), p["lowmid_g"])
 
-    sub = pitch_drop(p["sub_f0"], p["sub_f1"], p["sub_dur"], p["sub_tau"], p["sub_drive"])
-    low_n = noise(p["sub_dur"], rng)
-    low = lowpass(low_n, max(80.0, p["sub_f0"])) * env_exp(low_n.size, p["sub_tau"] * 1.15)
-    sub = unit(sub) * 0.78 + unit(low) * 0.32
-    if p.get("sub2_f"):
-        sub2 = unit(pitch_drop(p["sub2_f"], 22.0, p["sub_dur"], p["sub_tau"] * 1.3, p["sub_drive"]))
-        n2 = min(sub.size, sub2.size)
-        sub = sub[:n2] + sub2[:n2] * 0.55
-    place(dry, 0.0, unit(sub), p["sub_g"])
+    place(dry, 0.0, unit(kick(p["kick_f0"], p["kick_f1"], p["kick_dur"], p["kick_tau"], rng)), p["kick_g"])
+    if p.get("kick2_f0"):
+        place(dry, 0.0, unit(kick(p["kick2_f0"], p["kick2_f1"], p["kick_dur"] * 1.15, p["kick_tau"] * 1.25, rng)), p["kick_g"] * 0.72)
 
     if p.get("brake"):
-        # Freio de boca do .50: segundo sopro, poucos ms depois, mais largo e grave.
-        place(dry, 0.0105, unit(lowpass(friedlander(0.14, 0.012), 340)), 0.55)
-        bn = int(0.07 * FS)
-        bnoise = bandpass(noise(0.07, rng), 160, 900) * env_exp(bn, 0.022)
-        place(dry, 0.011, unit(bnoise), 0.34)
+        # Freio de boca: o segundo sopro faz parte do estrondo (10 ms), não é sala.
+        place(dry, 0.009, unit(kick(48, 30, 0.12, 0.04, rng)), 0.42)
+        bn = int(0.05 * FS)
+        bnoise = lowpass(noise(0.05, rng), 280) * env_exp(bn, 0.018)
+        place(dry, 0.009, unit(bnoise), 0.22)
 
-    if p.get("ring_g"):
-        rn = int(p["ring_tau"] * 4 * FS)
-        rt = np.arange(rn) / FS
-        ring = np.sin(2 * math.pi * p["ring_f"] * rt) * np.exp(-rt / p["ring_tau"])
-        place(dry, 0.003, unit(ring), p["ring_g"])
-
-    early = dry[: int(0.045 * FS)].copy()
-    place(dry, p["ground_t"], lowpass(early, p["ground_lp"]), p["ground_g"])
-
-    drive = p["drive"]
-    dry = np.tanh(dry * drive) / math.tanh(min(drive, 6.0))
-    dry = compress(dry, 0.34 if kind == "heavy" else 0.42, p["comp"])
-    dry = unit(dc_block(dry), p["dry_peak"])
-
-    refl = []
-    for t, g, lp in p["refl"]:
-        refl.append((t + float(rng.uniform(-0.0025, 0.0025)), g, lp))
-    ir = make_ir(dur, refl, p["tail_rt"], p["tail_bright"], p["tail_rumble"], rng)
-    exc_n = min(n, int(p["excite"] * FS))
-    excite = dry[:exc_n] * np.linspace(1.0, 0.25, exc_n)
-    tail = fft_convolve(excite, ir)[:n]
-    tail = unit(tail, p["tail_g"] * (1.25 if far else 1.0))
+    dry = limit(dc_block(dry, 16.0), 0.86)
 
     if far:
-        pre = int(p["far_pre"] * FS)
         dull = p["far_lp"]
         direct = lowpass(dry, dull)
-        kill = int(0.022 * FS)
-        direct[:kill] *= np.linspace(0.04, 1.0, kill) ** 1.4
-        bloom = lowpass(dry, 200 if kind == "heavy" else 280)
-        sig = np.zeros(n)
-        m = min(direct.size, n - pre)
-        sig[pre : pre + m] += direct[:m] * (0.48 if kind == "heavy" else 0.58)
-        sig[: min(bloom.size, n)] += bloom[:n] * (0.55 if kind == "heavy" else 0.28)
-        sig += lowpass(tail, dull * 0.8)[:n] * (1.35 if kind != "light" else 0.85)
-        width = min(0.12, p["width"])
+        bloom = lowpass(dry, 130 if kind == "heavy" else 180)
+        sig = direct * 0.72 + bloom * (0.7 if kind == "heavy" else 0.38)
+        kill = int(0.018 * FS)
+        sig[:kill] *= np.linspace(0.2, 1.0, kill)
+        sig = limit(dc_block(sig, 16.0), 0.8)
     else:
-        sig = dry + tail
-        width = p["width"]
+        sig = dry
 
-    sig = dc_block(sig)
-    fade = int(0.045 * FS)
+    fade = int(0.04 * FS)
     if fade < sig.size:
         sig[-fade:] *= np.linspace(1, 0, fade)
-    stereo = stereo_from(sig, width, rng)
-    ceiling = 0.78 if far else 0.89
-    stereo = stereo / (float(np.max(np.abs(stereo))) + 1e-12) * ceiling
+    # Mono de propósito: o transiente fica no centro. Largura de Haas soava como caixinha.
+    stereo = np.stack([sig, sig], axis=0)
     return stereo.astype(np.float64)
 
 
@@ -589,7 +541,7 @@ def write_wav(path: Path, stereo: np.ndarray) -> None:
 def to_ogg(wav: Path, ogg: Path) -> None:
     ogg.parent.mkdir(parents=True, exist_ok=True)
     subprocess.check_call(
-        ["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-c:a", "libvorbis", "-q:a", "5", str(ogg)]
+        ["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-c:a", "libvorbis", "-q:a", "8", str(ogg)]
     )
 
 
@@ -704,8 +656,20 @@ def main() -> None:
         report[name]["hf_attack"] = round(hf, 4)
         report[name]["sub_body"] = round(sub, 4)
         report[name]["tail_s"] = round(tail_end(near), 3)
-        report[name]["near_corr"] = round(corr(near, jobs[f"{name}-near-b"], 0.08, min(0.7, PROFILES[kind]["near"] - 0.05)), 4)
-        print(f"  {name}: hf4k {hf:.3f}  sub120 {sub:.3f}  cauda {report[name]['tail_s']:.2f}s  corr {report[name]['near_corr']:.3f}")
+        report[name]["near_corr"] = round(corr(near, jobs[f"{name}-near-b"], 0.015, min(0.22, PROFILES[kind]["near"] - 0.05)), 4)
+        mono = mono_of(near)
+        peak = float(np.max(np.abs(mono))) + 1e-12
+        n200 = min(mono.size, int(0.12 * FS))
+        seg = mono[:n200]
+        sub_sig = lowpass(mono, 120)[:n200]
+        sub_rms = float(np.sqrt(np.mean(sub_sig ** 2)) + 1e-12)
+        full_rms = float(np.sqrt(np.mean(seg ** 2)) + 1e-12)
+        sub_share_e = float(np.mean(sub_sig ** 2) / (np.mean(seg ** 2) + 1e-12))
+        report[name]["sub_db"] = round(20 * math.log10(sub_rms), 2)
+        report[name]["rms200_db"] = round(20 * math.log10(full_rms), 2)
+        report[name]["sub_energy"] = round(sub_share_e, 4)
+        report[name]["peak_db"] = round(20 * math.log10(peak), 2)
+        print(f"  {name}: hf4k {hf:.3f}  sub120 {sub:.3f}  corpo {report[name]['tail_s']:.2f}s  corr {report[name]['near_corr']:.3f}  sub {report[name]['sub_db']} dB ({100*sub_share_e:.0f}%)  rms {report[name]['rms200_db']} dB")
 
         near_m = report[name]["files"][f"{name}-near-a"]
         far_m = report[name]["files"][f"{name}-far"]
@@ -720,21 +684,21 @@ def main() -> None:
             raise SystemExit(f"{name}: ferrolho sem uma das fases {bolt}")
         if any(r < 0.015 for r in report[name]["files"][f"{name}-reload"]["rounds"]):
             raise SystemExit(f"{name}: recarga sem cartucho")
-        if near_m["ogg_bytes"] > 90000 or far_m["ogg_bytes"] > 90000:
-            raise SystemExit(f"{name}: ogg passou de 90 KB")
+        if near_m["ogg_bytes"] > 150000 or far_m["ogg_bytes"] > 150000:
+            raise SystemExit(f"{name}: ogg passou de 150 KB")
         mono = mono_of(near)
         peak = float(np.max(np.abs(mono))) + 1e-9
-        late_at = 0.07 if kind == "light" else (0.16 if kind == "heavy" else 0.11)
-        late = float(np.max(np.abs(mono[int(late_at * FS) :]))) / peak
-        report[name]["late_peak"] = round(late, 3)
-        if late > 0.55:
-            raise SystemExit(f"{name}: a cauda virou segundo tiro (pico tardio {late:.2f})")
-        tail_rms = rms_between(mono, 0.18, 0.40) / peak
-        report[name]["tail_rms"] = round(tail_rms, 4)
-        floor = 0.012 if kind == "light" else 0.018
-        if tail_rms < floor:
-            raise SystemExit(f"{name}: cauda fraca demais ({tail_rms:.4f})")
-        if report[name]["near_corr"] > 0.92:
+        # Depois do corpo o sinal some. Eco/slapback não entra.
+        body_end = {"light": 0.34, "mid": 0.5, "heavy": 0.78}[kind]
+        echo = rms_between(mono, body_end, min(mono.size / FS - 0.01, body_end + 0.18))
+        report[name]["echo_db"] = round(20 * math.log10(echo / peak + 1e-12), 1)
+        if echo / peak > 0.04:
+            raise SystemExit(f"{name}: ainda tem cauda de eco ({report[name]['echo_db']} dB)")
+        if report[name]["sub_energy"] < (0.08 if kind == "light" else 0.15 if kind == "mid" else 0.28):
+            raise SystemExit(f"{name}: grave abaixo de 120 Hz fraco ({report[name]['sub_energy']})")
+        if report[name]["rms200_db"] < -16:
+            raise SystemExit(f"{name}: corpo pouco denso (RMS {report[name]['rms200_db']} dB)")
+        if report[name]["near_corr"] > 0.93:
             raise SystemExit(f"{name}: as duas variações de perto estão iguais demais ({report[name]['near_corr']})")
 
     order = ["carabina", "torresmo", "canhao"]
@@ -746,7 +710,9 @@ def main() -> None:
     if not (sub[2] > sub[1] > sub[0]):
         raise SystemExit(f"grave não separa as armas: {sub}")
     if not (tails[0] < tails[1] < tails[2]):
-        raise SystemExit(f"cauda não separa as armas: {tails}")
+        raise SystemExit(f"o corpo não separa as armas: {tails}")
+    if tails[2] > 1.2:
+        raise SystemExit(f"canhão ainda tem cauda longa demais ({tails[2]} s)")
     for a, b in zip(order, order[1:]):
         if report[b]["hf_attack"] > report[a]["hf_attack"] - 0.04:
             raise SystemExit(f"{a} e {b} próximas demais no agudo")
