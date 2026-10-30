@@ -1,6 +1,7 @@
 // Sons das três snipers. Os arquivos são síntese original (tools/synth-sniper-audio.py),
 // não samples de jogo. Entram no master do jogo: o botão de silenciar continua valendo.
-// Camadas já estão no arquivo (transiente, corpo, cauda). Aqui: variação, distância e teto.
+// Crack, corpo, cauda e ferrolho já estão no arquivo. Aqui só variação, distância e teto:
+// um buffer por amostra, reusado; cada tiro cria poucos nós e solta no fim.
 const FILES = {
   'torresmo-near-a': './assets/audio/sniper/torresmo-near-a.ogg',
   'torresmo-near-b': './assets/audio/sniper/torresmo-near-b.ogg',
@@ -20,9 +21,12 @@ const FILES = {
 };
 const NAME = { sniper: 'torresmo', canhao: 'canhao', carabina: 'carabina' };
 // Pico do arquivo ~0,89. Depois do master (0,4) fica na faixa da escopeta/fuzil, sem passar de 1.
-const SHOT_GAIN = { sniper: 0.95, canhao: 1.06, carabina: 0.74 };
-const BOLT_GAIN = { sniper: 0.62, canhao: 0.7, carabina: 0.5 };
-const RELOAD_GAIN = { sniper: 0.7, canhao: 0.78, carabina: 0.55 };
+// Canhão um pouco mais alto (anti-material); carabina mais contida.
+const SHOT_GAIN = { sniper: 0.92, canhao: 1.08, carabina: 0.70 };
+const BOLT_GAIN = { sniper: 0.62, canhao: 0.72, carabina: 0.48 };
+const RELOAD_GAIN = { sniper: 0.70, canhao: 0.78, carabina: 0.52 };
+// Longe, o Canhão vira boom; a Carabina ainda leva um pouco do estalo.
+const FAR_CUT = { sniper: 1800, canhao: 1050, carabina: 2400 };
 const KEYS = new Set(Object.keys(NAME));
 
 const raw = {};
@@ -132,20 +136,22 @@ export function createSniperSfx() {
     const w = farWeight(dist);
     const near = Math.cos(w * Math.PI / 2);
     const far = Math.sin(w * Math.PI / 2);
-    const rate = 0.975 + Math.random() * 0.05;
-    const jitter = 0.94 + Math.random() * 0.08;
+    // ±3,5% de tom e um pouco de volume, pra o mesmo tiro não repetir igual. Longe desce o tom.
+    const rate = (0.965 + Math.random() * 0.07) * (1 - 0.045 * w);
+    const jitter = 0.90 + Math.random() * 0.14;
     const base = SHOT_GAIN[key] * vol * jitter;
     const variant = Math.random() < 0.5 ? 'a' : 'b';
     const cut = cutoffFor(dist, w);
     if (near > 0.04) playBuf(n + '-near-' + variant, near * base, cut, rate, pan, false);
-    if (far > 0.04) playBuf(n + '-far', far * base, Math.min(cut, 2400), rate, pan, false);
+    if (far > 0.04) playBuf(n + '-far', far * base * 1.08, Math.min(cut, FAR_CUT[key]), rate, pan, false);
     note({ ev: 'shot', key, dist: Math.round(dist), far: +w.toFixed(2) });
     return true;
   }
   function bolt(key, vol = 1, dist = 0, pan = 0) {
     if (!handles(key) || !bufs[NAME[key] + '-bolt'] || vol < 0.03) return false;
     cutFoley();
-    const rate = 0.985 + Math.random() * 0.03;
+    // Tom quase fixo: o ferrolho precisa continuar casado com a animação (w.rate).
+    const rate = 0.994 + Math.random() * 0.012;
     const cut = Math.max(700, 14000 * Math.exp(-Math.max(0, dist) / 34));
     playBuf(NAME[key] + '-bolt', BOLT_GAIN[key] * vol * (0.94 + Math.random() * 0.08), cut, rate, pan, true);
     note({ ev: 'bolt', key, dist: Math.round(dist) });

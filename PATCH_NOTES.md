@@ -4,6 +4,16 @@ Jogue em **https://docao.mvalentim.dev**
 
 ---
 
+## Próxima versão — Tiro de sniper de verdade
+
+🔭 **CADA LUNETA TEM A PRÓPRIA VOZ.** O estalo das três snipers estava ruim e parecido. Agora cada uma dispara do jeito do próprio ferrolho. Síntese nova, feita no projeto (`tools/synth-sniper-audio.py`) — sem sample de jogo e sem áudio de terceiros.
+
+- **Carabina da Granja:** seca e rápida. Estalo agudo, quase sem grave, cauda curta e ferrolho miúdo. Na recarga ainda escapa um assobio baixinho da granja.
+- **Sniper Torresmo:** crack crocante (o torresmo mesmo) em cima de um boom de sniper média, com eco de terreiro que decai.
+- **Canhão do Barril:** anti-material. Boom enorme, freio de boca e cauda longa. De longe vira trovão, mais grave e mais eco.
+
+O ferrolho continua grudado na animação: abre, puxa, solta a cápsula e fecha. Cada tiro muda um fio de tom e de volume pra não virar metrônomo. Quem está longe ouve mais grave, mais abafado e com mais cauda. As outras armas não mudaram de som.
+
 ## Próxima versão — Luneta da Carabina
 
 🔭 **CARABINA DA GRANJA.** A luneta demora **0,1725 s** pra entrar: 15% mais lenta que os **0,15 s** de antes do flinch. Os 0,24 s (60% mais lentos) ficaram longos demais. Pente, recuo e as outras armas continuam iguais. A lente ainda só cobre a tela quando a arma já chegou no ombro.
