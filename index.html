@@ -410,14 +410,24 @@
         <div id="closetWallet" class="closet-wallet"></div>
       </div>
       <div class="closet-right">
-        <div class="otabs"><button type="button" id="closetTabLook" class="otab active">Personalizar</button><button type="button" id="closetTabShop" class="otab">Loja</button><button type="button" id="closetTabChal" class="otab">🎯 Desafios</button></div>
+        <div class="otabs"><button type="button" id="closetTabLook" class="otab active">Personalizar</button><button type="button" id="closetTabShop" class="otab">Loja</button><button type="button" id="closetTabBox" class="otab">🌽 Caixote</button><button type="button" id="closetTabChal" class="otab">🎯 Desafios</button></div>
         <div id="closetLook"></div>
         <div id="closetShop" class="hidden"></div>
+        <div id="closetBox" class="hidden"></div>
         <div id="closetChal" class="hidden"></div>
         <div id="closetMsg" class="acct-err" role="status"></div>
       </div>
     </div>
     <button type="button" id="closetClose" class="ticket-btn ghost">VOLTAR</button>
+  </div>
+  <div id="closetReveal" class="closet-ask hidden" role="dialog" aria-modal="true" aria-labelledby="closetRevealText">
+    <div class="closet-ask-card">
+      <p id="closetRevealText"></p>
+      <div class="closet-ask-acts">
+        <button type="button" id="closetRevealOk">FECHAR</button>
+        <button type="button" id="closetRevealEquip">EQUIPAR</button>
+      </div>
+    </div>
   </div>
   <div id="closetBuyAsk" class="closet-ask hidden" role="dialog" aria-modal="true" aria-labelledby="closetBuyAskText">
     <div class="closet-ask-card">

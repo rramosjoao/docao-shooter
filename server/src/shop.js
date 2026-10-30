@@ -5,8 +5,9 @@
 //  equipar = 1 UPDATE condicional (não grava se nada mudou); mochila vai junto do /api/me (1 SELECT pequeno), sem polling.
 // ============================================================
 import { SKINS, skinOk } from '../../skins.js';
-import { ITEMS, itemById, parseLook, lookItemIds, isFreeItem, knifeKind, sniperKind, EARN } from '../../shared/closet.js';
+import { ITEMS, itemById, parseLook, lookItemIds, isFreeItem, knifeKind, sniperKind, gunKey, parseGuns, GUN_EQUIP_KEYS, EARN } from '../../shared/closet.js';
 import { spDay, parseChal, applyChal, chalView } from '../../shared/challenges.js';
+import { rollBox, dupeCoins, BOX_NAME } from '../../shared/lootbox.js';
 
 const now = () => Math.floor(Date.now() / 1000);
 export const dayNow = () => Math.floor(now() / 86400);
@@ -29,8 +30,9 @@ export function coinCreditStmt(env, acct, c, chal = null) {
        coins = coins + ${earn} + (CASE WHEN chal IS ?5 THEN ?6 ELSE 0 END),
        earn_today = (CASE WHEN earn_day = ?2 THEN earn_today ELSE 0 END) + ${earn},
        earn_day = ?2,
-       chal = (CASE WHEN chal IS ?5 THEN ?7 ELSE chal END)
-     WHERE id = ?1`).bind(acct, day, c, EARN.dayCap, chal.old, chal.reward | 0, chal.json);
+       chal = (CASE WHEN chal IS ?5 THEN ?7 ELSE chal END),
+       boxes = boxes + (CASE WHEN chal IS ?5 THEN ?8 ELSE 0 END)
+     WHERE id = ?1`).bind(acct, day, c, EARN.dayCap, chal.old, chal.reward | 0, chal.json, Math.max(0, Math.min(3, chal.boxes | 0)));
 }
 // desafios: lê o estado das contas desta gravação (1 SELECT pequeno, só se a sala contou algo) e calcula o novo em JS
 export async function chalUpdates(env, items) {
@@ -42,21 +44,21 @@ export async function chalUpdates(env, items) {
     if (!raw.has(i.acct)) continue; const old = raw.get(i.acct);
     const prev = out.has(i.acct) ? out.get(i.acct).state : parseChal(old, day);
     const r = applyChal(prev, i.acct, i.q, i.mode); if (!r.changed) continue;
-    const o = out.get(i.acct); out.set(i.acct, { old, state: r.state, json: JSON.stringify(r.state), reward: (o ? o.reward : 0) + r.reward });
+    const o = out.get(i.acct); out.set(i.acct, { old, state: r.state, json: JSON.stringify(r.state), reward: (o ? o.reward : 0) + r.reward, boxes: (o ? o.boxes : 0) + (r.boxes | 0) });
   }
   return out;
 }
 
 export async function wallet(env, id) { // saldo + mochila + quanto já ganhou hoje
   const [a, inv] = await env.DB.batch([
-    env.DB.prepare('SELECT coins, custom, earn_day, earn_today, chal, knife, sniper FROM accounts WHERE id = ?').bind(id),
+    env.DB.prepare('SELECT coins, custom, earn_day, earn_today, chal, knife, sniper, boxes, guns FROM accounts WHERE id = ?').bind(id),
     env.DB.prepare('SELECT item FROM inventory WHERE account_id = ?').bind(id),
   ]);
   const r = (a.results && a.results[0]) || { coins: 0, custom: null, earn_day: 0, earn_today: 0 };
   const items = (inv.results || []).map((x) => x.item).filter((i) => itemById(i));
   const knife = knifeKind(r.knife) && (isFreeItem(r.knife) || items.includes(r.knife)) ? r.knife : null;
   const sniper = sniperKind(r.sniper) && (isFreeItem(r.sniper) || items.includes(r.sniper)) ? r.sniper : null;
-  return { coins: r.coins | 0, custom: r.custom && parseLook(r.custom) ? r.custom : null, items, knife, sniper, earnToday: r.earn_day === dayNow() ? r.earn_today | 0 : 0, dayCap: EARN.dayCap, chal: chalView(id, r.chal) };
+  return { coins: r.coins | 0, custom: r.custom && parseLook(r.custom) ? r.custom : null, items, knife, sniper, guns: parseGuns(r.guns), boxes: r.boxes | 0, earnToday: r.earn_day === dayNow() ? r.earn_today | 0 : 0, dayCap: EARN.dayCap, chal: chalView(id, r.chal) };
 }
 export async function equipSniper(env, id, itemId) {
   const clear = itemId == null || itemId === '';
@@ -87,6 +89,7 @@ export async function equipKnife(env, id, itemId) {
 // compra: erro amigável por pré-leitura, segurança por lote atômico (INSERT condicional + débito condicional; chave primária barra compra dupla)
 export async function buyItem(env, id, itemId) {
   const it = typeof itemId === 'string' ? itemById(itemId) : null; if (!it) return { status: 400, error: 'Item inexistente' };
+  if (it.loot) return { status: 400, error: `Essa skin não se compra. Ela sai no ${BOX_NAME}.` };
   if (isFreeItem(it.id)) return { status: 409, error: 'Esse item já é seu: é padrão e de graça' }; // sem escrita no D1, sem debitar Docoin
   const t = now();
   const [a, inv] = await env.DB.batch([
@@ -123,4 +126,60 @@ export async function equipSkin(env, id, skin) {
   const cur = await env.DB.prepare('SELECT skin, custom FROM accounts WHERE id = ?').bind(id).first(); // nada mudou: ou já estava assim, ou faltou item
   return !!cur && cur.skin === skin && cur.custom === skin;
 }
+// Um caixote por dia de Brasília, na primeira leitura da conta nesse dia (login ou sessão que continua aberta).
+export async function grantLoginBox(env, id) {
+  const day = spDay();
+  const r = await env.DB.prepare('UPDATE accounts SET boxes = boxes + 1, box_day = ?2 WHERE id = ?1 AND box_day IS NOT ?2').bind(id, day).run();
+  return !!(r.meta && r.meta.changes);
+}
+
+function cryptoRand() {
+  const a = new Uint32Array(1);
+  crypto.getRandomValues(a);
+  return a[0] / 4294967296;
+}
+
+const dropView = (it) => ({ id: it.id, name: it.name, emoji: it.emoji, weight: it.weight, gun: it.gun || '', knife: it.knife || '', paint: it.paint || it.finish || '' });
+
+// Abre um caixote. O servidor sorteia. Repetida vira Docoins; skin nova entra na mochila. O débito do caixote é condicional.
+export async function openBox(env, id) {
+  const inv = await env.DB.prepare('SELECT item FROM inventory WHERE account_id = ?').bind(id).all();
+  const owned = new Set((inv.results || []).map((x) => x.item));
+  const it = rollBox(cryptoRand);
+  if (!it) return { status: 500, error: 'O caixote veio vazio' };
+  const dupe = owned.has(it.id);
+  const gain = dupe ? dupeCoins(it.weight) : 0;
+  const dec = await env.DB.prepare('UPDATE accounts SET boxes = boxes - 1, coins = coins + ?2 WHERE id = ?1 AND boxes >= 1').bind(id, gain).run();
+  if (!dec.meta || !dec.meta.changes) return { status: 409, error: 'Você não tem caixote para abrir' };
+  if (!dupe) {
+    try {
+      await env.DB.prepare('INSERT INTO inventory (account_id, item, acquired_at) VALUES (?1, ?2, ?3)').bind(id, it.id, now()).run();
+    } catch (e) {
+      const extra = dupeCoins(it.weight);
+      await env.DB.prepare('UPDATE accounts SET coins = coins + ?2 WHERE id = ?1').bind(id, extra).run();
+      const row = await env.DB.prepare('SELECT coins, boxes FROM accounts WHERE id = ?').bind(id).first();
+      return { status: 200, dupe: true, item: dropView(it), coins: (row && row.coins) | 0, gain: extra, boxes: (row && row.boxes) | 0 };
+    }
+  }
+  const row = await env.DB.prepare('SELECT coins, boxes FROM accounts WHERE id = ?').bind(id).first();
+  return { status: 200, dupe, item: dropView(it), coins: (row && row.coins) | 0, gain, boxes: (row && row.boxes) | 0 };
+}
+
+// Equipa pistola, P90, carabina ou fuzil. '' tira a pintura. A Torresmo e a faca têm as rotas delas.
+export async function equipGun(env, id, key, itemId) {
+  if (!GUN_EQUIP_KEYS.includes(key)) return false;
+  const clear = itemId == null || itemId === '';
+  if (!clear) {
+    if (gunKey(itemId) !== key) return false;
+    const own = await env.DB.prepare('SELECT 1 AS x FROM inventory WHERE account_id = ? AND item = ?').bind(id, itemId).first();
+    if (!own) return false;
+  }
+  const cur = await env.DB.prepare('SELECT guns FROM accounts WHERE id = ?').bind(id).first();
+  const g = parseGuns(cur && cur.guns);
+  if (clear) delete g[key]; else g[key] = itemId;
+  const json = Object.keys(g).length ? JSON.stringify(g) : null;
+  await env.DB.prepare('UPDATE accounts SET guns = ?2 WHERE id = ?1').bind(id, json).run();
+  return g;
+}
+
 export { ITEMS };

@@ -764,6 +764,7 @@ const KNIFE_FINISH = {
   sapphire: { steel: '#1d4ed8', warm: '#9ec5ff', metal: '#12358f', dark: '#0a1020', edge: '#e7f1ff', fuller: '#16367a' },
   emerald: { steel: '#0f9d58', warm: '#8dffc0', metal: '#0b6b3a', dark: '#07140e', edge: '#e9fff0', fuller: '#0d5a32' },
   ruby: { steel: '#d0123a', warm: '#ff9aaf', metal: '#8a142c', dark: '#1a0a0e', edge: '#ffe8ee', fuller: '#7a1830' },
+  camo: { steel: '#4a5c32', warm: '#8aa05a', metal: '#2c3a20', dark: '#141c10', edge: '#d5ddc4', fuller: '#3d4a28', camo: true },
 };
 function tintVerts(mesh, fn) {
   const geo = mesh.geometry; if (!geo || !geo.attributes.position) return;
@@ -786,6 +787,11 @@ function knifePal(finish) {
       tintVerts(mesh, (c, x, y, z) => {
         const n = Math.sin(x * 90 + z * 40) * Math.cos(y * 70 + z * 25);
         c.set(n > 0.35 ? '#d4783a' : n > -0.15 ? '#8d4b28' : '#3e2416');
+      });
+    } else if (f.camo) {
+      tintVerts(mesh, (c, x, y, z) => {
+        const n = Math.sin(x * 46 + z * 18) + Math.cos(y * 28 + x * 12);
+        c.set(n > 0.6 ? '#6d8348' : n > -0.2 ? '#3d5228' : '#1c2814');
       });
     }
     return mesh;

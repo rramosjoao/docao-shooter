@@ -62,7 +62,8 @@ import { SHIELD, isShieldW, shieldRaised, shieldOnBack, resetShield, shieldStage
 import { makeFPShield } from './shield-view.js';
 import { rounds, spendRound, drumsFull, drumsEmpty, refillDrums, resetDrums, setDrum, rollFumble, pickBotSecondary, akimboReady, ammoLow } from './shared/revolver.js';
 import { getAccount, getItems, onAccount, loadMe, saveSkin as saveAcctSkin, dropSession } from './account.js';
-import { knifeKind, knifeFinish, sniperKind } from './shared/closet.js';
+import { knifeKind, knifeFinish, sniperKind, itemById, gunPaint, GUN_EQUIP_KEYS } from './shared/closet.js';
+import { applyGunPaint } from './gun-paint.js';
 import { initAccountUI } from './account-ui.js';
 import { initCloset, refreshWardrobeLook } from './closet-ui.js';
 import { bindGrenadeVoice, playGrenadeVoice, grenadeVoiceEnabled, setGrenadeVoiceEnabled } from './grenade-voice.js';
@@ -3062,6 +3063,7 @@ const fp = (() => {
   const sn = makeFPSniper('torresmo'); root.add(sn);
   // bala da recarga (vai pra sniper que estiver na mão: Torresmo, Canhão ou Carabina)
   const sRound = new THREE.Group(); sn.add(sRound); sRound.visible = false;
+  sRound.userData.noPaint = true;
   add(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 8), toon(0xd9a441), 0, 0, 0, sRound, 0.003).rotation.x = Math.PI / 2;
   add(new THREE.ConeGeometry(0.012, 0.025, 8), toon(0xb87333), 0, 0, -0.042, sRound, 0.003).rotation.x = -Math.PI / 2;
   // Bazuca do Chiqueiro: RPG no ombro — tubo longo, boca na frente (-Z), traseira alargada, ogiva saindo da boca
@@ -3291,21 +3293,53 @@ function applyWorldKnife(e, id) {
   applyKnifeSkin(e.model.guns[KNIFE], look.kind, look.finish);
 }
 const SNIPER_W = WEAPONS.findIndex((w) => w.key === 'sniper');
+const GUN_MESH = Object.fromEntries(['rifle', 'sniper', 'pistol', 'carabina', 'p90'].map((k) => [k, WEAPONS.findIndex((w) => w.key === k)]));
+function paintGunMesh(group, id) {
+  if (!group) return;
+  const paint = gunPaint(id);
+  if (paint === 'lore') return;
+  applyGunPaint(group, paint);
+}
 function paintSniper(model, id) {
   const g = model && model.guns && model.guns[SNIPER_W];
   if (!g) return;
   const kind = sniperKind(id);
-  if (kind) resetWeaponCamo(g);
-  applySniperSkin(g, kind);
+  applySniperSkin(g, '');
+  applyGunPaint(g, '');
+  resetWeaponCamo(g);
+  if (kind === 'lore') applySniperSkin(g, 'lore');
+  else if (kind) applyGunPaint(g, kind);
+}
+function applyHeldGun(key, id) {
+  const idx = GUN_MESH[key];
+  if (idx == null || idx < 0) return;
+  const gun = fp.guns[idx];
+  paintGunMesh(gun, id);
+  if (player && player.model) paintGunMesh(player.model.guns[idx], id);
+  if (gun && !gunPaint(id) && player && player.gunKills) applyWeaponCamo(gun, camoLevel(player.gunKills[idx]));
+  if (weaponThumbs.length && gun) {
+    try { weaponThumbs[idx] = renderWeaponThumb(gun); } catch (e) { /* miniatura segue a de fábrica */ }
+    paintWeaponThumbs();
+  }
+}
+function applyHeldGuns(guns) {
+  const g = guns || {};
+  for (const key of GUN_EQUIP_KEYS) applyHeldGun(key, g[key] || '');
+}
+function applyWorldGun(e, key, id) {
+  const idx = GUN_MESH[key];
+  if (!e || !e.model || idx == null || idx < 0) return;
+  paintGunMesh(e.model.guns[idx], id);
+}
+function applyWorldGuns(e, guns) {
+  const g = guns || {};
+  for (const key of GUN_EQUIP_KEYS) applyWorldGun(e, key, g[key] || '');
 }
 function applyHeldSniper(id) {
   const gun = fp.guns[SNIPER_W];
   const kind = sniperKind(id);
-  if (gun) {
-    if (kind) resetWeaponCamo(gun);
-    applySniperSkin(gun, kind);
-    if (!kind && player && player.gunKills) applyWeaponCamo(gun, camoLevel(player.gunKills[SNIPER_W]));
-  }
+  paintSniper({ guns: fp.guns }, id);
+  if (gun && !kind && player && player.gunKills) applyWeaponCamo(gun, camoLevel(player.gunKills[SNIPER_W]));
   if (player) paintSniper(player.model, id);
   if (weaponThumbs.length && gun) {
     try { weaponThumbs[SNIPER_W] = renderWeaponThumb(gun); } catch (e) { /* miniatura segue a de fábrica */ }
@@ -3347,7 +3381,10 @@ function weaponTitleParts(p) {
   const w = WEAPONS[p.weapon], n = (p.gunKills && p.gunKills[p.weapon]) || 0;
   const info = camoInfo(n), nxt = nextCamo(n);
   const meta = info && !nxt ? info.name : info && nxt ? `${info.name} · ${n}/${nxt.at}` : nxt ? `${n}/${nxt.at}` : '';
-  const name = w.key === 'sniper' && sniperKind((getAccount() && getAccount().sniper) || '') ? 'A Docão Lore' : w.name;
+  const ownedSkin = (a, key) => { if (!a) return ''; if (key === 'sniper') return a.sniper || ''; if (key === 'knife') return a.knife || ''; return (a.guns && a.guns[key]) || ''; };
+  const skinId = ownedSkin(getAccount(), w.key);
+  const skinItem = skinId ? itemById(skinId) : null;
+  const name = skinItem ? skinItem.name : w.name;
   return { name, meta };
 }
 function weaponTitle(p) {
@@ -5426,6 +5463,11 @@ document.addEventListener('docao-sniper-pick', (e) => {
   applyHeldSniper(e.detail);
   if (online && online.net) online.net.send({ t: 'prof', sniper: e.detail || '' });
 });
+document.addEventListener('docao-gun-pick', (e) => {
+  const d = e.detail || {};
+  applyHeldGun(d.key, d.id || '');
+  if (online && online.net) online.net.send({ t: 'prof', gun: { k: d.key, id: d.id || '' } });
+});
 document.addEventListener('docao-look-preview', (e) => paintPreview(e.detail, false));
 function layoutDanceCast() {
   danceCast.forEach((d) => {
@@ -5646,6 +5688,7 @@ function startGame(mapId) {
   $('menu').classList.add('hidden'); $('gameover').classList.add('hidden'); $('pause').classList.add('hidden'); $('hud').classList.remove('hidden'); $('socialHud').classList.remove('hidden'); $('voiceHud').classList.add('hidden'); chatSetRoom(true); // offline: o chat fica (pros códigos), sem voz $('overChat').classList.add('hidden');
   applyHeldKnife(getAccount() && getAccount().knife);
   applyHeldSniper(getAccount() && getAccount().sniper);
+  applyHeldGuns(getAccount() && getAccount().guns);
   camera.clearViewOffset(); state = 'playing'; lockPointer();
 }
 function endGame() {
@@ -6710,7 +6753,7 @@ $('lobbyNameBtn').onclick = () => sendName();
 // ---------- conta (opcional): apelido fixo + skin guardada ----------
 function applyAccount(a) {
   for (const id of NAME_FIELDS) { const el = $(id); el.readOnly = !!a; el.title = a ? 'Apelido fixo da sua conta' : ''; el.classList.toggle('locked', !!a); }
-  if (a) { saveName(a.nick); if (a.skin && skinOk(a.skin) && a.skin !== selectedSkin) setPreview(a.skin); else if (!a.skin) saveAcctSkin(selectedSkin); applyHeldSniper(a.sniper); }
+  if (a) { saveName(a.nick); if (a.skin && skinOk(a.skin) && a.skin !== selectedSkin) setPreview(a.skin); else if (!a.skin) saveAcctSkin(selectedSkin); applyHeldSniper(a.sniper); applyHeldGuns(a.guns); }
   else { if (selectedSkin.startsWith('x1.')) setPreview(DEFAULT_SKIN); /* visual personalizado é só de conta */ let n = ''; try { n = localStorage.getItem('docao.name') || ''; } catch (e) { /* sem storage */ } for (const id of NAME_FIELDS) $(id).value = cleanName(n || 'Docão'); }
 }
 onAccount(applyAccount); initAccountUI(); initCloset(); document.addEventListener('docao-look-saved', () => { const a = getAccount(); if (a && a.skin && skinOk(a.skin)) setPreview(a.skin); }); loadMe().then(() => applyAccount(getAccount()));
@@ -6887,7 +6930,7 @@ function remoteEnt(info) {
   const e = makeEntity(info.name, false, info.skin, info.tag || '#ffffff');
   Object.assign(e, { id: info.id, remote: true, netId: info.id, bot: !!info.bot, buf: [], kills: info.kills || 0, deaths: info.deaths || 0, alive: false, primary: info.primary || 0, ping: 0 });
   if (armsMode()) { [e.armsStage, e.armsKills] = info.arms || [0, 0]; equipArmsLocal(e); }
-  e.model.group.visible = false; setWeapon(e, info.w || 0); e.slots = [e.primary, e.secondary ?? PISTOL, e.melee ?? KNIFE]; e.caps = info.caps || 0; if (armsMode()) equipArmsLocal(e); applyTeam(e, info.team ?? -1); if (info.kn) applyWorldKnife(e, info.kn); if (info.sn) applyWorldSniper(e, info.sn);
+  e.model.group.visible = false; setWeapon(e, info.w || 0); e.slots = [e.primary, e.secondary ?? PISTOL, e.melee ?? KNIFE]; e.caps = info.caps || 0; if (armsMode()) equipArmsLocal(e); applyTeam(e, info.team ?? -1); if (info.kn) applyWorldKnife(e, info.kn); if (info.sn) applyWorldSniper(e, info.sn); if (info.gn) applyWorldGuns(e, info.gn);
   o.ents.set(info.id, e); entities.push(e); return e;
 }
 function removeEnt(id) {
@@ -6910,7 +6953,7 @@ function startOnlineMatch(m) {
   player.kills = me.kills || 0; player.deaths = me.deaths || 0; player.gunKills = WEAPONS.map(() => 0); revengeName = null; resetFeedback(); resetMatchCamos();
   player.primary = player.nextPrimary = selectedPrimary; player.nextSecondary = selectedSecondary; player.nextMelee = selectedMelee; player.slots = [selectedPrimary, selectedSecondary, selectedMelee]; setWeapon(player, selectedPrimary); // até o servidor mandar o renascimento
   if (armsMode()) { [player.armsStage, player.armsKills] = me.arms || [0, 0]; equipArmsLocal(player); }
-  entities.push(player); o.ents.set(o.myId, player); fp.setSkin(me.skin); applyHeldKnife(me.kn); applyHeldSniper(me.sn); player.caps = me.caps || 0; applyTeam(player, me.team ?? -1);
+  entities.push(player); o.ents.set(o.myId, player); fp.setSkin(me.skin); applyHeldKnife(me.kn); applyHeldSniper(me.sn); applyHeldGuns(me.gn); player.caps = me.caps || 0; applyTeam(player, me.team ?? -1);
   for (const info of m.ents) remoteEnt(info);
   invApplyLook(invMode()); if (invMode()) for (const [id, ki, pos] of m.drops || []) invAddDrop(id, DROP_KEYS[ki], pos);
   if (mode === 'bomb' && m.bomb) setupBomb({ sites: m.bomb.sites.map(([x, y, z], i) => ({ x, y, z, name: SITE_NAMES[i] })), atk: m.bomb.atk, def: m.bomb.def, pts: m.bomb.pts ? m.bomb.pts.map(([x, y, z]) => ({ x, y, z })) : undefined }, unpackBomb(m.bomb.s)); else if (mode === 'bomb') mode = 'dm';
@@ -7144,6 +7187,7 @@ function netEvent(ev) {
   } else if (k === 'j') { remoteEnt(ev[1]); }
   else if (k === 'jkn') { const e = entOf(ev[1]); if (e === player) applyHeldKnife(ev[2]); else applyWorldKnife(e, ev[2]); }
   else if (k === 'jsn') { const e = entOf(ev[1]); if (e === player) applyHeldSniper(ev[2]); else applyWorldSniper(e, ev[2]); }
+  else if (k === 'jgn') { const e = entOf(ev[1]); if (e === player) applyHeldGun(ev[2], ev[3]); else applyWorldGun(e, ev[2], ev[3]); }
   else if (k === 'l') { removeEnt(ev[1]); }
 }
 function personalEvent(ev) {

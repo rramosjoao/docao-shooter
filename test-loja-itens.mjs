@@ -6,7 +6,8 @@ import { DANCE_IDS, FREE_DANCES, PAID_DANCES, danceId } from './shared/emote.js'
 import { normDance, isPaidDance, ALL_DANCES } from './victory-dance.js';
 const fails = []; const ok = (c, m) => { console.log((c ? 'OK   ' : 'FALHA') + ' ' + m); if (!c) fails.push(m); };
 ok(new Set(ITEMS.map((i) => i.id)).size === ITEMS.length, 'ids únicos');
-ok(ITEMS.filter((i) => !i.free).every((i) => i.price > 0 && Number.isInteger(i.price)), 'item pago tem preço inteiro (os de graça ficam de fora)');
+ok(ITEMS.filter((i) => !i.free && !i.loot).every((i) => i.price > 0 && Number.isInteger(i.price)), 'item pago tem preço inteiro (os de graça e os do caixote ficam de fora)');
+ok(ITEMS.filter((i) => i.loot).every((i) => i.weight > 0 && Number.isInteger(i.weight) && !(i.price > 0) && !isFreeItem(i.id)), 'skin de caixote tem peso inteiro, sem preço, e não conta como grátis');
 ok(SLOTS[0][0] === 'c' && ITEMS.filter((i) => i.slot === 'c').length === 17, '17 fantasias completas no slot c');
 const paid = { h1: 60, c1: 900, c8: 1500, d8: 400, b3: 100 };
 ok(Object.entries(paid).every(([id, p]) => itemPrice(id) === p), 'preço dos itens que já existiam não mudou');
