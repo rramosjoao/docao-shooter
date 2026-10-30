@@ -28,7 +28,7 @@ import { SKINS, getSkin, DEFAULT_SKIN, skinOk } from './skins.js';
 import './costumes.js';
 import { MAPS, PLAY_MAPS, INV_MAPS, BOMB_MAPS, X1_MAPS, getMap, BOMB_MAP } from './maps.js';
 import { INV, INV_AMMO, DROP_KEYS, invRefillAmmo, isInvasion, ZOMBIES, POWERS, POWER_KEYS, KEYS, SPIT_GRAV, InvasionCore, parseState, coreView, scaleHit } from './shared/invasion.js';
-import { SURV, PAPADA_NAME, BOX_NAME, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, stationsFor, settleLayout, exclusiveSurvivalMap, papTierOf, survRefill, cornPopDmg, statLine, fmtPts, papRefuse } from './shared/survival.js';
+import { SURV, PAPADA_NAME, BOX_NAME, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, stationsFor, settleLayout, exclusiveSurvivalMap, papTierOf, survRefill, cornPopDmg, statLine, fmtPts, papRefuse, getSurvivalWaveTuning } from './shared/survival.js';
 import { makePapada, makeMysteryBox, makeWallGun, makeOfferGun, tickStation } from './survival-gfx.js';
 import { createInvMusic } from './invasion-music.js';
 import { makeZombie, animateZombie, dieZombie, applyHalloweenPalette, buildHalloween, makeFogWall, makeDropMesh, tickDrop, makeSpitMesh, makePowerPumpkin, makeRing, tickRing, makeLanternCone, setGhostLook } from './invasion-gfx.js';
@@ -7426,6 +7426,7 @@ function startInvasionOffline() {
   const fogSrc = { fog: true, name: 'Névoa Assombrada', zt: 'fog', isPlayer: false, pos: new V3(), kills: 0 }; // "atacante" da névoa (câmera de morte olha pro centro)
   inv = new InvasionCore({
     T: () => gameTime, P: PHYS, nav, size: currentMap.size, botDiff: () => botDiff,
+    specFor: survOn() ? (w, n) => getSurvivalWaveTuning(w, n) : null,
     players: () => entities.filter((e) => e.isPlayer),
     spawnZombie(type, pos) { const z = makeZombieEnt(type); z.id = invZid++; z.pos.set(pos.x, pos.y, pos.z); z.yaw = Math.atan2(-pos.x, -pos.z); entities.push(z); return z; },
     removeZombie(z) { scene.remove(z.model.group); entities = entities.filter((x) => x !== z); },
@@ -7449,9 +7450,9 @@ function invEvent(ev) {
   const isMe = (id) => (online ? id === online.myId : !!player && id === player.id);
   if (k === 'wv') {
     const [, ph, w, x] = ev;
-    if (ph === 0) invBanner('🎃 INVASÃO', `Prepare-se! A wave 1 começa em ${INV.PREP} s · troque de arma no painel (B)`);
+    if (ph === 0) invBanner('🎃 INVASÃO', `Prepare-se! A wave 1 começa em ${survOn() ? getSurvivalWaveTuning(1).prep : INV.PREP} s · troque de arma no painel (B)`);
     else if (ph === 1) { invBanner(`WAVE ${w}/${INV.WAVES}`, x ? '🎃 O DOCÃO ABÓBORA chegou!' : w === 1 ? 'Os zumbis estão vindo da névoa!' : 'A névoa está fechando…', !!x); sfx.incoming(0.9); invClosePick(); }
-    else if (ph === 2) { invBanner(`WAVE ${w} LIMPA!`, `Pausa de ${INV.BREAK} s · B troca de arma`); sfx.pickup(); if (player && player.alive) invOpenPick(); }
+    else if (ph === 2) { invBanner(`WAVE ${w} LIMPA!`, `Pausa de ${survOn() ? getSurvivalWaveTuning(w).gap : INV.BREAK} s · B troca de arma`); sfx.pickup(); if (player && player.alive) invOpenPick(); }
     else if (ph === 3) invBanner(x ? 'VOCÊS SOBREVIVERAM! 🎃' : 'A HORDA VENCEU', x ? `Sobreviveram às ${INV.WAVES} waves` : `Sobreviveu até a wave ${w}`, true);
   } else if (k === 'za') { const z = ent(ev[1]); if (z) { z.atkT = gameTime; if (player && z.pos.distanceTo(player.pos) < 25) sfx.knife(distVol(z.pos) * 0.6, 'slash'); } }
   else if (k === 'zs') { const [, id, big, p, v] = ev; const m = makeSpitMesh(!!big); m.position.set(...p); scene.add(m); invGfx.projs.set(id, { m, pos: a3v(p), vel: a3v(v), born: gameTime, spit: true }); if (player) tone('sawtooth', big ? 160 : 320, big ? 90 : 140, 0.18, 0.12 * distVol(a3v(p))); }
@@ -7583,7 +7584,7 @@ function invRenderPick() {
 const invCanPick = () => { const v = invView(); return !!(invMode() && v && (v.phase === 'break' || v.phase === 'prep') && player && player.alive); };
 function invOpenPick(unlock = false) { if (survOn()) { flashMsg('No Survival a arma se compra na partida'); return; } if (!invCanPick()) return; if (unlock) { deathUnlock = true; if (document.pointerLockElement) document.exitPointerLock(); } invPick = true; document.body.classList.add('invpick'); invRenderPick(); $('iLoad').classList.remove('hidden'); window.__invPicks = (window.__invPicks || 0) + 1; }
 function invClosePick() { if (!invPick) return; invPick = false; document.body.classList.remove('invpick'); $('iLoad').classList.add('hidden'); if (state === 'playing' && player && player.alive && document.pointerLockElement !== canvas && deathUnlock) lockPointer(); }
-function invUpdatePick(v) { if (!invCanPick()) { invClosePick(); return; } const tot = v.phase === 'prep' ? INV.PREP : INV.BREAK; $('iLoadFill').style.width = (100 * v.left / tot).toFixed(1) + '%'; $('iLoadT').textContent = `wave ${v.wave + 1} em ${Math.ceil(v.left)} s`; }
+function invUpdatePick(v) { if (!invCanPick()) { invClosePick(); return; } const tot = v.phase === 'prep' ? (survOn() ? getSurvivalWaveTuning(1).prep : INV.PREP) : (survOn() ? getSurvivalWaveTuning(Math.max(1, v.wave)).gap : INV.BREAK); $('iLoadFill').style.width = (100 * v.left / tot).toFixed(1) + '%'; $('iLoadT').textContent = `wave ${v.wave + 1} em ${Math.ceil(v.left)} s`; }
 function invEquipNow() { equipClassNow(player); }
 // Bomba, rodada nova: a sequência e os streaks guardados continuam (trocar de rodada não é morrer), mas o que estava
 // no ar acaba: o Gavião vai embora, e o míssil pilotado e o Fim da chapa ainda na contagem voltam pro banco (F de novo).

@@ -5,13 +5,13 @@ import { getMap, INV_MAPS } from './maps.js';
 import { mapSolids, createPhysics } from './shared/physics.js';
 import { buildNav } from './nav.js';
 import { WEAPONS, PISTOL, KNIFE, UZI } from './shared/rules.js';
-import { waveSpec, ZOMBIES } from './shared/invasion.js';
+import { INV, waveSpec, ZOMBIES } from './shared/invasion.js';
 import {
   PAPADA_NAME, BOX_NAME, SURV, PAP_COST, SURV_ID, PADRAO_ID,
   isSurvival, normSurv, papOk, papRefuse, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall,
   applySurvivalLoadout, grantHit, grantKill, killPoints, stationsFor, registerSurvivalMap,
   exclusiveSurvivalMap, SURVIVAL_LAYOUTS, settleLayout, statLine, shownDmg, WALL_CATALOG, BOX_POOL,
-  survRefill, fmtPts,
+  survRefill, fmtPts, getSurvivalWaveTuning,
 } from './shared/survival.js';
 
 const fails = [];
@@ -129,7 +129,7 @@ function FAMAS_SAFE() { return 15; }
   let pts = 0, tier = 0, spent = 0, when = [0, 0, 0];
   const perWave = [];
   for (let w = 1; w <= 20; w++) {
-    const spec = waveSpec(w, 1);
+    const spec = getSurvivalWaveTuning(w, 1);
     const mix = spec.mix; const sum = Object.values(mix).reduce((a, b) => a + b, 0);
     let wavePts = 0;
     for (const [zt, weight] of Object.entries(mix)) {
@@ -157,6 +157,37 @@ function FAMAS_SAFE() { return 15; }
   ok(perWave[13] >= bill, `wave 14 já cobriu Papada completa + barraca + uma parede (${fmtPts(perWave[13])} >= ${fmtPts(bill)})`);
   ok(perWave[6] < bill, `no meio (wave 7) ainda não fecha a conta toda (${fmtPts(perWave[6])})`);
   console.log('     curva solo (pistola, sem headshot): ' + when.map((w, i) => `T${i + 1}@wave ${w}`).join(' · ') + ` · wave20 ${fmtPts(perWave[19])}`);
+}
+
+// velocidade do Survival sobe suave; a wave 1 é mais lenta; o Padrão fica onde estava
+{
+  const rows = [];
+  for (let w = 1; w <= 20; w++) rows.push(getSurvivalWaveTuning(w, 1));
+  const frac = (w) => getSurvivalWaveTuning(w, 1).spdMul / waveSpec(w, 1).spdMul;
+  ok(rows.slice(0, 10).every((s, i, a) => i === 0 || s.spdMul > a[i - 1].spdMul), 'waves 1 a 10: a velocidade sobe a cada wave');
+  ok(rows.every((s, i) => i === 0 || s.spdMul >= rows[i - 1].spdMul - 1e-9), 'da wave 1 à 20 a velocidade não volta atrás');
+  ok(frac(1) >= 0.55 && frac(1) <= 0.60, `wave 1 a ${Math.round(frac(1) * 100)}% da velocidade do Padrão`);
+  ok(frac(8) >= 0.94 && frac(8) < 1 && frac(10) === 1 && frac(20) === 1, `wave 8 a ${Math.round(frac(8) * 100)}%, wave 10 e 20 na velocidade do Padrão`);
+  const w1 = rows[0], p1 = waveSpec(1, 1);
+  ok(w1.total < p1.total && w1.total >= 8 && w1.hpMul < p1.hpMul && w1.dmgMul < p1.dmgMul && w1.spawnEvery > p1.spawnEvery, `wave 1 alivia quantidade (${w1.total}/${p1.total}), vida, dano e spawn`);
+  ok(w1.gap > INV.BREAK && rows[9].gap === INV.BREAK && w1.prep > INV.PREP, `pausa inicial ${w1.gap}s e preparação ${w1.prep}s; no fim volta a ${INV.BREAK}s`);
+  ok(w1.batch === 1 && w1.batch < p1.batch && w1.maxAlive < p1.maxAlive, 'wave 1 nasce um por vez e não lota o mapa');
+  const fast = ZOMBIES.runner.speed * w1.spdMul, slow = ZOMBIES.tank.speed * w1.spdMul, mid = ZOMBIES.walker.speed * w1.spdMul;
+  ok(slow < mid && mid < fast && Math.abs(fast / mid - ZOMBIES.runner.speed / ZOMBIES.walker.speed) < 1e-9, 'corredor continua mais rápido e barrigão mais lento, na mesma proporção');
+  const hi = ZOMBIES.walker.speed * w1.spdMul * 1.08, lo = ZOMBIES.walker.speed * w1.spdMul * 0.92;
+  ok(hi < ZOMBIES.walker.speed * p1.spdMul * 0.92 && hi / lo < 1.2, 'até o zumbi mais rápido da wave 1 perde pro mais lento do Padrão, com pouca variação');
+  for (const w of [10, 12, 20]) {
+    const a = getSurvivalWaveTuning(w, 1), b = waveSpec(w, 1);
+    ok(a.spdMul === b.spdMul && a.total === b.total && a.hpMul === b.hpMul && a.dmgMul === b.dmgMul && a.spawnEvery === b.spawnEvery && a.batch === b.batch && a.maxAlive === b.maxAlive && a.bossHp === b.bossHp, `wave ${w} acompanha vida, dano, quantidade e spawn do Padrão`);
+  }
+  const co = getSurvivalWaveTuning(1, 4);
+  ok(co.total > w1.total && co.spdMul / waveSpec(1, 4).spdMul === frac(1), 'com mais jogadores a horda cresce e a fração de velocidade fica');
+  ok(waveSpec(1, 1).spdMul === 1 && waveSpec(1, 1).total === 18 && waveSpec(20, 1).total === 132 && waveSpec(20, 1).spdMul === 1.45 && waveSpec(1, 1).gap == null, 'waveSpec do Padrão não mudou');
+  const bits = [1, 2, 3, 5, 8, 12, 20].map((w) => {
+    const s = getSurvivalWaveTuning(w, 1);
+    return `w${w} ${Math.round(frac(w) * 100)}% · ${s.total} · ${(ZOMBIES.walker.hp * s.hpMul).toFixed(0)}hp · ${(ZOMBIES.walker.dmg * s.dmgMul).toFixed(1)}dmg · ${s.spawnEvery.toFixed(2)}s`;
+  });
+  console.log('     tuning solo (walker): ' + bits.join(' | '));
 }
 
 // layouts: dados por mapa, exclusive plugável, posições de teste nos mapas atuais
@@ -243,6 +274,35 @@ function room(surv) {
   g.onEvent(a, ['sv', 'pap']); g.onEvent(a, ['sv', 'box']); g.onEvent(a, ['sv', 'wall', 0]);
   ok(a.pts === 999999 && !(a.pap && a.pap[a.weapon]) && a.primary === prim, 'Padrão: servidor não debita e não mexe na arma');
   ok(a.slots[0] !== PISTOL || a.slotOn == null || a.slotOn[1] !== 0, 'Padrão não força pistola e faca');
+  const left = g.inv.phaseEnd - g.inv.T;
+  ok(left <= INV.PREP && left > INV.PREP - 0.4, `Padrão mantém a preparação de ${INV.PREP}s`);
+  g.testInv(a, { wave: 1 });
+  const std = waveSpec(1, 1);
+  ok(g.inv.spec.spdMul === std.spdMul && g.inv.spec.total === std.total && g.inv.spec.hpMul === std.hpMul && g.inv.spec.dmgMul === std.dmgMul && g.inv.spec.spawnEvery === std.spawnEvery && g.inv.spec.gap == null && !(g.inv.spec.lead > 0), 'servidor Padrão usa o waveSpec, sem a curva do Survival');
+  g.testInv(a, { wave: 8 });
+  ok(g.inv.spec.spdMul === waveSpec(8, 1).spdMul && g.inv.spec.total === waveSpec(8, 1).total, 'servidor Padrão na wave 8 também não muda');
+}
+{
+  const { g, a, step } = room(SURV_ID);
+  const tune = getSurvivalWaveTuning(1, 1);
+  const left = g.inv.phaseEnd - g.inv.T;
+  ok(left <= tune.prep && left > tune.prep - 0.4, `servidor Survival espera ${tune.prep}s antes da wave 1`);
+  g.testInv(a, { wave: 1 });
+  ok(g.inv.spec.spdMul === tune.spdMul && g.inv.spec.total === tune.total && g.inv.spec.hpMul === tune.hpMul && g.inv.spec.dmgMul === tune.dmgMul && g.inv.spec.spawnEvery === tune.spawnEvery && g.inv.spec.gap === tune.gap, 'servidor Survival aplica getSurvivalWaveTuning na wave 1');
+  step(90, 0.05);
+  const zs = g.inv.zombies.filter((z) => z.alive && z.zt === 'walker');
+  ok(zs.length >= 1 && zs.length <= tune.maxAlive, `wave 1 no servidor nasce devagar (${zs.length} vivos, teto ${tune.maxAlive})`);
+  if (zs.length) {
+    const lo = ZOMBIES.walker.speed * tune.spdMul * 0.92, hi = ZOMBIES.walker.speed * tune.spdMul * 1.08;
+    ok(zs.every((z) => z.spd >= lo - 1e-6 && z.spd <= hi + 1e-6), `velocidade real na faixa da wave 1 (${zs.map((z) => z.spd.toFixed(2)).join(', ')})`);
+    ok(Math.max(...zs.map((z) => z.spd)) < ZOMBIES.walker.speed * waveSpec(1, 1).spdMul * 0.92, 'o zumbi do servidor é mais lento que o walker do Padrão');
+  }
+  g.testInv(a, { clearQueue: true, killAll: true });
+  step(1);
+  ok(g.inv.phase === 'break' && Math.abs(g.inv.phaseEnd - g.inv.T - tune.gap) < 0.08, `pausa do servidor depois da wave 1 é ${tune.gap}s`);
+  g.testInv(a, { wave: 12 });
+  const late = getSurvivalWaveTuning(12, 1);
+  ok(g.inv.spec.spdMul === late.spdMul && late.spdMul === waveSpec(12, 1).spdMul, 'na wave 12 o servidor já anda na velocidade do Padrão');
 }
 
 console.log(fails.length ? '\nFALHOU ' + fails.length : '\nTUDO OK');
