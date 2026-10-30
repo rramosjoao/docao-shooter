@@ -7,7 +7,7 @@
 // ============================================================
 import { MAPS, PLAY_MAPS, INV_MAPS, BOMB_MAPS, X1_MAPS, getMap } from '../../maps.js';
 import { INV, INV_AMMO, DROP_KEYS, invRefillAmmo, isInvasion, InvasionCore, POWER_KEYS, modelAim } from '../../shared/invasion.js';
-import { SURV, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, stationsFor, settleLayout, exclusiveSurvivalMap, nearPoint, papTierOf, survRefill, cornPopDmg } from '../../shared/survival.js';
+import { SURV, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, stationsFor, settleLayout, exclusiveSurvivalMap, nearPoint, papTierOf, survRefill, cornPopDmg, getSurvivalWaveTuning } from '../../shared/survival.js';
 import { TRAIN, isTraining, dummyX } from '../../shared/training.js';
 import { ARMS_RACE, ARMS_STAGES, ARMS_LAST, isArmsRace, armsStage, armsScore, resetArmsRace, equipArmsRace, armsRaceKill } from '../../shared/arms-race.js';
 import { isKnife } from '../../shared/rules.js';
@@ -1510,6 +1510,7 @@ export class Game {
     const g = this;
     return new InvasionCore({
       T: () => g.T, P: g.P, nav: g.nav, size: g.map.size, botDiff: () => g.cfg.botDiff,
+      specFor: g.survival ? (w, n) => getSurvivalWaveTuning(w, n) : null,
       players: () => g.humans(),
       spawnZombie(type, pos) {
         const z = g.makeEnt({ name: '', skin: SKINS[0].id, primary: 0, bot: true }); z.zt = type;

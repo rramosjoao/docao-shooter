@@ -69,7 +69,8 @@ const hyp = (dx, dz) => Math.hypot(dx, dz);
 const d3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// composição da wave w (1..20) com n jogadores
+// composição da wave w (1..20) com n jogadores. Esta é a curva do Padrão.
+// Survival não mexe aqui: passa getSurvivalWaveTuning em A.specFor.
 export function waveSpec(w, n = 1) {
   n = clamp(n | 0 || 1, 1, INV.MAX_PLAYERS);
   const total = Math.round((12 + w * 6) * (1 + 0.6 * (n - 1))); // ~2,5× a versão 1 (7→18 na wave 1, 53→132 na 20)
@@ -133,8 +134,16 @@ export class InvasionCore {
     this.kills = 0;
   }
   get T() { return this.A.T(); }
+  // Padrão: waveSpec. Survival liga A.specFor e o resto da simulação lê o spec que sair dali.
+  specFor(w, n) {
+    const fn = this.A.specFor;
+    return typeof fn === 'function' ? fn(w, n) : waveSpec(w, n);
+  }
   start() {
-    this.phase = 'prep'; this.wave = 0; this.phaseEnd = this.T + INV.PREP;
+    this.phase = 'prep'; this.wave = 0;
+    const custom = typeof this.A.specFor === 'function';
+    const prep = custom ? this.specFor(1, Math.max(1, this.A.players().length)).prep : 0;
+    this.phaseEnd = this.T + (prep > 0 ? prep : INV.PREP);
     for (const p of this.A.players()) this.ensure(p, true);
     this.A.emit(['wv', 0, 0, r2(this.phaseEnd)]);
   }
@@ -166,14 +175,14 @@ export class InvasionCore {
   }
   startWave(w) {
     const n = Math.max(1, this.A.players().length);
-    this.wave = w; this.phase = 'wave'; this.spec = waveSpec(w, n); this.queue = waveQueue(this.spec, this.rnd);
-    this.nextSpawn = this.T + 0.8; this.bossPending = this.spec.boss; this.bossAt = this.T + 3.5; this.bossId = 0;
+    this.wave = w; this.phase = 'wave'; this.spec = this.specFor(w, n); this.queue = waveQueue(this.spec, this.rnd);
+    this.nextSpawn = this.T + (this.spec.lead > 0 ? this.spec.lead : 0.8); this.bossPending = this.spec.boss; this.bossAt = this.T + 3.5; this.bossId = 0;
     this.planFog(w);
     this.A.emit(['wv', 1, w, 0, this.spec.boss ? 1 : 0, this.queue.length + (this.spec.boss ? 1 : 0)]);
   }
   endWave() {
     if (this.wave >= INV.WAVES) { this.finish(true); return; }
-    this.phase = 'break'; this.phaseEnd = this.T + INV.BREAK;
+    this.phase = 'break'; this.phaseEnd = this.T + (this.spec && this.spec.gap > 0 ? this.spec.gap : INV.BREAK);
     this.A.emit(['wv', 2, this.wave, r2(this.phaseEnd)]);
   }
   finish(won) {
