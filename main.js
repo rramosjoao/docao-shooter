@@ -5138,7 +5138,7 @@ function renderWardrobePreview() {
 }
 let selectedSkin = getSkin(localStorage.getItem('docao.skin') || DEFAULT_SKIN).id, preview = null;
 // Cinco classes no navegador. A última usada é a que nasce. docao.primary continua espelhando a classe armada.
-let classes = [], classIndex = 0, spawnedClass = 0, benchOn = false, benchWeapon = 0, benchSlot = 'optic', benchLook = '', arsenalFocus = -1;
+let classes = [], classIndex = 0, spawnedClass = 0, benchOn = false, benchWeapon = 0, benchSlot = 'optic', benchLook = '', arsenalFocus = -1, pauseArmTab = 'rajada';
 const DEATH_HINT = '1–5 escolhe a classe. Clique no arsenal pra gravar qualquer arma nela. U volta pra última · Espaço nasce. O tracinho branco é a arma de fábrica.';
 const LIVE_HINT = '1–5 escolhe a classe. O arsenal troca a arma agora e o pente não enche sozinho. U volta pra última. O tracinho branco é a arma de fábrica.';
 let selectedPrimary = 0, selectedSecondary = PISTOL, selectedMelee = KNIFE;
@@ -5317,6 +5317,7 @@ function armClass(i) {
   saveClasses(); mirrorLegacy();
   if (player) { player.nextPrimary = pack.load.primary; player.nextSecondary = pack.load.secondary; player.nextMelee = pack.load.melee; }
   sendLoadout();
+  if ($('pause') && !$('pause').classList.contains('hidden') && pauseClassesAllowed()) showPauseLoadout(true);
   markPick('primary', selectedPrimary); markPick('secondary', selectedSecondary); markPick('melee', selectedMelee);
   syncLoadoutUi();
 }
@@ -5763,7 +5764,20 @@ const PX_COOLDOWN = 10; // s, igual ao servidor
 buildPauseGuns();
 function releaseLook() { mouseDown = false; rightDown = false; keys.Space = keys.ShiftLeft = keys.ShiftRight = false; resetAds(); if (player) { player.charging = false; player.bowDraw = 0; player.eggDraw = 0; arcLine.visible = arcMark.visible = false; } if (pickingStrike) { pickingStrike = false; closeStrikeMap(); } }
 function tuckDeathMenu() { const el = $('deathpick'); if (el) el.classList.add('hidden'); killcamGuns = false; }
-function pauseActs() { return [...document.querySelectorAll('#pauseNav [data-pause-act]')].filter((b) => !b.classList.contains('hidden')); }
+function pauseClassesAllowed() { return !(invMode() || x1Mode() || armsMode()); }
+function showPauseLoadout(on) {
+  const root = $('pause'); if (!root) return;
+  const show = !!on && pauseClassesAllowed() && !root.classList.contains('hidden');
+  root.classList.toggle('loadout-on', show);
+  const view = $('pauseLoadoutView'); if (view) view.classList.toggle('hidden', !show);
+}
+function pauseActs() {
+  const nav = [...document.querySelectorAll('#pauseNav [data-pause-act]')].filter((b) => !b.classList.contains('hidden'));
+  const box = $('pauseClasses');
+  const rows = box && !box.classList.contains('hidden') ? [...box.querySelectorAll('.clsrow')] : [];
+  const quit = nav.filter((b) => b.id === 'quitBtn');
+  return [...nav.filter((b) => b.id !== 'quitBtn'), ...rows, ...quit];
+}
 let pauseFocus = 0;
 function paintPauseFocus() {
   const acts = pauseActs();
@@ -5808,10 +5822,10 @@ function fillPauseBrief() {
   else if (armsMode() && p) score = `Etapa ${p.armsStage + 1}/${ARMS_STAGES.length} · ${p.armsKills | 0}/2`;
   set('pauseScore', score);
 }
-function pause() { if (state !== 'playing') return; softPauseOn = false; state = 'paused'; releaseLook(); closePauseClass(); tuckDeathMenu(); if (player && player.alive) document.body.classList.remove('dead', 'deadgray', 'cls-on', 'killcam'); $('pauseInvite').classList.toggle('hidden', !online); $('pauseVoice').classList.toggle('hidden', !online); const note = $('pauseClassNote'); if (note) note.textContent = x1Mode() ? 'No X1 a arma é sortida e igual pra todo mundo. Não dá pra trocar.' : invMode() ? 'Na Invasão a classe entra no painel B, entre as waves.' : training() ? 'No estande a classe entra agora e o pente não enche sozinho.' : 'A classe escolhida entra na próxima vida. Não derruba.'; const swap = $('pauseClassBtn'); if (swap) swap.classList.toggle('hidden', invMode() || x1Mode() || armsMode()); buildPauseGuns(); $('pauseDance').classList.toggle('hidden', invMode()); fillPauseBrief(); pauseFocus = 0; paintPauseFocus(); const opt = $('pauseOptions'); if (opt) opt.classList.remove('is-hot'); $('pause').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
+function pause() { if (state !== 'playing') return; softPauseOn = false; state = 'paused'; releaseLook(); closePauseClass(); tuckDeathMenu(); if (player && player.alive) document.body.classList.remove('dead', 'deadgray', 'cls-on', 'killcam'); $('pauseInvite').classList.toggle('hidden', !online); $('pauseVoice').classList.toggle('hidden', !online); const note = $('pauseClassNote'); if (note) note.textContent = x1Mode() ? 'No X1 a arma é sortida e igual pra todo mundo. Não dá pra trocar.' : invMode() ? 'Na Invasão a classe entra no painel B, entre as waves.' : training() ? 'No estande a classe entra agora e o pente não enche sozinho.' : 'A classe escolhida entra na próxima vida. Não derruba.'; const swap = $('pauseClassBtn'); if (swap) swap.classList.add('hidden'); const classBox = $('pauseClasses'); if (classBox) classBox.classList.toggle('hidden', !pauseClassesAllowed()); buildPauseGuns(); $('pauseDance').classList.toggle('hidden', invMode()); fillPauseBrief(); showPauseLoadout(false); pauseFocus = 0; paintPauseFocus(); const opt = $('pauseOptions'); if (opt) opt.classList.remove('is-hot'); $('pause').classList.remove('hidden'); showPauseLoadout(false); if (document.pointerLockElement) document.exitPointerLock(); }
 // ` solta o mouse como o Esc, sem a pausa na chapa: o HUD fica como estava. Clique ou ` de novo volta a mirar.
 function softPause() { if (state !== 'playing') return; state = 'paused'; softPauseOn = true; releaseLook(); if (document.pointerLockElement) document.exitPointerLock(); }
-function resume() { closePauseClass(); softPauseOn = false; $('pause').classList.add('hidden'); state = 'playing'; if (!document.body.classList.contains('dead') && !bombPick && !invPick) document.body.classList.remove('cls-on'); lockPointer(); }
+function resume() { closePauseClass(); showPauseLoadout(false); softPauseOn = false; $('pause').classList.add('hidden'); state = 'playing'; if (!document.body.classList.contains('dead') && !bombPick && !invPick) document.body.classList.remove('cls-on'); lockPointer(); }
 function toMenu() {
   clearMatchEnding();
   if (online) leaveOnline();
@@ -5831,7 +5845,8 @@ function lockPointer() {
 
 $('playBtn').onclick = () => startGame(); $('menuBtn').onclick = toMenu;
 $('resumeBtn').onclick = resume; $('quitBtn').onclick = toMenu;
-if ($('pauseClassBtn')) $('pauseClassBtn').onclick = () => openPauseClass();
+if ($('pauseClassBtn')) $('pauseClassBtn').onclick = () => { if (pauseClassesAllowed()) showPauseLoadout(true); else openPauseClass(); };
+if ($('pauseLoadoutBack')) $('pauseLoadoutBack').onclick = () => showPauseLoadout(false);
 if ($('pauseOptBtn')) $('pauseOptBtn').onclick = () => { const box = $('pauseOptions'); if (!box) return; box.classList.add('is-hot'); try { box.focus({ preventScroll: true }); } catch (e) { /* sem focus */ } };
 const pauseNav = $('pauseNav');
 if (pauseNav) pauseNav.addEventListener('mouseover', (ev) => {
@@ -6001,7 +6016,8 @@ document.addEventListener('keydown', (e) => {
   else if (state === 'paused' && !softPauseOn && !pauseClassOpen()) {
     if (e.code === 'ArrowUp' || e.code === 'ArrowDown') { e.preventDefault(); movePauseFocus(e.code === 'ArrowDown' ? 1 : -1); return; }
     if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat) { e.preventDefault(); activatePauseFocus(); return; }
-    if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); resume(); }
+    if (/^Digit[1-5]$/.test(e.code) && !e.repeat && pauseClassesAllowed()) { e.preventDefault(); armClass(Number(e.code.slice(5)) - 1); return; }
+    if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); if ($('pause').classList.contains('loadout-on')) showPauseLoadout(false); else resume(); }
   } else if (state === 'paused' && (e.code === 'KeyP')) resume();
 });
 document.addEventListener('keyup', (e) => { if (e.code === 'KeyK') voicePtt(false); keys[e.code] = false; if (e.code === 'KeyQ' && state === 'playing') releaseCharge(); if (e.code === 'Tab') $('tabboard').classList.add('hidden'); });
@@ -6385,7 +6401,7 @@ function gunView(c) {
   const sec = WEAPONS[pack.secondary], mel = WEAPONS[pack.melee];
   return {
     name: fac.name,
-    className: `Classe ${c.name} · ${sec.short} · ${mel.short}`,
+    className: `${c.name} · ${sec.short} · ${mel.short}`,
     weapon: i,
     slots,
     bars: statBars(w, fac).map((b) => ({ ...b, num: barCaption(b) })),
@@ -6430,9 +6446,49 @@ function armChip(i, kind, on, onPick) {
   b.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); onPick(i); };
   return b;
 }
+function paintPauseArms() {
+  const host = $('pauseArms');
+  if (!host) return;
+  const cats = CATEGORIES.map((c) => ({ ...c, weapons: pool(c.weapons) })).filter((c) => c.weapons.length);
+  host.innerHTML = '';
+  if (!cats.length) {
+    const empty = document.createElement('p');
+    empty.className = 'cls-arms-empty';
+    empty.textContent = 'Nenhuma arma liberada nesta sala.';
+    host.appendChild(empty);
+    return;
+  }
+  if (!cats.some((c) => c.id === pauseArmTab)) pauseArmTab = cats[0].id;
+  const tabs = document.createElement('div');
+  tabs.className = 'arm-tabs';
+  tabs.setAttribute('role', 'tablist');
+  tabs.setAttribute('aria-label', 'Categorias');
+  for (const cat of cats) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'arm-tab' + (cat.id === pauseArmTab ? ' on' : '');
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', cat.id === pauseArmTab ? 'true' : 'false');
+    b.textContent = cat.title;
+    b.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); pauseArmTab = cat.id; paintPauseArms(); };
+    tabs.appendChild(b);
+  }
+  host.appendChild(tabs);
+  const cat = cats.find((c) => c.id === pauseArmTab);
+  const list = document.createElement('div');
+  list.className = 'arm-list';
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', cat.title);
+  const pack = classes[classIndex] ? classLoad(classes[classIndex], activeWeapons()) : null;
+  const pick = cat.pick === 'secondary' ? setSecondary : cat.pick === 'melee' ? setMelee : setPrimary;
+  const cur = !pack ? -1 : cat.pick === 'secondary' ? pack.secondary : cat.pick === 'melee' ? pack.melee : pack.primary;
+  for (const i of cat.weapons) list.appendChild(armChip(i, cat.pick, i === cur, pick));
+  host.appendChild(list);
+}
 function paintArms() {
   const pack = classes[classIndex] ? classLoad(classes[classIndex], activeWeapons()) : null;
-  for (const id of ['deathArms', 'pauseArms', 'bLoadArms', 'iLoadArms']) {
+  paintPauseArms();
+  for (const id of ['deathArms', 'bLoadArms', 'iLoadArms']) {
     const host = $(id);
     if (!host) continue;
     host.innerHTML = '';
@@ -6611,6 +6667,7 @@ function classMenuOn() {
 function classMenuKey(e) {
   if (e.code === 'Escape') {
     if (pauseClassOpen()) { closePauseClass(); return true; }
+    if ($('pause') && $('pause').classList.contains('loadout-on')) { showPauseLoadout(false); return true; }
     if (bombPick) { closeBombPick(); return true; }
     if (invPick) { invClosePick(); return true; }
   }

@@ -518,8 +518,12 @@
       <h2>Pausa na chapa</h2>
       <nav class="pause-nav" id="pauseNav" aria-label="Ações da pausa">
         <button type="button" id="resumeBtn" class="pause-act is-focus" data-pause-act>Continuar</button>
-        <button type="button" id="pauseClassBtn" class="pause-act" data-pause-act>Trocar classe</button>
+        <button type="button" id="pauseClassBtn" class="pause-act hidden" data-pause-act>Trocar classe</button>
         <button type="button" id="pauseOptBtn" class="pause-act" data-pause-act>Opções</button>
+        <div id="pauseClasses" class="pause-classes">
+          <p class="pause-kicker">Classes</p>
+          <div id="pauseGuns" class="pause-class-list"></div>
+        </div>
         <button type="button" id="quitBtn" class="pause-act pause-act-danger" data-pause-act>Sair pro menu</button>
       </nav>
     </aside>
@@ -568,6 +572,13 @@
         <div><dt>Placar</dt><dd id="pauseScore">—</dd></div>
       </dl>
     </aside>
+    <div id="pauseLoadoutView" class="pause-loadout hidden">
+      <div class="pause-loadout-gun">
+        <button type="button" id="pauseLoadoutBack" class="pause-back">← A partida</button>
+        <div id="pauseGun" class="cls-gun"></div>
+      </div>
+      <div id="pauseArms" class="pause-arms" aria-label="Arsenal"></div>
+    </div>
   </div>
 </div>
 
@@ -580,7 +591,6 @@
     </div>
   </header>
   <div class="cls-pig" aria-hidden="true"></div>
-  <div class="cls-sheet"><div id="pauseGuns" class="cls-list"></div><div id="pauseGun" class="cls-gun"></div><div id="pauseArms" class="cls-arms" aria-label="Arsenal"></div></div>
 </div>
 
 <div id="matchResult" class="hidden" role="status" aria-live="polite">

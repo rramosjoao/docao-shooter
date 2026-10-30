@@ -20,7 +20,9 @@ O primeiro passe ainda soava pequeno: o filtro de DC comia tudo abaixo de ~150 H
 
 ⏸ **ESC ABRE A FAIXA.** A pausa saiu do cartão do meio e foi pra coluna da esquerda, no jeito de menu de missão: Continuar em destaque, Trocar classe, Opções e, lá embaixo, Sair pro menu. Setas e Enter andam na lista. Esc fecha.
 
-As vozes da granada, as animações, o chat e a dança ficam no papel de Opções, do lado. À direita, a partida: modo, mapa, objetivo, tempo, K/D e placar. O jogo atrás fica escuro e desfocado. Trocar classe continua abrindo a mesma ficha de antes.
+As vozes da granada, as animações, o chat e a dança ficam no papel de Opções, do lado. À direita, a partida: modo, mapa, objetivo, tempo, K/D e placar. O jogo atrás fica escuro e desfocado.
+
+As **5 classes** ficam na faixa, sem botão no meio. Clicou numa, o centro mostra a arma grande, os acessórios e as barras, e a direita vira o arsenal em abas. Continua valendo na próxima vida, sem derrubar. 1–5 escolhe a classe. Esc volta pra partida e, de novo, fecha a pausa.
 
 ## Próxima versão — Luneta da Carabina
 
