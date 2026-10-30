@@ -79,9 +79,9 @@ export const WEAPONS = [
   // Pesada: pouca bala, dano alto, luneta forte (ref. Barrett).
   { key: 'canhao', name: 'Canhão do Barril', short: 'Canhão do Barril', chip: 'Canhão', mag: 3, reserve: 12, dmg: 180, headMul: 1, rate: 1.85, auto: false, pellets: 1, spread: 0.045, reload: 3.1, range: 260, recoil: 0.1, adsFov: 8, adsSpread: 0, flashZ: -1.25,
     scope: true, bolt: true, beam: true, scopeStyle: 'canhao', desc: 'Ferrolho lento · 3/12 · mata em qualquer lugar · luneta pesada' },
-  // Leve: ferrolho rápido, 5 no pente e 40 na reserva. adsIn 0,24 s = +60% sobre os 0,15 s das outras. scopeAt: a lente só abre com a arma já no lugar.
+  // Leve: ferrolho rápido, 5 no pente e 40 na reserva. Antes do flinch não havia adsIn: a Granja usava os 0,15 s globais. adsIn 0,1725 s = só +15% sobre esse original (o 0,24 s era +60%). scopeAt: a lente só abre com a arma já no lugar.
   { key: 'carabina', name: 'Carabina da Granja', short: 'Carabina da Granja', chip: 'Carabina', mag: 5, reserve: 40, dmg: 55, headMul: 2.2, rate: 0.58, auto: false, pellets: 1, spread: 0.09, reload: 2.9, range: 180, recoil: 0.04, adsFov: 24, adsSpread: 0, flashZ: -0.95,
-    scope: true, bolt: true, beam: true, scopeStyle: 'carabina', adsIn: 0.24, scopeAt: 0.97, desc: 'Ferrolho rápido · 5/40 · luneta mais lenta · recarrega mais lento · fraca no corpo · luneta aberta' },
+    scope: true, bolt: true, beam: true, scopeStyle: 'carabina', adsIn: 0.15 * 1.15, scopeAt: 0.97, desc: 'Ferrolho rápido · 5/40 · luneta mais lenta · recarrega mais lento · fraca no corpo · luneta aberta' },
   // 7 · Faca de churrasqueiro: corpo a corpo, sempre no slot 3 (sem munição). Regras de acerto em shared/melee.js
   { key: 'knife', name: 'Faca de churrasqueiro', short: 'Faca', chip: 'Faca', mag: 0, reserve: 0, dmg: 40, headMul: 1, rate: 0.42, auto: true, pellets: 0, spread: 0, reload: 0, range: 1.6, recoil: 0, adsFov: 75, adsSpread: 1, flashZ: 0,
     melee: true, desc: 'Golpe 40 · estocada no botão direito · pelas costas mata' },
