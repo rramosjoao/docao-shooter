@@ -24,7 +24,7 @@ ok(!piecesOf(UZI, 'optic').some((p) => p.id === 'reddot'), 'MP5K não ganha red 
 
 const dot = resolveWeapon(0, { optic: 'reddot' });
 ok(dot.redDot && dot.adsFov === RED_DOT.adsFov && near(dot.adsSpread, RED_DOT.adsSpread) && dot.recoil === WEAPONS[0].recoil, `red dot: fov ${dot.adsFov}, spread ADS ${dot.adsSpread}, recuo de quadril ${dot.recoil}`);
-ok(near(dot.adsRecoil, 0.2), `coice mirando fica em ${dot.adsRecoil} (80% a menos)`);
+ok(near(dot.adsRecoil, 0.35), `coice mirando fica em ${dot.adsRecoil} (65% a menos)`);
 ok(near(75 / dot.adsFov, 1.19, 0.02), `zoom ${ (75 / dot.adsFov).toFixed(3) }× dentro de 1,1–1,25`);
 const spray = (w, ads, n = 6) => {
   const p = { pitch: 0, yaw: 0, crouch: 0 };

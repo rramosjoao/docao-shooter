@@ -57,9 +57,9 @@ export function decayFlinch(f, dt) {
 }
 
 // Red dot dos fuzis de assalto (cat: 'ar'). adsFov 63 com FOV base 75 ≈ 1,19×.
-// recoil 0,2 = mirando, o coice real da câmera (subida, lateral, padrão) fica em 20%. Não zera.
+// recoil 0,35 = mirando, o coice real da câmera (subida, lateral, padrão) fica em 35% (−65%). Não zera.
 // visual = tremor do modelo, sem deslocar o ponto. No quadril o recoil da arma continua o de sempre.
-export const RED_DOT = { adsFov: 63, adsSpread: 0.02, recoil: 0.2, visual: 0.12, ads: 0.85 };
+export const RED_DOT = { adsFov: 63, adsSpread: 0.02, recoil: 0.35, visual: 0.12, ads: 0.85 };
 
 // Armas. Primárias (menu): 0 Fuzil, 22 Commando, 21 Metralhadora do Chiqueiro, 1 Calibre 12 (pump), 12 Semi, 2 Sniper Torresmo, 5 Canhão, 6 Carabina, 3 Bazuca. Faca 7, sabre 8. Secundária: 4 pistola, 11 furadeira, 13 besta, 14 arco, 19 estilingue. 18 lança-milho, 20 minigun (só código). A besta e o arco são fracas de propósito: um tiro no corpo não mata.
 // cat 'ar' = fuzil de assalto (Fuzil, FAMAS, Commando). O menu 'rajada' também tem SMG e LMG; isso não é AR.
