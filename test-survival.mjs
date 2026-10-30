@@ -10,7 +10,7 @@ import {
   PAPADA_NAME, BOX_NAME, SURV, PAP_COST, SURV_ID, PADRAO_ID,
   isSurvival, normSurv, papOk, papRefuse, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall,
   applySurvivalLoadout, grantHit, grantKill, killPoints, stationsFor, registerSurvivalMap,
-  exclusiveSurvivalMap, SURVIVAL_LAYOUTS, settleLayout, statLine, shownDmg, WALL_CATALOG, BOX_POOL,
+  exclusiveSurvivalMap, SURVIVAL_LAYOUTS, bindStations, statLine, shownDmg, WALL_CATALOG, BOX_POOL,
   survRefill, fmtPts,
 } from './shared/survival.js';
 
@@ -176,19 +176,23 @@ function FAMAS_SAFE() { return 15; }
   ok(!lay.test && lay.papada.x === 1 && lay.box.z === -3 && lay.walls[0].price === WALL_CATALOG.find((w) => w.w === UZI).price && lay.doors[0].id === 'porteira' && lay.doors[0].price === 750, 'layout do mapa usa os dados, preço de parede padrão e a porta');
   delete SURVIVAL_LAYOUTS['hotmilk-noite'];
   for (const map of INV_MAPS) {
-    const s = stationsFor(map);
-    ok(s.papada && s.box && s.walls.length >= 5 && s.test, `${map.id}: posições de teste (papada, barraca, ${s.walls.length} paredes)`);
     const solids = mapSolids(map), P = createPhysics(solids, map.size);
-    const placed = settleLayout(s, map, P);
-    const spots = [placed.papada, placed.box, ...placed.walls];
-    const bad = spots.filter((p) => P.collides(p.x, p.y + 0.4, p.z) || Math.abs(p.x) > map.size[0] - 1 || Math.abs(p.z) > map.size[1] - 1);
-    ok(bad.length === 0, `${map.id}: estações fora de parede ${bad.length ? JSON.stringify(bad.map((p) => [p.x, p.z])) : ''}`);
-    const nav = buildNav({ hx: map.size[0], hz: map.size[1], spacing: map.navSpacing || 2, collides: P.collides, groundAt: P.groundAt, solids, topAt: P.topAt, seeds: map.spawns.map((s) => [s[0], s[2] || 0, s[1]]), extra: map.waypoints || [] });
-    const far = spots.filter((p) => {
-      let d = 1e9; for (const n of nav.nodes) d = Math.min(d, Math.hypot(n.x - p.x, n.z - p.z));
-      return d > 3.2;
-    });
-    ok(far.length === 0, `${map.id}: estações alcançáveis a pé ${far.length ? JSON.stringify(far.map((p) => [+p.x.toFixed(1), +p.z.toFixed(1)])) : ''}`);
+    const s = bindStations(map, P);
+    ok(s.mounted && s.papada && s.box && s.walls.length >= 4, `${map.id}: ${s.walls.length} armas na parede + Papada e barraca`);
+    const free = (x, y, z) => !P.collides(x, y + 0.45, z) && Math.abs(x) < map.size[0] - 0.6 && Math.abs(z) < map.size[1] - 0.6;
+    ok(free(s.papada.x, s.papada.y, s.papada.z) && free(s.box.x, s.box.y, s.box.z), `${map.id}: Papada e barraca no chão livre`);
+    const spawnNear = (p, max) => map.spawns.some((sp) => Math.hypot(sp[0] - p.x, sp[1] - p.z) < max);
+    ok(spawnNear(s.papada, 16), `${map.id}: Papada a menos de 16 m de um spawn`);
+    const loose = [];
+    for (const w of s.walls) {
+      if (w.nx == null || Math.hypot(w.nx, w.nz) < 0.9) { loose.push('normal'); continue; }
+      const hit = P.rayWorldN({ x: w.x + w.nx * 0.8, y: w.y, z: w.z + w.nz * 0.8 }, { x: -w.nx, y: 0, z: -w.nz }, 1.4);
+      if (!hit || hit.t > 1.15 || Math.abs(hit.n.y) > 0.5) loose.push([+w.x.toFixed(1), +w.z.toFixed(1)]);
+      const stand = w.stand;
+      if (stand && P.collides(stand.x, stand.y + 0.45, stand.z)) loose.push('stand');
+    }
+    ok(loose.length === 0, `${map.id}: armas encostadas na parede ${loose.length ? JSON.stringify(loose) : ''}`);
+    ok(s.walls.some((w) => spawnNear(w.stand || w, 20)), `${map.id}: pelo menos uma arma perto de um spawn`);
   }
 }
 

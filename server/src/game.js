@@ -7,7 +7,7 @@
 // ============================================================
 import { MAPS, PLAY_MAPS, INV_MAPS, BOMB_MAPS, X1_MAPS, getMap } from '../../maps.js';
 import { INV, INV_AMMO, DROP_KEYS, invRefillAmmo, isInvasion, InvasionCore, POWER_KEYS, modelAim } from '../../shared/invasion.js';
-import { SURV, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, stationsFor, settleLayout, exclusiveSurvivalMap, nearPoint, papTierOf, survRefill, cornPopDmg } from '../../shared/survival.js';
+import { SURV, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, bindStations, exclusiveSurvivalMap, nearPoint, papTierOf, survRefill, cornPopDmg } from '../../shared/survival.js';
 import { TRAIN, isTraining, dummyX } from '../../shared/training.js';
 import { ARMS_RACE, ARMS_STAGES, ARMS_LAST, isArmsRace, armsStage, armsScore, resetArmsRace, equipArmsRace, armsRaceKill } from '../../shared/arms-race.js';
 import { isKnife } from '../../shared/rules.js';
@@ -277,13 +277,18 @@ export class Game {
     }
     this.inv = this.invasion ? this.makeInvasion() : null; if (this.inv) this.inv.start();
     this.stations = null; this.boxState = null;
-    if (this.survival) { this.stations = settleLayout(stationsFor(map), map, this.P); this.boxState = { phase: 'idle', weapon: -1, owner: 0, until: 0 }; }
     if (this.x1Mode) {
       this.x1Gun = rollX1Weapon(-1, (i) => weaponOn(i, this.cfg.weapons));
       const duelists = [...this.ents.values()].filter((e) => e.bot || e.connected).sort((a, b) => a.id - b.id);
       duelists.forEach((e, i) => { e.x1Side = i % 2; });
     }
     let si = 0; for (const e of this.ents.values()) if (e.bot || e.connected) { if (this.inv && !e.bot) e.firstSpawn = si++; this.spawn(e, true); }
+    if (this.survival) {
+      const hs = [...this.ents.values()].filter((e) => !e.bot && e.pos);
+      const anchor = hs.length ? { x: hs.reduce((s, e) => s + e.pos.x, 0) / hs.length, z: hs.reduce((s, e) => s + e.pos.z, 0) / hs.length } : null;
+      this.stations = bindStations(map, this.P, anchor);
+      this.boxState = { phase: 'idle', weapon: -1, owner: 0, until: 0 };
+    }
     this.io.broadcast(this.startMsg()); this.sendLobby();
     this.io.startLoop();
   }

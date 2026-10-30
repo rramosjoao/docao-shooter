@@ -34,9 +34,10 @@ export const SURV = {
   cook: 2.6,
   boxSpin: 2.2,
   boxHold: 8,
-  reach: 2.35,
-  use: 'KeyF',
-  useLabel: 'F',
+  reach: 2.6,
+  use: 'KeyE',
+  useLabel: 'E',
+  hold: 0.45,
   boxPrice: 1250,
 };
 
@@ -363,27 +364,139 @@ function wallFrom(raw, cat) {
   return { w: raw.w | 0, x: raw.x, z: raw.z, yaw: raw.yaw || 0, price: raw.price > 0 ? raw.price : src.price, ammo: raw.ammo > 0 ? raw.ammo : src.ammo };
 }
 
-// Posições de TESTE, estáveis, a partir do tamanho e dos spawns. Não são o mapa final do Survival.
+// Anel solto no meio do mapa: só o fallback sem física. O jogo usa bindStations, que encosta na parede de verdade.
 export function testStations(map) {
   const [hx, hz] = map.size || [20, 20];
   const sp = (map.spawns || [[0, 0]]).map((s) => ({ x: s[0], z: s[1] }));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const inside = (p, k) => {
-    const dx = p.x === 0 ? 1 : -Math.sign(p.x), dz = p.z === 0 ? 0 : -Math.sign(p.z);
-    return { x: clamp(p.x + dx * k, -hx + 3, hx - 3), z: clamp(p.z + dz * k, -hz + 3, hz - 3) };
-  };
   const a = sp[0] || { x: 0, z: 0 };
-  const b = sp[Math.min(sp.length - 1, Math.max(1, (sp.length / 2) | 0))] || { x: -a.x, z: -a.z };
-  const pap = inside(a, 5);
-  let box = inside(b, 7);
-  if (Math.hypot(box.x - pap.x, box.z - pap.z) < 6) box = { x: clamp(-pap.x, -hx + 3, hx - 3), z: clamp(-pap.z, -hz + 3, hz - 3) };
-  const guns = WALL_CATALOG;
-  const rad = Math.max(6, Math.min(hx, hz) * 0.42);
-  const walls = guns.map((g, i) => {
-    const ang = (i / guns.length) * Math.PI * 2 + 0.4;
-    return wallFrom({ w: g.w, x: clamp(Math.cos(ang) * rad, -hx + 3, hx - 3), z: clamp(Math.sin(ang) * rad, -hz + 3, hz - 3), yaw: ang + Math.PI }, g);
-  });
-  return { id: map.id, test: true, exclusive: false, papada: { x: pap.x, z: pap.z, yaw: Math.atan2(-pap.x, -pap.z) }, box: { x: box.x, z: box.z, yaw: 0 }, walls, doors: [] };
+  const pap = { x: clamp(a.x * 0.5, -hx + 4, hx - 4), z: clamp(a.z * 0.5, -hz + 4, hz - 4) };
+  const box = { x: clamp(-pap.x || 6, -hx + 4, hx - 4), z: clamp(-pap.z || -6, -hz + 4, hz - 4) };
+  return { id: map.id, test: true, exclusive: false, papada: { ...pap, yaw: 0 }, box: { ...box, yaw: 0 }, walls: [], doors: [] };
+}
+
+function spawnsOf(map) {
+  return (map.spawns || [[0, 0]]).map((s) => ({ x: s[0], z: s[1], y: s[2] || 0 }));
+}
+
+// Faces verticais das caixas do mapa + o muro do limite. Cada amostra é um ponto de peito na superfície, com a normal pra fora.
+function wallSamples(map, phys, anchor) {
+  const [hx, hz] = map.size;
+  const wh = map.wallH || 4;
+  const boxes = [];
+  boxes.push({ b: [-hx - 1, 0, -hz - 1, hx + 1, wh, -hz] });
+  boxes.push({ b: [-hx - 1, 0, hz, hx + 1, wh, hz + 1] });
+  boxes.push({ b: [-hx - 1, 0, -hz, -hx, wh, hz] });
+  boxes.push({ b: [hx, 0, -hz, hx + 1, wh, hz] });
+  for (const o of map.boxes || []) if (o && o.b && !o.ramp) boxes.push(o);
+  const out = [];
+  const sp = spawnsOf(map);
+  for (const o of boxes) {
+    const [x0, y0, z0, x1, y1, z1] = o.b;
+    if (y1 - y0 < 1.7 || y0 > 0.45) continue;
+    const sides = [
+      { nx: 1, nz: 0, line: x1, a0: z0, a1: z1, along: 'z' },
+      { nx: -1, nz: 0, line: x0, a0: z0, a1: z1, along: 'z' },
+      { nx: 0, nz: 1, line: z1, a0: x0, a1: x1, along: 'x' },
+      { nx: 0, nz: -1, line: z0, a0: x0, a1: x1, along: 'x' },
+    ];
+    for (const s of sides) {
+      const len = s.a1 - s.a0;
+      if (len < 1.35) continue;
+      const pad = Math.min(0.55, len * 0.22);
+      for (const t of [0.5, 0.32, 0.68]) {
+        const along = s.a0 + pad + (len - pad * 2) * t;
+        const sx = s.along === 'z' ? s.line + s.nx * 1.15 : along;
+        const sz = s.along === 'x' ? s.line + s.nz * 1.15 : along;
+        if (Math.abs(sx) > hx - 0.8 || Math.abs(sz) > hz - 0.8) continue;
+        const gy = phys.groundAt(sx, sz, Math.max(1.2, y0 + 1));
+        if (gy > 1.35) continue;
+        if (phys.collides(sx, gy + 0.45, sz)) continue;
+        const chest = gy + 1.35;
+        if (chest < y0 + 0.35 || chest > y1 - 0.2) continue;
+        const dir = { x: -s.nx, y: 0, z: -s.nz };
+        const hit = phys.rayWorldN({ x: sx, y: chest, z: sz }, dir, 1.8);
+        if (!hit || hit.t < 0.35 || hit.t > 1.55 || Math.abs(hit.n.y) > 0.45) continue;
+        const nl = Math.hypot(hit.n.x, hit.n.z) || 1;
+        const nx = hit.n.x / nl, nz = hit.n.z / nl;
+        const mx = sx + dir.x * hit.t + nx * 0.025;
+        const mz = sz + dir.z * hit.t + nz * 0.025;
+        let near = 1e9;
+        for (const p of sp) near = Math.min(near, Math.hypot(sx - p.x, sz - p.z));
+        if (anchor) near = Math.min(near, Math.hypot(sx - anchor.x, sz - anchor.z) * 0.55);
+        out.push({
+          x: mx, y: chest, z: mz, nx, nz,
+          yaw: Math.atan2(-nz, nx),
+          stand: { x: sx, y: gy, z: sz },
+          score: 28 - Math.min(near, 40) + Math.min(len, 8),
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function pickSpread(cands, n, minSep) {
+  const left = cands.slice().sort((a, b) => b.score - a.score);
+  const got = [];
+  while (got.length < n && left.length) {
+    const i = left.findIndex((c) => got.every((g) => Math.hypot(g.x - c.x, g.z - c.z) >= minSep));
+    if (i < 0) break;
+    got.push(left.splice(i, 1)[0]);
+  }
+  return got;
+}
+
+function openSpot(phys, map, prefer, avoid) {
+  const [hx, hz] = map.size;
+  let best = null, bs = -1e9;
+  for (let i = 0; i < 90; i++) {
+    const ang = i * 2.399963, rad = 3.2 + (i % 14) * 0.85;
+    const x = prefer.x + Math.cos(ang) * rad, z = prefer.z + Math.sin(ang) * rad;
+    if (Math.abs(x) > hx - 2.4 || Math.abs(z) > hz - 2.4) continue;
+    const y = phys.groundAt(x, z, 2);
+    if (y > 1.1) continue;
+    let blocked = false;
+    for (const [dx, dz] of [[0, 0], [1.3, 0], [-1.3, 0], [0, 1.3], [0, -1.3], [0.9, 0.9]]) {
+      if (phys.collides(x + dx, y + 0.5, z + dz)) { blocked = true; break; }
+    }
+    if (blocked) continue;
+    let penalty = 0;
+    for (const a of avoid) if (Math.hypot(x - a.x, z - a.z) < 5) penalty -= 40;
+    const d = Math.hypot(x - prefer.x, z - prefer.z);
+    const s = -Math.abs(d - 6.5) + penalty;
+    if (s > bs) { bs = s; best = { x, y, z, yaw: Math.atan2(prefer.x - x, prefer.z - z) }; }
+  }
+  if (best) return best;
+  const y = phys.groundAt(prefer.x, prefer.z, 2);
+  return { x: prefer.x, y, z: prefer.z, yaw: 0 };
+}
+
+// Papada e barraca no chão livre, perto de um spawn. Armas encostadas na parede, na altura do peito, olhando a normal.
+export function bindStations(map, phys, anchor) {
+  const custom = map && SURVIVAL_LAYOUTS[map.id];
+  if (custom && custom.papada && custom.box && Array.isArray(custom.walls) && custom.walls.length && custom.walls.every((w) => w.nx != null)) {
+    const lay = stationsFor(map);
+    if (!phys) return lay;
+    return {
+      ...lay,
+      papada: { ...lay.papada, y: phys.groundAt(lay.papada.x, lay.papada.z, 2) },
+      box: { ...lay.box, y: phys.groundAt(lay.box.x, lay.box.z, 2) },
+      walls: lay.walls.map((w) => ({ ...w, y: w.y != null ? w.y : phys.groundAt(w.x - (w.nx || 0), w.z - (w.nz || 0), 2) + 1.35 })),
+    };
+  }
+  if (!phys) return stationsFor(map || { id: '?', size: [20, 20], spawns: [[0, 0]] });
+  const sp = spawnsOf(map);
+  const home = anchor || sp.slice().sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0] || { x: 0, z: 0 };
+  const papada = openSpot(phys, map, home, []);
+  let box = openSpot(phys, map, { x: home.x + 9, z: home.z + 4 }, [papada]);
+  if (Math.hypot(box.x - papada.x, box.z - papada.z) < 5 || Math.hypot(box.x - home.x, box.z - home.z) > 22) box = openSpot(phys, map, { x: home.x - 8, z: home.z + 3 }, [papada]);
+  const mounts = pickSpread(wallSamples(map, phys, home), WALL_CATALOG.length, 7);
+  const walls = mounts.map((m, i) => wallFrom({ ...WALL_CATALOG[i % WALL_CATALOG.length], x: m.x, z: m.z, y: m.y, yaw: m.yaw, nx: m.nx, nz: m.nz }));
+  for (let i = 0; i < walls.length; i++) {
+    walls[i].y = mounts[i].y; walls[i].nx = mounts[i].nx; walls[i].nz = mounts[i].nz; walls[i].yaw = mounts[i].yaw; walls[i].stand = mounts[i].stand;
+  }
+  return { id: map.id, test: true, mounted: true, exclusive: false, papada, box, walls, doors: (custom && custom.doors) || [] };
 }
 
 export function stationsFor(map) {

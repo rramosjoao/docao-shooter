@@ -16,7 +16,7 @@ Jogue em **https://docao.mvalentim.dev**
 
 🪙 **PONTOS DA PARTIDA.** Não é Docoin. Acerto em zumbi +10 (teto 36 por zumbi), abate 120/90/140/240/700 (podre, corredor, cuspidor, barrigão, chefão) e +50 no focinho. Solo, na pistola, a Papada 1 chega na wave 3, a 2 na 7 e a 3 na 12. Morreu: volta pistola e faca, mas o tier e os pontos ficam. O servidor debita. Fora do Survival, nada disso existe.
 
-🗺️ **MAPA.** As posições ficam em `SURVIVAL_LAYOUTS` (`shared/survival.js`). Pra registrar o mapa único do Survival (Hotmilk à noite): `registerSurvivalMap('hotmilk-noite', { exclusive: true, papada, box, walls, doors })`. `doors` é o gancho das portas compráveis. Enquanto ninguém registrar com `exclusive`, o Survival usa o mapa escolhido com posições de teste.
+🗺️ **MAPA.** A Papada e a Barraca ficam no chão livre, perto de um spawn, com facho de luz. As armas encostam numa parede de verdade, na altura do peito, com giz, plaquinha e o preço. Um marcador na tela aponta a Papada e a Barraca. Perto, o prompt é **Segure E**. Pra registrar o mapa único (Hotmilk à noite): `registerSurvivalMap('hotmilk-noite', { exclusive: true, papada, box, walls, doors })`. Sem `exclusive`, o jogo calcula as paredes pela geometria do mapa escolhido.
 
 🔊 Arma upada ganha um zap por cima do som original (oscilador descendo, ring mod e ressonador), mais forte a cada tier.
 

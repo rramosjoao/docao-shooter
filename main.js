@@ -28,7 +28,7 @@ import { SKINS, getSkin, DEFAULT_SKIN, skinOk } from './skins.js';
 import './costumes.js';
 import { MAPS, PLAY_MAPS, INV_MAPS, BOMB_MAPS, X1_MAPS, getMap, BOMB_MAP } from './maps.js';
 import { INV, INV_AMMO, DROP_KEYS, invRefillAmmo, isInvasion, ZOMBIES, POWERS, POWER_KEYS, KEYS, SPIT_GRAV, InvasionCore, parseState, coreView, scaleHit } from './shared/invasion.js';
-import { SURV, PAPADA_NAME, BOX_NAME, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, stationsFor, settleLayout, exclusiveSurvivalMap, papTierOf, survRefill, cornPopDmg, statLine, fmtPts, papRefuse } from './shared/survival.js';
+import { SURV, PAPADA_NAME, BOX_NAME, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, bindStations, exclusiveSurvivalMap, papTierOf, survRefill, cornPopDmg, statLine, fmtPts, papRefuse } from './shared/survival.js';
 import { makePapada, makeMysteryBox, makeWallGun, makeOfferGun, tickStation } from './survival-gfx.js';
 import { createInvMusic } from './invasion-music.js';
 import { makeZombie, animateZombie, dieZombie, applyHalloweenPalette, buildHalloween, makeFogWall, makeDropMesh, tickDrop, makeSpitMesh, makePowerPumpkin, makeRing, tickRing, makeLanternCone, setGhostLook } from './invasion-gfx.js';
@@ -5721,7 +5721,7 @@ function startGame(mapId) {
   showcase.visible = false;
   $('killfeed').innerHTML = '';
   const diffWord = botDiffMeta(botDiff).label;
-  if (survOn()) survBuild(settleLayout(stationsFor(currentMap), currentMap, PHYS));
+  if (survOn()) survBuild(bindStations(currentMap, PHYS, player.pos));
   flashMsg(armsMode() ? `Corrida Armada · time ${TEAM_NAMES[player.team]} · 2 abates por etapa · V rouba etapa` : mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : survOn() ? `Survival · ${currentMap.name} · nasce de pistola e faca · ${SURV.useLabel} usa a loja` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : `Mapa: ${currentMap.name} · bots ${diffWord}`); refreshModeHud();
   for (const ev of bombEv) onBombEvent(ev);
   $('menu').classList.add('hidden'); $('gameover').classList.add('hidden'); $('pause').classList.add('hidden'); $('hud').classList.remove('hidden'); $('socialHud').classList.remove('hidden'); $('voiceHud').classList.add('hidden'); chatSetRoom(true); // offline: o chat fica (pros códigos), sem voz $('overChat').classList.add('hidden');
@@ -6689,7 +6689,7 @@ function paintSurvNote() {
   const surv = isSurvival($('survSel').value);
   const ex = exclusiveSurvivalMap(MAPS.map((m) => m.id));
   el.textContent = surv
-    ? `Survival: a sala inteira nasce só de pistola e faca. Na partida compra arma na parede, gira a ${BOX_NAME} e passa a arma na ${PAPADA_NAME}. Morreu, volta pra pistola e faca — o tier e os pontos ficam.${ex ? ` Mapa: ${ex}.` : ' Por enquanto vale no mapa escolhido (posições de teste).'}`
+    ? `Survival: a sala inteira nasce só de pistola e faca. Na partida compra arma na parede, gira a ${BOX_NAME} e passa a arma na ${PAPADA_NAME}. Morreu, volta pra pistola e faca — o tier e os pontos ficam.${ex ? ` Mapa: ${ex}.` : ' A Papada e a barraca nascem perto de você. Segure E.'}`
     : 'Padrão: o loadout de sempre, sem loja na partida. A horda e as waves continuam iguais.';
 }
 $('survSel').onchange = () => { try { localStorage.setItem('docao.surv', $('survSel').value); } catch (e) { /* */ } paintSurvNote(); };
@@ -7775,6 +7775,7 @@ function survClear() {
   survGfx = null; survBox = { phase: 'idle', weapon: -1, until: 0, owner: 0 };
   const pts = $('survPts'), card = $('papCard'), pr = $('sPrompt');
   if (pts) pts.classList.add('hidden'); if (card) card.classList.add('hidden'); if (pr) pr.classList.add('hidden');
+  for (const id of ['papMark', 'boxMark']) { const m = $(id); if (m) m.classList.add('hidden'); }
 }
 function survBuild(layout) {
   survClear(); if (!layout) return;
@@ -7782,7 +7783,7 @@ function survBuild(layout) {
   const put = (mesh, p, yaw) => { mesh.position.set(p.x, (p.y || 0), p.z); mesh.rotation.y = yaw || 0; scene.add(mesh); meshes.push(mesh); return mesh; };
   const pap = put(makePapada(), layout.papada, layout.papada.yaw);
   const box = put(makeMysteryBox(), layout.box, layout.box.yaw);
-  const walls = layout.walls.map((w) => { const m = put(makeWallGun(WEAPONS[w.w] ? WEAPONS[w.w].short : 'Arma'), w, w.yaw); m.userData.wall = w; return m; });
+  const walls = layout.walls.map((w) => { const m = put(makeWallGun(WEAPONS[w.w] ? WEAPONS[w.w].short : 'Arma', fmtPts(w.price)), w, w.yaw); m.userData.wall = w; return m; });
   survGfx = { layout, meshes, pap, box, walls, offer: null };
 }
 function survNearest() {
@@ -7880,7 +7881,7 @@ function survNet(ev) {
 function survPrompt(hit) {
   const el = $('sPrompt'); if (!el) return;
   if (!hit || state !== 'playing') { el.classList.add('hidden'); return; }
-  const K = `<kbd>${SURV.useLabel}</kbd>`;
+  const segure = 'Segure E';
   let p1 = '', p2 = '';
   if (hit.kind === 'pap') {
     const w = WEAPONS[player.weapon], why = papRefuse(w), tier = papTierOf(player, player.weapon);
@@ -7888,18 +7889,18 @@ function survPrompt(hit) {
     else if (why === 'lamina') { p1 = PAPADA_NAME; p2 = 'lâmina não entra'; }
     else if (why) { p1 = PAPADA_NAME; p2 = 'essa arma não entra'; }
     else if (tier >= 3) { p1 = `${PAPADA_NAME} · tier 3`; p2 = statLine(w, 2, 3).text; }
-    else { const cost = [10000, 25000, 50000][tier], line = statLine(w, tier, tier + 1); p1 = `${PAPADA_NAME} ${tier ? tier + '→' + (tier + 1) : ''} · ${fmtPts(cost)} pts`; p2 = `${line.text}${player.pts < cost ? ` · falta ${fmtPts(cost - (player.pts | 0))}` : ` · ${K}`}`; }
+    else { const cost = [10000, 25000, 50000][tier], line = statLine(w, tier, tier + 1); p1 = `${PAPADA_NAME} ${tier ? '· tier ' + tier : ''} · ${fmtPts(cost)} pts`; p2 = `${line.text}${player.pts < cost ? ` · falta ${fmtPts(cost - (player.pts | 0))}` : ` · ${segure}`}`; }
   } else if (hit.kind === 'box') {
     if (survBox.phase === 'spin') { p1 = BOX_NAME; p2 = 'girando…'; }
-    else if (survBox.phase === 'offer') { p1 = `${BOX_NAME} · ${WEAPONS[survBox.weapon] ? WEAPONS[survBox.weapon].short : ''}`; p2 = survBox.owner === (online ? online.myId : player.id) ? `${K} pega · ou se afasta` : 'esperando quem girou'; }
-    else { p1 = `${BOX_NAME} · ${fmtPts(SURV.boxPrice)} pts`; p2 = (player.pts | 0) < SURV.boxPrice ? `falta ${fmtPts(SURV.boxPrice - (player.pts | 0))}` : `${K} gira uma arma`; }
+    else if (survBox.phase === 'offer') { p1 = `${BOX_NAME} · ${WEAPONS[survBox.weapon] ? WEAPONS[survBox.weapon].short : ''}`; p2 = survBox.owner === (online ? online.myId : player.id) ? `${segure} pra pegar` : 'esperando quem girou'; }
+    else { p1 = `${BOX_NAME} · ${fmtPts(SURV.boxPrice)} pts`; p2 = (player.pts | 0) < SURV.boxPrice ? `falta ${fmtPts(SURV.boxPrice - (player.pts | 0))}` : segure; }
   } else {
     const wall = hit.p, name = WEAPONS[wall.w] ? WEAPONS[wall.w].name : 'Arma';
     const on = player.slotOn || [1, 1, 1];
     const owns = player.slots && ((on[0] && player.slots[0] === wall.w) || (on[1] && player.slots[1] === wall.w));
     const cost = owns ? wall.ammo : wall.price;
     p1 = `${name} · ${fmtPts(cost)} pts`;
-    p2 = owns ? ((player.pts | 0) < cost ? `munição · falta ${fmtPts(cost - player.pts)}` : `munição · ${K}`) : ((player.pts | 0) < cost ? `falta ${fmtPts(cost - player.pts)}` : `${K} compra`);
+    p2 = (player.pts | 0) < cost ? `falta ${fmtPts(cost - (player.pts | 0))}` : (owns ? `munição · ${segure}` : segure);
   }
   el.classList.remove('hidden'); el.querySelector('.bp1').innerHTML = p1; el.querySelector('.bp2').innerHTML = p2;
 }
@@ -7918,13 +7919,27 @@ function survTick(dt) {
       if (!show) { scene.remove(survGfx.offer); survGfx.offer = null; }
     }
   }
-  survPrompt(player && player.alive ? survNearest() : null);
+  const hit = player && player.alive ? survNearest() : null;
+  survPrompt(hit);
+  if (player && hit && keys.KeyE) {
+    if (!player.survHoldAt) player.survHoldAt = gameTime;
+    if (gameTime - player.survHoldAt >= SURV.hold && !player.survFired) { player.survFired = true; survUse(); }
+  } else if (player) { player.survHoldAt = 0; player.survFired = false; }
+  if (survGfx && player) {
+    const pin = (id, p, color) => {
+      const el = $(id); if (!el) return;
+      const d = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
+      if (d < 4) { el.classList.add('hidden'); return; }
+      placeMark(el, new V3(p.x, (p.y || 0) + 2.8, p.z), color, Math.round(d) + ' m');
+    };
+    pin('papMark', survGfx.layout.papada, '#ff7a18');
+    pin('boxMark', survGfx.layout.box, '#ffd24a');
+  }
   survPaintHeld();
   if (player && player.papUntil && gameTime >= player.papUntil && player.papGun === player.weapon) { player.papUntil = 0; survPaintHeld(); }
 }
 function invKey(e) { // teclas da Invasão; true = consumiu
   if (!invMode() || state !== 'playing' || !player || e.repeat) return false;
-  if (survOn() && e.code === SURV.use && !invPick) { survUse(); return true; }
   if (e.code === KEYS.use && !invPick) { if (!emote.on) invUsePower(); return true; }
   if (e.code === KEYS.cycle) { invCycle(); return true; }
   if (invCanPick()) {
@@ -7990,7 +8005,7 @@ window.__docao = { get state() { return state; }, toMenu: () => toMenu(), benchO
   },
   setSecondary, REV, REV2,
   // Invasão 🎃
-  get inv() { return inv; }, get invView() { return invView(); }, get invInv() { return invGfx.inv.slice(); }, get invSel() { return invGfx.sel; }, get invDrops() { return [...invGfx.drops.keys()]; }, get invPick() { return invPick; },
+  get inv() { return inv; }, get surv() { return survGfx ? survGfx.layout : null; }, get survOn() { return survOn(); }, get invView() { return invView(); }, get invInv() { return invGfx.inv.slice(); }, get invSel() { return invGfx.sel; }, get invDrops() { return [...invGfx.drops.keys()]; }, get invPick() { return invPick; },
   invUse: () => invUsePower(), invCycle: () => invCycle(), invOpenPick: () => invOpenPick(), invEquipNow, INV, POWERS, ZOMBIES, INV_MAPS, makeZombieEnt, get invHal() { return invGfx.hal; }, get invMusic() { return invMusic && { on: invMusic.on, level: invMusic.level }; },
   invGive: (list) => { if (inv && player) { player.inv = list.slice(0, INV.INV_MAX); invSetInv(player.inv.map((k) => POWER_KEYS.indexOf(k))); } else if (online) online.net.send({ t: 'testInv', give: list }); },
   bomb: bombTest,
