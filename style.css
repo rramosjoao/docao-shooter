@@ -429,10 +429,15 @@ body:has(#pause:not(.hidden)) #streakBar { display: none !important; }
 .bmark .zlbl{font-size:12px;background:rgba(0,0,0,.45);padding:1px 6px;border-radius:6px}
 .bmark .zlbl b{font-family:var(--font);font-size:15px}
 .kf.bomb{border-left:4px solid #ffd27a}
-#bPrompt{position:fixed;top:70%;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;padding:8px 18px;border-radius:12px;background:rgba(20,10,8,.62);border:2px solid rgba(255,210,122,.5);max-width:92vw}
-#bPrompt .bp1{font-family:var(--font);font-size:22px;color:#fff;-webkit-text-stroke:1px #2a1410;text-shadow:0 2px 0 #000}
-#bPrompt .bp2{font-size:14px;font-weight:bold;color:#ffd27a;text-shadow:0 1px 0 #000;margin-top:2px}
-#bPrompt kbd{display:inline-block;min-width:28px;padding:0 7px;margin:0 3px;border-radius:6px;background:#ffd27a;color:#2a1410;border:2px solid #2a1410;font-family:var(--font);-webkit-text-stroke:0;text-shadow:none}
+#bPrompt,#sPrompt{position:fixed;top:70%;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;padding:8px 18px;border-radius:12px;background:rgba(20,10,8,.62);border:2px solid rgba(255,210,122,.5);max-width:92vw;z-index:6}
+#bPrompt .bp1,#sPrompt .bp1{font-family:var(--font);font-size:22px;color:#fff;-webkit-text-stroke:1px #2a1410;text-shadow:0 2px 0 #000}
+#bPrompt .bp2,#sPrompt .bp2{font-size:14px;font-weight:bold;color:#ffd27a;text-shadow:0 1px 0 #000;margin-top:2px}
+#bPrompt kbd,#sPrompt kbd{display:inline-block;min-width:28px;padding:0 7px;margin:0 3px;border-radius:6px;background:#ffd27a;color:#2a1410;border:2px solid #2a1410;font-family:var(--font);-webkit-text-stroke:0;text-shadow:none}
+#papCard{position:fixed;left:50%;top:18%;transform:translateX(-50%);pointer-events:none;z-index:7;min-width:280px;max-width:92vw;padding:10px 16px;border-radius:12px;background:rgba(28,16,10,.88);border:2px solid #ffb35a;color:#fff6e4;text-align:center;font-family:var(--font)}
+#papCard b{display:block;font-size:18px;color:#ffd27a}
+#papCard span{display:block;margin-top:4px;font-size:14px;font-weight:700}
+#survPts{display:block;margin-top:4px;color:#ffd27a;font-size:15px}
+#menu #survLabel{flex:1.2 1 168px}
 #bPrompt.hot{border-color:#ffd27a;background:rgba(60,26,10,.78);animation:zpulse .6s infinite alternate}
 #bPrompt.def.hot{border-color:#4da6ff}
 #bPrompt.soft .bp1{font-size:17px}
@@ -705,6 +710,7 @@ body.bombpick #score,body.bombpick #nades,body.bombpick #tac,body.bombpick #slot
 #menu .match-options label:nth-child(2) .field-caption{transform:rotate(1.5deg)}
 #menu .match-options label:nth-child(3) .field-caption{transform:rotate(-2deg)}
 #menu .match-options label:nth-child(4) .field-caption{transform:rotate(1.2deg)}
+#menu .match-options label:nth-child(5) .field-caption{transform:rotate(-1deg)}
 #menu .match-options{flex-wrap:wrap}
 #menu #botDiffLabel{flex:1.35 1 168px}
 .diffnote{margin:0 0 8px;font-size:13px;line-height:1.35;font-weight:700}

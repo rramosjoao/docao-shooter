@@ -4,6 +4,22 @@ Jogue em **https://docao.mvalentim.dev**
 
 ---
 
+## Próxima versão — Survival da Invasão
+
+🎃 **SÓ NO SURVIVAL.** No menu da Invasão entrou o seletor **Padrão / Survival**. Padrão continua o de sempre (loadout, sem loja). Survival vale pra sala inteira, inclusive respawn e reinício: todo mundo nasce de **pistola e faca**.
+
+🔥 **PAPADA.** Máquina de upgrade, 3 tiers na mesma arma: **10.000**, **25.000** e **50.000** pontos da partida. Segura a arma, aperta **F**, ela fica ~2,6 s na brasa e volta mais forte, com pente e reserva maiores, munição cheia, nome novo (na Brasa / Defumado / Pururuca) e camuflagem. O prompt mostra dano antes → depois, pente, reserva, cadência e recarga, e avisa se falta ponto. Faca, sabre, tampa e minigun não entram. Tier 3 não sobe de novo.
+
+🎪 **BARRACA DA SORTE.** **1.250** pontos, gira uma arma e dá pra pegar ou deixar. Com duas armas, troca a que está na mão.
+
+🪵 **ARMAS NA PAREDE.** Pistolinha (500 / munição 250), MP5K (1.100 / 450), Furadeira (900 / 350), Arco (1.000 / 400), Semi (1.300 / 500) e P90 (1.500 / 550). Quem já tem a arma compra só a munição.
+
+🪙 **PONTOS DA PARTIDA.** Não é Docoin. Acerto em zumbi +10 (teto 36 por zumbi), abate 120/90/140/240/700 (podre, corredor, cuspidor, barrigão, chefão) e +50 no focinho. Solo, na pistola, a Papada 1 chega na wave 3, a 2 na 7 e a 3 na 12. Morreu: volta pistola e faca, mas o tier e os pontos ficam. O servidor debita. Fora do Survival, nada disso existe.
+
+🗺️ **MAPA.** As posições ficam em `SURVIVAL_LAYOUTS` (`shared/survival.js`). Pra registrar o mapa único do Survival (Hotmilk à noite): `registerSurvivalMap('hotmilk-noite', { exclusive: true, papada, box, walls, doors })`. `doors` é o gancho das portas compráveis. Enquanto ninguém registrar com `exclusive`, o Survival usa o mapa escolhido com posições de teste.
+
+🔊 Arma upada ganha um zap por cima do som original (oscilador descendo, ring mod e ressonador), mais forte a cada tier.
+
 ## Próxima versão — Luneta da Carabina
 
 🔭 **CARABINA DA GRANJA.** A luneta demora **0,1725 s** pra entrar: 15% mais lenta que os **0,15 s** de antes do flinch. Os 0,24 s (60% mais lentos) ficaram longos demais. Pente, recuo e as outras armas continuam iguais. A lente ainda só cobre a tela quando a arma já chegou no ombro.

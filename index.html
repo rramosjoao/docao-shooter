@@ -47,6 +47,8 @@
     <div class="cls-sheet"><div id="bLoadList" class="cls-list"></div><div id="bLoadGun" class="cls-gun"></div><div id="bLoadArms" class="cls-arms" aria-label="Arsenal"></div></div>
   </div>
   <div id="bPrompt" class="hidden"><div class="bp1"></div><div class="bp2"></div></div>
+  <div id="sPrompt" class="hidden"><div class="bp1"></div><div class="bp2"></div></div>
+  <div id="papCard" class="hidden"></div>
   <div id="bombBanner" class="hidden"><div class="b1"></div><div class="b2"></div></div>
   <div id="siteMark0" class="bmark hidden"><div class="zarrow">▲</div><div class="zlbl"><b>A</b> <span></span></div></div>
   <div id="siteMark1" class="bmark hidden"><div class="zarrow">▲</div><div class="zlbl"><b>B</b> <span></span></div></div>
@@ -57,7 +59,7 @@
   <div id="killfeed"></div>
   <div id="centermsg"></div>
   <!-- Modo Invasão 🎃 -->
-  <div id="invhud" class="hidden"><b id="invWaveN">WAVE 1/20</b><small id="invWaveSub"></small><div id="invLives" title="vidas"></div></div>
+  <div id="invhud" class="hidden"><b id="invWaveN">WAVE 1/20</b><small id="invWaveSub"></small><div id="invLives" title="vidas"></div><b id="survPts" class="hidden">0 pts</b></div>
   <div id="invBoss" class="hidden"><span>🎃 DOCÃO ABÓBORA</span><div class="ibar"><i id="invBossFill"></i></div></div>
   <div id="invBanner" class="hidden"></div>
   <div id="invPowers" class="hidden"><div id="invSlots"></div><div class="ikeys"><kbd>G</kbd> usa · <kbd>X</kbd> troca</div></div>
@@ -197,8 +199,15 @@
           <option value="cachaco">Cachaço · pesadelo</option>
         </select>
       </label>
+      <label id="survLabel" class="hidden"><span class="field-caption">Invasão</span>
+        <select aria-label="Variante da Invasão" id="survSel">
+          <option value="padrao" selected>Padrão</option>
+          <option value="survival">Survival</option>
+        </select>
+      </label>
     </div>
     <p id="botDiffNote" class="diffnote">Ceva: o Docão de sempre. A mira, a reação e o jeito de jogar mudam — a vida não.</p>
+    <p id="survNote" class="diffnote hidden">Padrão: o loadout de sempre, sem loja na partida.</p>
     <div id="menuTrain" class="trainnote hidden">Treino: abre sempre no <b>Estande do Docão</b>. Os alvos não atacam e voltam em 2 s · B/N/M trocam a arma na hora · munição infinita · sem tempo.</div>
     <div id="menuTeam" class="teampick hidden"><div class="label2">Seu time</div><div class="teamrow" id="menuTeamBtns"></div></div>
         <section id="trucoPanel" hidden aria-label="Truco Paulista">
@@ -351,6 +360,7 @@
     <div id="paneCreate">
       <label>Mapa<select id="roomMap"></select></label>
       <label>Modo<select id="roomMode"><option value="arms">Corrida Armada (times)</option><option value="dm" selected>Mata-mata</option><option value="x1">X1 · duelo</option><option value="dom">Dominação (times)</option><option value="treino">Treino · Estande do Docão</option><option value="inv">Invasão 🎃 (co-op zumbi)</option><option value="bomb">Bomba · Planta o Botijão (protótipo)</option></select></label>
+      <label id="roomSurvLabel" class="hidden">Invasão<select id="roomSurv" aria-label="Variante da Invasão"><option value="padrao" selected>Padrão</option><option value="survival">Survival</option></select></label>
       <div class="row">
         <label>Máx. jogadores<select id="roomMax"><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
         <label>Completar com bots<select id="roomBots"><option value="1" selected>Sim</option><option value="0">Não</option></select></label>
@@ -499,6 +509,7 @@
         <label>Bots<select id="lobbyBots"><option value="1">Sim</option><option value="0">Não</option></select></label>
         <label>Dificuldade<select id="lobbyDiff" aria-label="Dificuldade dos bots da sala"><option value="leitao">Leitão · fácil</option><option value="ceva">Ceva · normal</option><option value="javali">Javali · difícil</option><option value="cachaco">Cachaço · pesadelo</option></select></label>
         <label>Modo<select id="lobbyMode"><option value="arms">Corrida Armada (times)</option><option value="dm" selected>Mata-mata</option><option value="x1">X1 · duelo</option><option value="dom">Dominação</option><option value="treino">Treino (Estande)</option><option value="inv">Invasão 🎃</option><option value="bomb">Bomba (protótipo)</option></select></label>
+        <label id="lobbySurvLabel" class="hidden">Invasão<select id="lobbySurv" aria-label="Variante da Invasão na sala"><option value="padrao">Padrão</option><option value="survival">Survival</option></select></label>
         <label>Tempo<select id="lobbyTime"><option value="0">Padrão</option><option value="3">3 min</option><option value="5">5 min</option><option value="7">7 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option></select></label>
         <label>Chat<select id="lobbyChatOn"><option value="1">Sim</option><option value="0">Não</option></select></label>
       </div>
