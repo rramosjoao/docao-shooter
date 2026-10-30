@@ -16,6 +16,12 @@ O ferrolho continua grudado na animação: abre, puxa, solta a cápsula e fecha.
 
 O primeiro passe ainda soava pequeno: o filtro de DC comia tudo abaixo de ~150 Hz, um waveshaper travava o volume e a cauda de sala deixava o tiro numa caixinha. Saiu o eco. Ficou o thump (40–120 Hz), o crack e um ganho mais alto que o fuzil — o Canhão é o mais pesado.
 
+## Próxima versão — Pausa na chapa, de lado
+
+⏸ **ESC ABRE A FAIXA.** A pausa saiu do cartão do meio e foi pra coluna da esquerda, no jeito de menu de missão: Continuar em destaque, Trocar classe, Opções e, lá embaixo, Sair pro menu. Setas e Enter andam na lista. Esc fecha.
+
+As vozes da granada, as animações, o chat e a dança ficam no papel de Opções, do lado. À direita, a partida: modo, mapa, objetivo, tempo, K/D e placar. O jogo atrás fica escuro e desfocado. Trocar classe continua abrindo a mesma ficha de antes.
+
 ## Próxima versão — Luneta da Carabina
 
 🔭 **CARABINA DA GRANJA.** A luneta demora **0,1725 s** pra entrar: 15% mais lenta que os **0,15 s** de antes do flinch. Os 0,24 s (60% mais lentos) ficaram longos demais. Pente, recuo e as outras armas continuam iguais. A lente ainda só cobre a tela quando a arma já chegou no ombro.

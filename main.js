@@ -2956,6 +2956,7 @@ function updateHud(dt) {
   $('reloadmsg').textContent = w.shield || w.melee ? '' : p.reloadEnd > gameTime ? (w.shellReload ? 'Recarregando... (atire para interromper)' : 'Recarregando...') : (dry ? (p.reserve[p.weapon] ? 'Aperte R' : 'Sem munição! Pegue uma caixa') : '');
   paintSaberHud(p, w);
   const left = Math.max(0, matchLimit() - gameTime); $('timer').textContent = armsMode() ? WEAPONS[p.primary].short : exploreMode() ? '∞' : x1Mode() && !Number.isFinite(matchLimit()) ? 'até 10' : Number.isFinite(left) ? `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}` : 'Treino ∞';
+  if ($('pauseTime') && !$('pause').classList.contains('hidden')) $('pauseTime').textContent = $('timer').textContent;
   $('score').textContent = exploreMode() ? `Exploração · ${currentMap ? currentMap.name : ''}` : `Abates: ${p.kills} · Mortes: ${p.deaths} · K/D: ${(p.kills / Math.max(1, p.deaths)).toFixed(2)} · Pontos: ${feedbackPoints()}`;
   const lead = entities.filter((e) => !e.zt).reduce((a, b) => (b.kills > a.kills ? b : a));
   const killGoal = x1Mode() ? X1.KILLS : KILL_LIMIT;
@@ -5762,7 +5763,52 @@ const PX_COOLDOWN = 10; // s, igual ao servidor
 buildPauseGuns();
 function releaseLook() { mouseDown = false; rightDown = false; keys.Space = keys.ShiftLeft = keys.ShiftRight = false; resetAds(); if (player) { player.charging = false; player.bowDraw = 0; player.eggDraw = 0; arcLine.visible = arcMark.visible = false; } if (pickingStrike) { pickingStrike = false; closeStrikeMap(); } }
 function tuckDeathMenu() { const el = $('deathpick'); if (el) el.classList.add('hidden'); killcamGuns = false; }
-function pause() { if (state !== 'playing') return; softPauseOn = false; state = 'paused'; releaseLook(); closePauseClass(); tuckDeathMenu(); if (player && player.alive) document.body.classList.remove('dead', 'deadgray', 'cls-on', 'killcam'); $('pauseInvite').classList.toggle('hidden', !online); $('pauseVoice').classList.toggle('hidden', !online); const note = $('pauseClassNote'); if (note) note.textContent = x1Mode() ? 'No X1 a arma é sortida e igual pra todo mundo. Não dá pra trocar.' : invMode() ? 'Na Invasão a classe entra no painel B, entre as waves.' : training() ? 'No estande a classe entra agora e o pente não enche sozinho.' : 'A classe escolhida entra na próxima vida. Não derruba.'; const swap = $('pauseClassBtn'); if (swap) swap.classList.toggle('hidden', invMode() || x1Mode() || armsMode()); buildPauseGuns(); $('pauseDance').classList.toggle('hidden', invMode()); $('pause').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
+function pauseActs() { return [...document.querySelectorAll('#pauseNav [data-pause-act]')].filter((b) => !b.classList.contains('hidden')); }
+let pauseFocus = 0;
+function paintPauseFocus() {
+  const acts = pauseActs();
+  if (!acts.length) return;
+  pauseFocus = Math.max(0, Math.min(pauseFocus, acts.length - 1));
+  acts.forEach((b, i) => b.classList.toggle('is-focus', i === pauseFocus));
+}
+function movePauseFocus(dir) {
+  const acts = pauseActs();
+  if (!acts.length) return;
+  pauseFocus = (pauseFocus + dir + acts.length) % acts.length;
+  paintPauseFocus();
+  try { acts[pauseFocus].focus({ preventScroll: true }); } catch (e) { acts[pauseFocus].focus(); }
+}
+function activatePauseFocus() {
+  const acts = pauseActs();
+  const b = acts[pauseFocus];
+  if (b) b.click();
+}
+function fillPauseBrief() {
+  const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  const modeLabel = armsMode() ? 'Corrida Armada' : mode === 'bomb' ? 'Bomba' : invMode() ? 'Invasão' : x1Mode() ? 'X1' : exploreMode() ? 'Exploração' : mode === 'dom' ? 'Dominação' : training() ? 'Estande' : 'Mata-mata';
+  set('pauseMode', modeLabel);
+  set('pauseMap', currentMap ? currentMap.name : '—');
+  set('pauseTime', $('timer') ? $('timer').textContent : '—');
+  const p = player;
+  const kd = p ? (p.kills / Math.max(1, p.deaths)).toFixed(2) : '0.00';
+  set('pauseKd', p ? `${p.kills} abates · ${p.deaths} mortes · K/D ${kd}` : '—');
+  let obj = `Primeiro a ${KILL_LIMIT} abates.`;
+  if (invMode()) obj = 'Aguente as waves. A horda não pode passar.';
+  else if (x1Mode()) obj = `Primeiro a ${X1.KILLS} abates.`;
+  else if (armsMode()) obj = 'Dois abates por etapa. A faca dourada decide.';
+  else if (mode === 'dom') obj = 'Segure a zona. O tempo do time decide.';
+  else if (mode === 'bomb') obj = 'Plante o botijão ou desarme.';
+  else if (training()) obj = 'Treino no estande. Sem placar.';
+  else if (exploreMode()) obj = 'Passeio na fazenda. Sem abate.';
+  set('pauseObjective', obj);
+  let score = p ? `${p.kills} abates` : '—';
+  if (mode === 'dom' && $('ts0')) score = `Vermelho ${$('ts0').textContent} × Azul ${$('ts1').textContent}`;
+  else if (mode === 'bomb' && $('bs0')) score = `Ataque ${$('bs0').textContent} × Defesa ${$('bs1').textContent}`;
+  else if (invMode() && $('invWaveN')) score = $('invWaveN').textContent;
+  else if (armsMode() && p) score = `Etapa ${p.armsStage + 1}/${ARMS_STAGES.length} · ${p.armsKills | 0}/2`;
+  set('pauseScore', score);
+}
+function pause() { if (state !== 'playing') return; softPauseOn = false; state = 'paused'; releaseLook(); closePauseClass(); tuckDeathMenu(); if (player && player.alive) document.body.classList.remove('dead', 'deadgray', 'cls-on', 'killcam'); $('pauseInvite').classList.toggle('hidden', !online); $('pauseVoice').classList.toggle('hidden', !online); const note = $('pauseClassNote'); if (note) note.textContent = x1Mode() ? 'No X1 a arma é sortida e igual pra todo mundo. Não dá pra trocar.' : invMode() ? 'Na Invasão a classe entra no painel B, entre as waves.' : training() ? 'No estande a classe entra agora e o pente não enche sozinho.' : 'A classe escolhida entra na próxima vida. Não derruba.'; const swap = $('pauseClassBtn'); if (swap) swap.classList.toggle('hidden', invMode() || x1Mode() || armsMode()); buildPauseGuns(); $('pauseDance').classList.toggle('hidden', invMode()); fillPauseBrief(); pauseFocus = 0; paintPauseFocus(); const opt = $('pauseOptions'); if (opt) opt.classList.remove('is-hot'); $('pause').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
 // ` solta o mouse como o Esc, sem a pausa na chapa: o HUD fica como estava. Clique ou ` de novo volta a mirar.
 function softPause() { if (state !== 'playing') return; state = 'paused'; softPauseOn = true; releaseLook(); if (document.pointerLockElement) document.exitPointerLock(); }
 function resume() { closePauseClass(); softPauseOn = false; $('pause').classList.add('hidden'); state = 'playing'; if (!document.body.classList.contains('dead') && !bombPick && !invPick) document.body.classList.remove('cls-on'); lockPointer(); }
@@ -5786,6 +5832,14 @@ function lockPointer() {
 $('playBtn').onclick = () => startGame(); $('menuBtn').onclick = toMenu;
 $('resumeBtn').onclick = resume; $('quitBtn').onclick = toMenu;
 if ($('pauseClassBtn')) $('pauseClassBtn').onclick = () => openPauseClass();
+if ($('pauseOptBtn')) $('pauseOptBtn').onclick = () => { const box = $('pauseOptions'); if (!box) return; box.classList.add('is-hot'); try { box.focus({ preventScroll: true }); } catch (e) { /* sem focus */ } };
+const pauseNav = $('pauseNav');
+if (pauseNav) pauseNav.addEventListener('mouseover', (ev) => {
+  const b = ev.target.closest('[data-pause-act]');
+  if (!b || b.classList.contains('hidden')) return;
+  const i = pauseActs().indexOf(b);
+  if (i >= 0) { pauseFocus = i; paintPauseFocus(); }
+});
 if ($('pauseClassBack')) $('pauseClassBack').onclick = () => closePauseClass();
 if ($('bLoadClose')) $('bLoadClose').onclick = () => closeBombPick();
 if ($('iLoadClose')) $('iLoadClose').onclick = () => invClosePick();
@@ -5944,7 +5998,11 @@ document.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === 'KeyP') pause();
     if (e.code === 'Backquote') { e.preventDefault(); softPause(); }
   } else if (state === 'paused' && softPauseOn && e.code === 'Backquote') { e.preventDefault(); resume(); }
-  else if (state === 'paused' && (e.code === 'KeyP')) resume();
+  else if (state === 'paused' && !softPauseOn && !pauseClassOpen()) {
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') { e.preventDefault(); movePauseFocus(e.code === 'ArrowDown' ? 1 : -1); return; }
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat) { e.preventDefault(); activatePauseFocus(); return; }
+    if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); resume(); }
+  } else if (state === 'paused' && (e.code === 'KeyP')) resume();
 });
 document.addEventListener('keyup', (e) => { if (e.code === 'KeyK') voicePtt(false); keys[e.code] = false; if (e.code === 'KeyQ' && state === 'playing') releaseCharge(); if (e.code === 'Tab') $('tabboard').classList.add('hidden'); });
 addEventListener('blur', () => { voicePtt(false); for (const k in keys) keys[k] = false; mouseDown = false; rightDown = false; if (player) { player.charging = false; player.bowDraw = 0; player.eggDraw = 0; arcLine.visible = arcMark.visible = false; } });

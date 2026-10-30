@@ -512,41 +512,62 @@
 </div>
 
 <div id="pause" class="overlay hidden">
-  <div class="panel small">
-    <h2>Pausa na chapa</h2>
-    <label class="checkline nade-voice-hl" id="pauseNadeVoice"><input type="checkbox" data-nade-voice checked> <span>🔊 Vozes da granada <small>(&quot;granada!&quot; e &quot;banana!&quot;) · tecla H</small></span></label>
-    <label class="checkline"><input type="checkbox" data-reduced-anim> Animações reduzidas</label>
-    <div class="invite hidden" id="pauseInvite">
-      <input class="invite-link" readonly>
-      <div class="invite-btns">
-        <button type="button" class="small" data-act="link">Copiar link</button>
-        <button type="button" class="small" data-act="code">Copiar código</button>
-        <button type="button" class="small" data-act="wa">WhatsApp</button>
-        <button type="button" class="small" data-act="tg">Telegram</button>
-        <button type="button" class="small" data-act="slack">Slack</button>
-        <button type="button" class="small hidden" data-act="native">Compartilhar</button>
+  <div class="panel small pause-board">
+    <aside class="pause-side">
+      <p class="pause-kicker">Pausa</p>
+      <h2>Pausa na chapa</h2>
+      <nav class="pause-nav" id="pauseNav" aria-label="Ações da pausa">
+        <button type="button" id="resumeBtn" class="pause-act is-focus" data-pause-act>Continuar</button>
+        <button type="button" id="pauseClassBtn" class="pause-act" data-pause-act>Trocar classe</button>
+        <button type="button" id="pauseOptBtn" class="pause-act" data-pause-act>Opções</button>
+        <button type="button" id="quitBtn" class="pause-act pause-act-danger" data-pause-act>Sair pro menu</button>
+      </nav>
+    </aside>
+    <section class="pause-options" id="pauseOptions" aria-label="Opções">
+      <h3>Opções da chapa</h3>
+      <label class="checkline nade-voice-hl" id="pauseNadeVoice"><input type="checkbox" data-nade-voice checked> <span>🔊 Vozes da granada <small>(&quot;granada!&quot; e &quot;banana!&quot;) · tecla H</small></span></label>
+      <label class="checkline"><input type="checkbox" data-reduced-anim> Animações reduzidas</label>
+      <label class="checkline"><input type="checkbox" data-chat-toggle checked> Mostrar chat</label>
+      <div class="invite hidden" id="pauseInvite">
+        <input class="invite-link" readonly>
+        <div class="invite-btns">
+          <button type="button" class="small" data-act="link">Copiar link</button>
+          <button type="button" class="small" data-act="code">Copiar código</button>
+          <button type="button" class="small" data-act="wa">WhatsApp</button>
+          <button type="button" class="small" data-act="tg">Telegram</button>
+          <button type="button" class="small" data-act="slack">Slack</button>
+          <button type="button" class="small hidden" data-act="native">Compartilhar</button>
+        </div>
+        <div class="invite-toast" data-toast></div>
       </div>
-      <div class="invite-toast" data-toast></div>
-    </div>
-    <label class="checkline"><input type="checkbox" data-chat-toggle checked> Mostrar chat</label>
-    <div class="voicebox hidden" data-voicebox id="pauseVoice">
-      <button type="button" class="small" data-voice="off">Mudo</button>
-      <button type="button" class="small" data-voice="all">Todos</button>
-      <button type="button" class="small" data-voice="team">Time</button>
-      <button type="button" class="small" data-mic="hold">Apertar</button>
-      <button type="button" class="small" data-mic="open">Aberto</button>
-      <span class="voicehint">J troca a voz · segure K para falar</span>
-    </div>
-    <section id="pauseLoadout" aria-label="Trocar equipamento">
-      <p class="pause-note" id="pauseClassNote">A classe escolhida entra na próxima vida. Não derruba.</p>
-      <button type="button" id="pauseClassBtn">TROCAR CLASSE</button>
+      <div class="voicebox hidden" data-voicebox id="pauseVoice">
+        <button type="button" class="small" data-voice="off">Mudo</button>
+        <button type="button" class="small" data-voice="all">Todos</button>
+        <button type="button" class="small" data-voice="team">Time</button>
+        <button type="button" class="small" data-mic="hold">Apertar</button>
+        <button type="button" class="small" data-mic="open">Aberto</button>
+        <span class="voicehint">J troca a voz · segure K para falar</span>
+      </div>
+      <section id="pauseLoadout" aria-label="Trocar equipamento">
+        <p class="pause-note" id="pauseClassNote">A classe escolhida entra na próxima vida. Não derruba.</p>
+      </section>
+      <section id="pauseDance" aria-label="Dança da vitória">
+        <p class="pause-note">Dança da vitória</p>
+        <div class="dance-picks" id="pauseDancePicks"></div>
+      </section>
     </section>
-    <section id="pauseDance" aria-label="Dança da vitória">
-      <p class="pause-note">Dança da vitória</p>
-      <div class="dance-picks" id="pauseDancePicks"></div>
-    </section>
-    <button id="resumeBtn">CONTINUAR</button>
-    <button id="quitBtn" class="secondary">SAIR PRO MENU</button>
+    <aside class="pause-brief" id="pauseBrief" aria-label="Partida">
+      <p class="pause-kicker">Agora</p>
+      <h3>A partida</h3>
+      <p class="pause-obj" id="pauseObjective">Primeiro a 20 abates.</p>
+      <dl class="pause-facts">
+        <div><dt>Modo</dt><dd id="pauseMode">Mata-mata</dd></div>
+        <div><dt>Mapa</dt><dd id="pauseMap">—</dd></div>
+        <div><dt>Tempo</dt><dd id="pauseTime">—</dd></div>
+        <div><dt>Você</dt><dd id="pauseKd">—</dd></div>
+        <div><dt>Placar</dt><dd id="pauseScore">—</dd></div>
+      </dl>
+    </aside>
   </div>
 </div>
 
