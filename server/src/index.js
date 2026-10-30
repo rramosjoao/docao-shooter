@@ -11,7 +11,8 @@
 // ============================================================
 import { DurableObject } from 'cloudflare:workers';
 import { TrucoRoom } from './truco-room.js';
-export { TrucoRoom };
+import { UnoRoom } from './uno-room.js';
+export { TrucoRoom, UnoRoom };
 import { Game } from './game.js';
 import { SKINS } from '../../skins.js';
 import { handleAccountRoute, accountFromToken, nickRegistered, saveSkin, recordStats } from './auth.js';
@@ -55,6 +56,32 @@ export default {
       if (req.headers.get('Upgrade') !== 'websocket') return json({ error: 'Esperado WebSocket' }, 426);
       const code = trucoWs[1].toUpperCase(); const stub = env.TRUCO_ROOMS.get(env.TRUCO_ROOMS.idFromName('truco:' + code));
       return stub.fetch(new Request('https://truco/ws' + url.search, { method: 'GET', headers: req.headers }));
+    }
+    if (url.pathname === '/api/uno/rooms' && req.method === 'POST') {
+      if (!env.UNO_ROOMS) return json({ error: 'Sala de UNO indisponível' }, 503);
+      let body = {}; try { body = await req.json(); } catch (e) { /* corpo vazio */ }
+      const seats = body.seats === 4 || body.seats === 6 ? body.seats : 2;
+      const target = Number(body.target) === 200 ? 200 : 500;
+      const level = body.level === 'facil' || body.level === 'pro' ? body.level : 'medio';
+      for (let i = 0; i < 12; i++) {
+        const code = newCode(); const stub = env.UNO_ROOMS.get(env.UNO_ROOMS.idFromName('uno:' + code));
+        const r = await stub.fetch('https://uno/init', { method: 'POST', body: JSON.stringify({ code, seats, target, level }) });
+        if (r.status === 200) return json({ code });
+      }
+      return json({ error: 'Não deu pra gerar um código de sala' }, 503);
+    }
+    const unoInfo = url.pathname.match(/^\/api\/uno\/rooms\/([A-Za-z]{4})\/?$/);
+    if (unoInfo) {
+      if (!env.UNO_ROOMS) return json({ exists: false }, 503);
+      const code = unoInfo[1].toUpperCase(); const stub = env.UNO_ROOMS.get(env.UNO_ROOMS.idFromName('uno:' + code));
+      const r = await stub.fetch('https://uno/info'); return json(await r.json(), r.status);
+    }
+    const unoWs = url.pathname.match(/^\/ws\/uno\/([A-Za-z]{4})\/?$/);
+    if (unoWs) {
+      if (!env.UNO_ROOMS) return json({ error: 'Sala de UNO indisponível' }, 503);
+      if (req.headers.get('Upgrade') !== 'websocket') return json({ error: 'Esperado WebSocket' }, 426);
+      const code = unoWs[1].toUpperCase(); const stub = env.UNO_ROOMS.get(env.UNO_ROOMS.idFromName('uno:' + code));
+      return stub.fetch(new Request('https://uno/ws' + url.search, { method: 'GET', headers: req.headers }));
     }
     if (url.pathname === '/api/rooms' && req.method === 'POST') {
       let body = {}; try { body = await req.json(); } catch (e) { /* corpo vazio */ }
