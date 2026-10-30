@@ -4,6 +4,14 @@ Jogue em **https://docao.mvalentim.dev**
 
 ---
 
+## Próxima versão — Corrida Armada
+- Dois times, progresso individual e sequência fixa de armas. Duas eliminações por etapa; a faca padrão rouba uma etapa e a faca dourada decide a vitória.
+- Na etapa final fica apenas a faca dourada, sem faca padrão no slot 3 ou no atalho V.
+- Renascimento liberado em 3 segundos, mantendo a etapa e os abates acumulados.
+- Sem tela de classes na morte ou na pausa: ficam só o relógio e o botão para renascer.
+- Online: publicar o Worker antes do site (novo modo e eventos de progresso).
+- Veio do commit `c376161` do Felipe (@felipe-cheers), branch `codex/corrida-armada` no fork.
+
 ## v1.30 — Tranco na luneta, Granja mais lenta e red dot 🎯🐷
 
 🎯 **RED DOT NOS FUZIS.** Fuzil Pururuca, FAMAS da Pocilga e Commando da Granja nascem com a **Red dot da granja** no trilho (dá pra voltar pra massa de milho na bancada). Mirando, o ponto fica no meio, a cruz do HUD some e o zoom é curto (~1,19×). **O coice da câmera some enquanto você mira pelo ponto** — no quadril o fuzil recua como antes. SMG e metralhadora não ganharam a lente.

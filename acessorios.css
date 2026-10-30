@@ -382,36 +382,45 @@ body.cls-on #invPowers,body.cls-on #inspect,body.bombpick #bombBanner,body.invpi
 
 /* Kill cam: a ficha de armas é tela cheia e tapava quem matou.
    No canto ficam só o nome de quem matou e o Renascer. Placar e chat não entram aqui. */
-body.killcam #hud #deathpick.cls-screen{
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick.cls-screen{
   position:fixed !important;inset:auto !important;left:auto !important;right:12px !important;top:auto !important;bottom:12px !important;
   transform:none !important;width:max-content !important;max-width:min(340px,92vw) !important;height:auto !important;max-height:none !important;
   margin:0 !important;padding:0 !important;background:transparent !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;
   opacity:1 !important;overflow:visible !important;z-index:8 !important;pointer-events:none !important;display:flex !important;text-align:right !important
 }
-body.killcam #hud #deathpick .cls-pig,
-body.killcam #hud #deathpick #deathList,
-body.killcam #hud #deathpick #classGun,
-body.killcam #hud #deathpick #deathArms,
-body.killcam #hud #deathpick .cls-headline p{display:none !important}
-body.killcam #hud #deathpick .cls-sheet{
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-pig,
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick #deathList,
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick #classGun,
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick #deathArms,
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-headline p{display:none !important}
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-sheet{
   display:flex !important;flex:none !important;grid-template-columns:none !important;width:auto !important;min-height:0 !important;margin:0 !important;
   padding:0 !important;gap:0 !important;background:transparent !important;border:0 !important;box-shadow:none !important
 }
-body.killcam #hud #deathpick .cls-main{display:flex !important;min-width:0 !important;background:transparent !important}
-body.killcam #hud #deathpick .cls-top{min-height:0 !important;flex-direction:column !important;align-items:flex-end !important;gap:6px !important}
-body.killcam #hud #deathpick .cls-headline{
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-main{display:flex !important;min-width:0 !important;background:transparent !important}
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-top{min-height:0 !important;flex-direction:column !important;align-items:flex-end !important;gap:6px !important}
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-headline{
   position:static !important;left:auto !important;top:auto !important;transform:none !important;width:auto !important;max-width:320px !important;text-align:right !important
 }
-body.killcam #hud #deathpick .cls-headline h2{
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-headline h2{
   font-size:16px !important;line-height:1.2 !important;text-shadow:0 2px 0 #000
 }
-body.killcam #hud #deathpick .cls-clockbox{width:min(240px,70vw) !important;align-items:stretch}
-body.killcam #hud #deathpick .cls-clock{width:100% !important;margin-left:0}
-body.killcam #hud #deathpick .death-gun-hint{display:block}
-body.killcam #hud #deathpick #respawnBtn{
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-clockbox{width:min(240px,70vw) !important;align-items:stretch}
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .cls-clock{width:100% !important;margin-left:0}
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick .death-gun-hint{display:block}
+:is(body.killcam, body.armsmode.deadgray) #hud #deathpick #respawnBtn{
   pointer-events:auto !important;width:min(280px,86vw) !important;min-width:0 !important;margin:8px 0 0 auto !important
 }
-body.killcam #bottomleft,
-body.killcam #bottomright,
-body.killcam #inspect{visibility:hidden}
-body.killcam #stamp{opacity:.55;zoom:.55;top:9%}
+:is(body.killcam, body.armsmode.deadgray) #bottomleft,
+:is(body.killcam, body.armsmode.deadgray) #bottomright,
+:is(body.killcam, body.armsmode.deadgray) #inspect{visibility:hidden}
+:is(body.killcam, body.armsmode.deadgray) #stamp{opacity:.55;zoom:.55;top:9%}
+
+/* Corrida Armada: apenas relógio e renascimento, sem classes em nenhum estado. */
+body.armsmode #deathList,
+body.armsmode #classGun,
+body.armsmode #deathArms,
+body.armsmode #deathGunHint,
+body.armsmode #pauseClass,
+body.armsmode #bLoad,
+body.armsmode #iLoad { display: none !important; }

@@ -8,6 +8,8 @@
 import { MAPS, PLAY_MAPS, INV_MAPS, BOMB_MAPS, X1_MAPS, getMap } from '../../maps.js';
 import { INV, INV_AMMO, DROP_KEYS, invRefillAmmo, isInvasion, InvasionCore, POWER_KEYS, modelAim } from '../../shared/invasion.js';
 import { TRAIN, isTraining, dummyX } from '../../shared/training.js';
+import { ARMS_RACE, ARMS_STAGES, ARMS_LAST, isArmsRace, armsStage, armsScore, resetArmsRace, equipArmsRace, armsRaceKill } from '../../shared/arms-race.js';
+import { isKnife } from '../../shared/rules.js';
 import { X1, isX1, rollX1Weapon, x1SpawnSide } from '../../shared/x1.js';
 import { buildNav } from '../../nav.js';
 import { SKINS, skinOk } from '../../skins.js';
@@ -35,7 +37,7 @@ import { BOMB, W_BOMB, bombLayout, newBombState, startRound, stepBomb, blastVict
 import { rounds, spendRound, drumsFull, drumsEmpty, refillDrums, resetDrums, setDrum, pickBotSecondary, akimboReady, ammoLow } from '../../shared/revolver.js';
 import { SABER_KIT, profileOf as saberProfile, moveScale, ensureSaber, stepStamina, guardOpen, inFront, payGuard, payProjectile, bladeTouch, peekSwing, applySwing, tryDash, trySpecial, spinDue, catchBlade, botSkill, botPlan, targetsInArc } from '../../shared/saber.js';
 const CHAL_WEAPONS = { shotgun: 'w_shot', semi: 'w_shot', sniper: 'w_snip', canhao: 'w_snip', carabina: 'w_snip', besta: 'w_bow', arco: 'w_bow', estilingue: 'w_bow', sabre: 'w_saber', sabre2: 'w_saber', bazooka: 'w_boom', milho: 'w_boom' }; // grupos de armas dos desafios
-const MODE_OK = (m) => (m === 'dom' || m === 'bomb' || isTraining(m) || isInvasion(m) || isX1(m) ? m : 'dm');
+const MODE_OK = (m) => (m === 'dom' || isArmsRace(m) || m === 'bomb' || isTraining(m) || isInvasion(m) || isX1(m) ? m : 'dm');
 
 export const MAX_PLAYERS = 10;
 const RS_SAFETY = 60; // s: cliente antigo que nunca manda 'rs' renasce sozinho depois disso
@@ -70,7 +72,8 @@ export class Game {
   now() { return Date.now() / 1000; }
   // o mundo só avança com mensagens (limite de CPU): depois de um tempo parado, T fica velho. Acerta pelo relógio de parede antes de usar.
   syncClock() { if (this.state === 'playing' && this.t0) this.T = Math.max(this.T, this.now() - this.t0); }
-  get teamMode() { return this.cfg.mode === 'dom' || this.cfg.mode === 'bomb'; } // Dominação e Bomba têm times
+  get teamMode() { return this.cfg.mode === 'dom' || this.armsMode || this.cfg.mode === 'bomb'; } // Dominação e Bomba têm times
+  get armsMode() { return isArmsRace(this.cfg.mode); }
   get bombMode() { return this.cfg.mode === 'bomb'; }
   get x1Mode() { return isX1(this.cfg.mode); } // X1: duelo, mapa pequeno, mesma arma
   get invasion() { return isInvasion(this.cfg.mode); } // Modo Invasão: co-op contra zumbis (shared/invasion.js)
@@ -175,9 +178,11 @@ export class Game {
       connected: !bot, dcAt: 0, lastAttacker: 0, team: -1, teamPref: -1, caps: 0, voice: 'off', shieldHp: 0, shieldBroken: false, shieldBlocked: 0, shieldMedal: false, shieldDashAt: -99 };
     if (bot) Object.assign(e, { think: 0, target: null, aim: 0, strafeDir: 1, strafeT: 0, wp: null, path: null, stuck: 0, lastSeen: null, lastSeenAt: -99, nextNade: 0, nextFire: 0, reloadEnd: 0, repathAt: 0 });
     if (bot) applyBotDiff(e, this.cfg.botDiff);
+    resetArmsRace(e);
     this.ents.set(id, e); return e;
   }
   entInfo(e) { const o = { id: e.id, name: e.name, skin: e.skin, bot: e.bot, tag: e.tag, kills: e.kills, deaths: e.deaths, alive: e.alive, primary: e.primary, w: e.weapon, team: e.team, caps: e.caps, pend: e.pendingTeam ? 1 : 0, kn: e.knife || undefined, sn: e.sniper || undefined };
+    if (this.armsMode) { o.arms = [e.armsStage, e.armsKills]; }
     if (e.zt) { o.zt = e.zt; o.hp = Math.round(e.hp); o.mx = Math.round(e.maxHp || 100); } return o; }
   sendLobby() {
     this.io.broadcast({ t: 'lobby', cfg: this.cfg, hostId: this.hostId, state: this.state, mapId: this.mapId,
@@ -234,11 +239,12 @@ export class Game {
     this.spawns = map.spawns.map(([x, z, y = 0]) => ({ x, y: this.P.groundAt(x, z, y + 0.3), z }));
     this.nav = buildNav({ hx: map.size[0], hz: map.size[1], spacing: map.navSpacing || 2, collides: this.P.collides, groundAt: this.P.groundAt, solids, topAt: this.P.topAt, seeds: this.spawns.map((s) => [s.x, s.y, s.z]), extra: map.waypoints || [] });
     const rawPicks = this.invasion && map.invPickups ? [...map.pickups, ...map.invPickups] : map.pickups;
-    this.pickups = (this.x1Mode ? rawPicks.filter((p) => p[0] === 'ammo') : rawPicks).map(([type, x, z, y]) => { const on = powerOn(type, this.cfg.powers); return { type, pos: { x, y: this.P.groundAt(x, z, (y || 0) + 0.3), z }, active: on, respawnAt: on ? 0 : 1e9 }; });
+    this.pickups = (this.x1Mode ? rawPicks.filter((p) => p[0] === 'ammo') : rawPicks).map(([type, x, z, y]) => { const on = (!this.armsMode || type === 'ammo' || type === 'health') && powerOn(type, this.cfg.powers); return { type, pos: { x, y: this.P.groundAt(x, z, (y || 0) + 0.3), z }, active: on, respawnAt: on ? 0 : 1e9 }; });
     this.nades = []; this.shocks = []; this.rockets = []; this.blades = []; this.discs = []; this.eggs = []; this.corns = []; this.cornPops = []; this.bacons = []; this.helis = []; this.gunships = []; this.nukes = []; this.events = []; this.personal.clear();
     this.state = 'playing'; this.t0 = this.now(); this.T = 0; this.lastTick = this.now();
     this.curLimit = this.cfgLimit;
     for (const e of this.ents.values()) { e.ck = 0; e.cpaid = 0; e.jt = 0; e.cpl = 0; e.cdf = 0; e.vu = e.voice && e.voice !== 'off' ? 1 : 0;
+      resetArmsRace(e);
       e.kills = 0; e.deaths = 0; e.alive = false; e.needRs = false; e.caps = 0; e.pendingTeam = false; if (!this.teamMode) e.team = -1;
       // this.T e o relógio do cliente voltam a 0 na partida nova: zera cadência/anti speed-hack, senão os tiros da partida anterior
       // (lastShot/lastCt/lastMelee no futuro) fazem o servidor rejeitar todo tiro no "Próximo mapa"/"Jogar de novo" (sem dano)
@@ -257,7 +263,7 @@ export class Game {
     }
     this.syncBots();
     if (this.teamMode) { for (const b of [...this.ents.values()].filter((x) => x.bot)) b.team = -1; for (const b of [...this.ents.values()].filter((x) => x.bot)) b.team = smallerTeam(this.teamCounts(null, false)); }
-    this.teamScore = [0, 0]; this.forcedWinTeam = null; this.nukeWinner = 0; this.zone = this.cfg.mode === 'dom' ? newZoneState(pickZone(this.nav)) : null;
+    this.armsWinner = 0; this.pendingEnd = false; this.teamScore = [0, 0]; this.forcedWinTeam = null; this.nukeWinner = 0; this.zone = this.cfg.mode === 'dom' ? newZoneState(pickZone(this.nav)) : null;
     this.bomb = null; this.bombL = null;
     if (this.bombMode) { // Modo Bomba (protótipo): lados + sites A/B do mapa, rodada 1 começa na preparação
       this.bombL = bombLayout(this.nav, this.spawns, map, this.P.groundAt); this.bomb = newBombState(); this.teamScore = this.bomb.score;
@@ -273,7 +279,7 @@ export class Game {
     this.io.broadcast(this.startMsg()); this.sendLobby();
     this.io.startLoop();
   }
-  get cfgLimit() { return this.bombMode ? 1e6 : this.training || this.invasion || (this.x1Mode && !this.cfg.time) ? Infinity : this.cfg.time ? this.cfg.time * 60 : this.teamMode ? DOM.TIME_LIMIT_DOM : TIME_LIMIT; } // Treino: não acaba; Bomba: acaba em 13 rodadas; X1 no padrão acaba nos 10 abates
+  get cfgLimit() { return this.armsMode ? Infinity : this.bombMode ? 1e6 : this.training || this.invasion || (this.x1Mode && !this.cfg.time) ? Infinity : this.cfg.time ? this.cfg.time * 60 : this.teamMode ? DOM.TIME_LIMIT_DOM : TIME_LIMIT; } // Treino: não acaba; Bomba: acaba em 13 rodadas; X1 no padrão acaba nos 10 abates
   get timeLimit() { return this.curLimit || this.cfgLimit; } // mudar o tempo no meio da partida só vale na próxima
   zoneArr() { const z = this.zone; return z ? [r2(z.x), r2(z.y), r2(z.z), +z.progress.toFixed(3), z.team, z.contested ? 1 : 0, z.counts[0], z.counts[1], this.teamScore[0], this.teamScore[1]] : null; }
   startMsg() { return { t: 'start', mode: this.cfg.mode, iv: this.inv ? this.inv.stateArr() : undefined, drops: this.inv ? this.inv.drops.map((d) => [d.id, DROP_KEYS.indexOf(d.kind), [r2(d.x), r2(d.y), r2(d.z)]]) : undefined, zone: this.zoneArr(), bomb: this.bomb ? { sites: this.bombL.sites.map((s) => [r2(s.x), r2(s.y), r2(s.z)]), atk: this.bombL.atk, def: this.bombL.def, pts: this.bombL.pts ? this.bombL.pts.map((p) => [r2(p.x), r2(p.y), r2(p.z)]) : undefined, s: packBomb(this.bomb) } : undefined, win: DOM.WIN_CAPS, map: this.mapId, T: r2(this.T), limit: Number.isFinite(this.timeLimit) ? this.timeLimit : 0, kills: this.x1Mode ? X1.KILLS : KILL_LIMIT, gun: this.x1Mode ? this.x1Gun : undefined, hostId: this.hostId, ents: [...this.ents.values()].filter((e) => e.bot || e.connected).map((e) => this.entInfo(e)), pk: this.pickups.map((p) => (p.active ? 1 : 0)) }; }
@@ -326,11 +332,11 @@ export class Game {
     const nukeId = !this.teamMode && this.nukeWinner ? this.nukeWinner : 0;
     const hit = nukeId && rows.find((e) => e.id === nukeId);
     const boardRows = hit ? [hit, ...rows.filter((e) => e !== hit)] : rows; // mata-mata: quem estourou fica no topo mesmo com menos abates
-    const winner = nukeId || (rows[0] ? rows[0].id : 0);
+    const winner = this.armsWinner || nukeId || (rows[0] ? rows[0].id : 0);
     return { t: 'end', mode: this.cfg.mode, ts, winTeam, board: boardRows.map((e) => [e.id, e.name, e.kills, e.deaths, e.bot, e.team, e.caps]), winner, map: this.mapId, next: this.nextMapId(), hostId: this.hostId,
       inv: this.inv ? { wave: this.inv.wave, won: this.inv.won ? 1 : 0, kills: this.inv.kills } : undefined };
   }
-  score(e) { return this.teamMode ? e.kills + 2 * e.caps : e.kills; }
+  score(e) { return this.armsMode ? armsScore(e) : this.teamMode ? e.kills + 2 * e.caps : e.kills; }
   // ---------- mensagens dos clientes ----------
   onMessage(id, m) {
     this.syncClock();
@@ -343,7 +349,7 @@ export class Game {
          if (SKINS.some((s) => s.id === m.skin)) e.skin = m.skin; this.applyLoadout(e, m.primary, m.secondary, m.melee, this.state === 'lobby', m.kit); this.sendLobby(); break;
       case 'cfg': if (!isHost) return;
         {
-          const modeOk = (m.mode === 'dm' || m.mode === 'dom' || m.mode === 'bomb' || isTraining(m.mode) || isInvasion(m.mode) || isX1(m.mode)) && this.state !== 'playing';
+          const modeOk = (m.mode === 'dm' || m.mode === 'dom' || isArmsRace(m.mode) || m.mode === 'bomb' || isTraining(m.mode) || isInvasion(m.mode) || isX1(m.mode)) && this.state !== 'playing';
           if (modeOk && isX1(m.mode) && !this.x1Mode && this.humans().length > X1.MAX) { this.io.send(id, { t: 'hostMsg', msg: `X1 é duelo: só cabem ${X1.MAX} jogadores. Tem ${this.humans().length} na sala.` }); this.sendLobby(); break; } // não chuta ninguém: a troca nem entra
           if (modeOk && isX1(m.mode) && !this.x1Mode) this.x1Hold = this.cfg.max;
         }
@@ -353,7 +359,7 @@ export class Game {
         if (typeof m.fillBots === 'boolean') this.cfg.fillBots = m.fillBots;
         if (typeof m.botDiff === 'string') { const next = normBotDiff(m.botDiff); if (next !== this.cfg.botDiff) { this.cfg.botDiff = next; for (const b of this.ents.values()) if (b.bot && !b.zt && !b.dummy) applyBotDiff(b, next); } else this.cfg.botDiff = next; }
         if (m.time !== undefined) this.cfg.time = normTime(m.time);
-        if ((m.mode === 'dm' || m.mode === 'dom' || m.mode === 'bomb' || isTraining(m.mode) || isInvasion(m.mode) || isX1(m.mode)) && this.state !== 'playing') { const leaving = this.x1Mode && !isX1(m.mode); this.cfg.mode = m.mode; if (isX1(m.mode)) { this.cfg.max = X1.MAX; this.cfg.map = 'random'; } if (leaving) { const back = this.x1Hold >= 2 ? this.x1Hold : 6; this.x1Hold = 0; this.cfg.max = clamp(back, Math.max(2, this.humans().length), MAX_PLAYERS); } for (const h of this.humans()) { if (m.mode === 'dom' || m.mode === 'bomb') this.chooseTeam(h, h.teamPref); else { h.team = -1; if (h.voice === 'team') h.voice = 'all'; } } }
+        if ((m.mode === 'dm' || m.mode === 'dom' || isArmsRace(m.mode) || m.mode === 'bomb' || isTraining(m.mode) || isInvasion(m.mode) || isX1(m.mode)) && this.state !== 'playing') { const leaving = this.x1Mode && !isX1(m.mode); this.cfg.mode = m.mode; if (isX1(m.mode)) { this.cfg.max = X1.MAX; this.cfg.map = 'random'; } if (leaving) { const back = this.x1Hold >= 2 ? this.x1Hold : 6; this.x1Hold = 0; this.cfg.max = clamp(back, Math.max(2, this.humans().length), MAX_PLAYERS); } for (const h of this.humans()) { if (m.mode === 'dom' || isArmsRace(m.mode) || m.mode === 'bomb') this.chooseTeam(h, h.teamPref); else { h.team = -1; if (h.voice === 'team') h.voice = 'all'; } } }
         if (typeof m.chat === 'boolean') this.cfg.chat = m.chat;
         if (m.weapons !== undefined || m.powers !== undefined) {
           if (m.weapons !== undefined) this.cfg.weapons = normWeapons(m.weapons);
@@ -372,7 +378,7 @@ export class Game {
         if (!this.teamMode) return; const r = this.chooseTeam(e, m.team);
         if (this.state === 'playing') {
           if (e.pendingTeam) { e.pendingTeam = false; e.respawnAt = this.T + 0.3; this.syncBots(); }
-          else if (e.alive) { e.alive = false; e.deaths++; e.respawnAt = this.T + RESPAWN_TIME; this.events.push(['k', 0, e.id, -2, 0, 0, e.deaths]); } // troca no meio: renasce no time novo
+          else if (e.alive) { e.alive = false; e.deaths++; e.respawnAt = this.T + (this.armsMode ? ARMS_RACE.respawnTime : RESPAWN_TIME); this.events.push(['k', 0, e.id, -2, 0, 0, e.deaths]); } // troca no meio: renasce no time novo
           this.events.push(['tm', e.id, e.team]);
         }
         this.io.send(e.id, { t: 'teamOk', team: r.team, blocked: r.blocked, pref: e.teamPref }); this.sendLobby(); this.sendVoices(); break;
@@ -408,12 +414,12 @@ export class Game {
   onSay(e, m) {
     if (this.cfg.chat === false || e.bot) return;
     const text = this.cleanChat(m.text); if (!text) return;
-    if (isPokeCode(text) && this.state === 'playing' && !this.inv && !this.x1Mode) { e.pokeballs = Math.min(POKE.max, (e.pokeballs || 0) + 1); this.toMe(e, ['pkb', e.pokeballs]); } // código da Pokébola
+    if (isPokeCode(text) && this.state === 'playing' && !this.inv && !this.x1Mode && !this.armsMode) { e.pokeballs = Math.min(POKE.max, (e.pokeballs || 0) + 1); this.toMe(e, ['pkb', e.pokeballs]); } // código da Pokébola
     const now = Date.now();
     const times = e.sayAt = (e.sayAt || []).filter((t) => now - t < 5000);
     if (times.length >= 4) return;
     times.push(now);
-    if (isMiniCode(text) && this.state === 'playing' && !this.inv && !this.x1Mode && e.alive && !e.slots.includes(MINIGUN)) this.giveMinigun(e); // código da minigun (passa pelo limite do chat; já tendo, não reabastece nem esfria)
+    if (isMiniCode(text) && this.state === 'playing' && !this.inv && !this.x1Mode && !this.armsMode && e.alive && !e.slots.includes(MINIGUN)) this.giveMinigun(e); // código da minigun (passa pelo limite do chat; já tendo, não reabastece nem esfria)
     const scope = m.scope === 'team' && this.teamMode ? 'team' : 'all';
     const dead = this.state === 'playing' && !e.alive ? 1 : 0;
     this.postChat({ id: e.id, name: e.name, team: e.team, scope, dead, text }); this.cq(e, 'chat');
@@ -486,11 +492,11 @@ export class Game {
   onEvent(e, ev) {
     if (!Array.isArray(ev)) return;
     const [k] = ev;
-    if (k === 'pr') { if (this.x1Mode) return; this.applyLoadout(e, ev[1], ev[2], ev[3], false, ev[4]); if ((this.training || bombFrozen(this.bomb) || (this.inv && (this.inv.phase === 'break' || this.inv.phase === 'prep'))) && e.alive) this.equipNow(e); return; } // Treino, preparação da Bomba e pausas da Invasão: troca na hora. X1 ignora o arsenal.
+    if (k === 'pr') { if (this.x1Mode || this.armsMode) return; this.applyLoadout(e, ev[1], ev[2], ev[3], false, ev[4]); if ((this.training || bombFrozen(this.bomb) || (this.inv && (this.inv.phase === 'break' || this.inv.phase === 'prep'))) && e.alive) this.equipNow(e); return; } // Treino, preparação da Bomba e pausas da Invasão: troca na hora. X1 ignora o arsenal.
     // pausa: troca o loadout. Treino equipa na hora. Invasão: só como o 'pr' do main (preparação/pausa entre waves, sem matar nem gastar vida).
     // Nos outros modos morre (sem abate) e nasce neste tick, no máximo 1 vez a cada PX_COOLDOWN s (senão vira fuga de tiroteio).
     if (k === 'px') {
-      if (this.x1Mode) return; // X1: a arma é da rodada, não do arsenal
+      if (this.x1Mode || this.armsMode) return; // X1: a arma é da rodada, não do arsenal
       this.applyLoadout(e, ev[1], ev[2], ev[3], false, ev[4]);
       if (!e.alive) return;
       if (this.bombMode) { if (bombFrozen(this.bomb)) this.equipNow(e); return; } // Bomba: na preparação troca na hora; no meio da rodada só vale na próxima (nunca mata pra trocar de arma)
@@ -532,13 +538,13 @@ export class Game {
   // abate que conta pra sequência (quem matou precisa estar vivo, igual ao cliente)
   streakKill(a) {
     if (!a.ksBank) this.resetStreak(a);
-    if (this.inv) return; // Invasão: sem killstreaks (só os poderes de Halloween)
+    if (this.inv || this.armsMode) return; // Invasão e Corrida Armada: sem killstreaks (só os poderes de Halloween)
     a.ksKills++; if (a.ksKills === 3) this.cq(a, 'seq3');
     for (const r of streakRewards(a.ksKills)) if (powerOn(r, this.cfg.powers) && r in a.ksBank) a.ksBank[r]++;
   }
   // F: 'p' = Míssil (abre o laptop; o cliente pilota e manda o impacto em 'ms'), 'h' = Gavião, 'x' = nuke
   useStreak(e, kind, startA) {
-    const B = e.ksBank; if (!B || e.bot || this.inv || bombFrozen(this.bomb)) return; // Invasão: servidor recusa killstreaks; Bomba: nada de streak na preparação
+    const B = e.ksBank; if (!B || e.bot || this.inv || this.armsMode || bombFrozen(this.bomb)) return; // Invasão: servidor recusa killstreaks; Bomba: nada de streak na preparação
     const streakId = kind === 'p' ? 'missile' : kind === 'h' ? 'heli' : kind === 'g' ? 'gunner' : kind === 'a' ? 'ac130' : kind === 'x' ? 'nuke' : null;
     if (streakId && !powerOn(streakId, this.cfg.powers)) return;
     if (kind === 'p') {
@@ -672,7 +678,7 @@ export class Game {
     // O cliente ainda não faz isso; ligar no main.js depois, sem mudar o ciclo de 15.
   }
   // Minigun (código no chat): no lugar da primária até morrer; o spawn remonta os slots com e.primary
-  giveMinigun(e) { e.slots[0] = MINIGUN; e.mag[MINIGUN] = WEAPONS[MINIGUN].mag; e.reserve[MINIGUN] = WEAPONS[MINIGUN].reserve; e.weapon = MINIGUN; e.reload = null; e.mg = null; this.toMe(e, ['mgn', 1]); }
+  giveMinigun(e) { if (this.armsMode) return; e.slots[0] = MINIGUN; e.mag[MINIGUN] = WEAPONS[MINIGUN].mag; e.reserve[MINIGUN] = WEAPONS[MINIGUN].reserve; e.weapon = MINIGUN; e.reload = null; e.mg = null; this.toMe(e, ['mgn', 1]); }
   // Treino: troca de arma na hora (teclas B/N/M), com pente cheio
   equipNow(e) {
     const prev = e.slots[0];
@@ -768,7 +774,7 @@ export class Game {
   // alcance/cone/pelas costas calculados aqui (shared/melee.js) contra posições e yaw voltados no tempo (lag comp).
   humanMelee(e, kindIdx, oA, dA, ct, rt) {
     const kind = MELEE_KINDS[kindIdx], o = obj3(oA), d0 = obj3(dA);
-    if (!kind || !o || !d0 || vlen(d0) < 0.5 || e.weapon !== KNIFE || !e.slots.includes(KNIFE) || dist(o, center(e, EYE)) > 1.3 || !Number.isFinite(ct)) { e.rejectedMelee = (e.rejectedMelee || 0) + 1; return; }
+    if (!kind || !o || !d0 || vlen(d0) < 0.5 || !isKnife(e.weapon) || !e.slots.includes(e.weapon) || dist(o, center(e, EYE)) > 1.3 || !Number.isFinite(ct)) { e.rejectedMelee = (e.rejectedMelee || 0) + 1; return; }
     const off = this.now() - ct; e.maxOff = Math.max(e.maxOff ?? -Infinity, off);
     const lastRate = e.lastMeleeRate || 0;
     if (off < e.maxOff - 0.75 || ct - (e.lastMeleeCt ?? -Infinity) < lastRate * 0.9 || this.T - (e.lastMeleeT ?? -9) < lastRate * 0.35) { e.rejectedMelee = (e.rejectedMelee || 0) + 1; return; }
@@ -784,11 +790,12 @@ export class Game {
     if (h) {
       const met = meleeOnShield(h.e, h.e.yaw, o, h.dmg, kind);
       this.payShield(h.e, met.shield, met.blocked);
-      if (met.dmg > 0) this.damage(h.e, met.dmg, e, KNIFE, false, h.back);
+      if (met.dmg > 0) this.damage(h.e, met.dmg, e, e.weapon, false, h.back);
     }
     return h;
   }
   humanNade(e, oA, vA, kind) {
+    if (this.armsMode) return;
     const o = obj3(oA), v = obj3(vA); if (!this.eyeOk(e, o) || !v || vlen(v) > 34) return;
     if (kind === 'p') { if (!(e.pokeballs > 0)) return; e.pokeballs--; this.toMe(e, ['pkb', e.pokeballs]); this.throwNade(e, o, v, true); return; } // Pokébola
     if (e.nades <= 0) return;
@@ -1096,12 +1103,20 @@ export class Game {
   }
   // ks: abate de killstreak ('p' míssil, 'h' Gavião, 'x' nuke) → ev[8]; Gavião e nuke não contam pra sequência
   kill(t, a, w, head, back = false, ks = null, fx = 0) {
+    if (this.state !== 'playing' || !t.alive || (this.armsMode && this.pendingEnd)) return;
     if (this.inv && t.zt) return this.killZombie(t, a, w, head, back, ks);
-    t.alive = false; t.hp = 0; t.deaths++; if (t.acct) t.sd++; t.respawnAt = this.T + (t.dummy ? TRAIN.respawn : RESPAWN_TIME); if (!t.bot) { t.needRs = true; t.rsReq = false; } // humano: só renasce clicando em Renascer
-    if (a && a !== t) { a.kills++; if (a.acct) { a.sk++; if (!this.inv && !(this.teamMode && a.team === t.team)) a.ck = (a.ck | 0) + (t.bot || t.zt ? EARN.killBot : EARN.killHuman); this.chalKill(a, w, head, back, ks, fx); } if (a.alive && !this.x1Mode && ks !== 'h' && ks !== 'x' && ks !== 'g' && ks !== 'a') this.streakKill(a); }
+    t.alive = false; t.hp = 0; t.deaths++; if (t.acct) t.sd++; t.respawnAt = this.T + (t.dummy ? TRAIN.respawn : this.armsMode ? ARMS_RACE.respawnTime : RESPAWN_TIME); if (!t.bot) { t.needRs = true; t.rsReq = false; } // humano: só renasce clicando em Renascer
+    if (a && a !== t && !this.friends(a, t)) { a.kills++; if (a.acct) { a.sk++; if (!this.inv && !(this.teamMode && a.team === t.team)) a.ck = (a.ck | 0) + (t.bot || t.zt ? EARN.killBot : EARN.killHuman); this.chalKill(a, w, head, back, ks, fx); } if (a.alive && !this.x1Mode && ks !== 'h' && ks !== 'x' && ks !== 'g' && ks !== 'a') this.streakKill(a); }
+    if (this.armsMode) {
+      const result = armsRaceKill(a, t, w);
+      for (const e of result.changed) this.equipArms(e);
+      if (a && a !== t) this.events.push(['ar', a.id, a.armsStage, a.armsKills, 0]);
+      if (result.winner) { this.armsWinner = a.id; this.forcedWinTeam = a.team; this.pendingEnd = true; }
+    }
     t.ksKills = 0; t.ksMissile = null; // morreu: sequência zera (míssil no ar cai junto); os streaks já ganhos (ksBank) continuam guardados
     // faca: ev[3] = pistola (clientes antigos não conhecem a arma 5) e ev[7] = 1 (faca) / 2 (pelas costas)
-    const ev = ['k', a ? a.id : 0, t.id, w === KNIFE ? PISTOL : w === W_BOMB ? W_NADE : w, head ? 1 : 0, a ? a.kills : 0, t.deaths]; if (w === KNIFE) ev.push(back ? 2 : 1); else if (w === W_BOMB) ev.push(3); // 3 = botijão (clientes antigos veem Copo Bomba)
+    const knifeKill = isKnife(w);
+    const ev = ['k', a ? a.id : 0, t.id, knifeKill ? PISTOL : w === W_BOMB ? W_NADE : w, head ? 1 : 0, a ? a.kills : 0, t.deaths]; if (knifeKill) ev.push(back ? 2 : 1); else if (w === W_BOMB) ev.push(3); // 3 = botijão (clientes antigos veem Copo Bomba). Faca dourada usa o mesmo sinal da faca.
     if (ks || fx) { while (ev.length < 8) ev.push(0); ev.push(ks || 0); } if (fx) ev.push(fx); // ev[9]: 1 pela parede, 2 collateral
     this.events.push(ev);
     // vira bacon que cura: fica no chão onde morreu pelo mesmo tempo que o bacon aparece no cliente
@@ -1119,7 +1134,7 @@ export class Game {
   cq(e, key, n = 1) { if (!e || !e.acct || this.training) return; const q = e.cq || (e.cq = {}); q[key] = (q[key] | 0) + n; }
   chalKill(a, w, head, back, ks, fx) {
     this.cq(a, 'k'); if (head) this.cq(a, 'hs'); if (fx & 1) this.cq(a, 'wall');
-    if (w === KNIFE) { this.cq(a, 'knife'); if (back) this.cq(a, 'back'); }
+    if (isKnife(w)) { this.cq(a, 'knife'); if (back) this.cq(a, 'back'); }
     if (w === W_NADE && !ks && !this.shockNow) this.cq(a, 'nade'); // Copo Bomba (fora: Pokébola, choque, poderes)
     const g = CHAL_WEAPONS[WEAPONS[w] ? WEAPONS[w].key : '']; if (g) this.cq(a, g);
   }
@@ -1269,6 +1284,10 @@ export class Game {
     }
   }
   // ---------- renascimento e pickups ----------
+  equipArms(e) {
+    equipArmsRace(e); resetDrums(e); e.handAt = [-9, -9];
+    this.events.push(['ar', e.id, e.armsStage, e.armsKills, 1]);
+  }
   ensureX1Side(e) {
     if (e.x1Side === 0 || e.x1Side === 1) return;
     let c0 = 0, c1 = 0;
@@ -1310,7 +1329,8 @@ export class Game {
   }
   spawn(e, silent = false) {
     const s = this.pickSpawn(e); e.pos = { ...s }; e.vel = { x: 0, y: 0, z: 0 }; e.crouch = 0; e.hp = 100; e.alive = true; resetRegen(e); e.needRs = false; e.rsReq = false; e.invulnUntil = this.T + INVULN; e.sq++;
-    if (this.x1Mode) this.equipX1(e);
+    if (this.armsMode) this.equipArms(e);
+    else if (this.x1Mode) this.equipX1(e);
     else {
       if (e.bot && !e.dummy && botWantsShield(e.id) && weaponOn(TAMPA, this.cfg.weapons)) e.nextPrimary = TAMPA;
       else if (e.bot && (Math.random() < 0.3 || !weaponOn(e.nextPrimary, this.cfg.weapons))) e.nextPrimary = pick(botPool(this.cfg.weapons));
@@ -1485,6 +1505,7 @@ export class Game {
     return { x: z.x + b.zoneOff.x, y: z.y, z: z.z + b.zoneOff.zz };
   }
   botWeaponFor(b, d) {
+    if (this.armsMode) return b.primary;
     if (this.x1Mode) return b.primary;
     const mind = profileOf(b), hp = b.target ? b.target.hp : 100;
     const side = b.slots[1] ?? PISTOL, pr = b.primary;
@@ -1549,7 +1570,7 @@ export class Game {
       else if (flankOn) { const st = this.steer(b, b.flankGoal); if (st) { mx += st.x; mz += st.z; } } // dá a volta em vez de correr reto
       else if (Math.abs(t.pos.y - b.pos.y) > 1.2 && d > 3) { const st = this.steer(b, t.pos); if (st) { mx += st.x; mz += st.z; } }
       else if (isSaber(b.weapon)) { const reach = (saberProfile(WEAPONS[b.weapon]) || { reach: 2.4 }).reach; if (d > reach - 0.15) { mx += tx; mz += tz; } this.botSaberThink(b, t, d); }
-      else if (b.weapon === KNIFE) { if (d > 1.1) { mx += tx; mz += tz; } } // faca: cola no alvo
+      else if (isKnife(b.weapon)) { if (d > 1.1) { mx += tx; mz += tz; } } // faca: cola no alvo
       else if (isShieldW(b.weapon)) { if (d > 1.8) { mx += tx; mz += tz; } } // tampa: chega na porrada
       else if (d > range + 3) { mx += tx; mz += tz; } else if (d < range - 3) { mx -= tx; mz -= tz; }
       const faceShield = raisedAt(t, t.yaw, b.pos);
