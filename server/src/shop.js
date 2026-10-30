@@ -5,7 +5,7 @@
 //  equipar = 1 UPDATE condicional (não grava se nada mudou); mochila vai junto do /api/me (1 SELECT pequeno), sem polling.
 // ============================================================
 import { SKINS, skinOk } from '../../skins.js';
-import { ITEMS, itemById, parseLook, lookItemIds, isFreeItem, EARN } from '../../shared/closet.js';
+import { ITEMS, itemById, parseLook, lookItemIds, isFreeItem, knifeKind, sniperKind, EARN } from '../../shared/closet.js';
 import { spDay, parseChal, applyChal, chalView } from '../../shared/challenges.js';
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -49,11 +49,39 @@ export async function chalUpdates(env, items) {
 
 export async function wallet(env, id) { // saldo + mochila + quanto já ganhou hoje
   const [a, inv] = await env.DB.batch([
-    env.DB.prepare('SELECT coins, custom, earn_day, earn_today, chal FROM accounts WHERE id = ?').bind(id),
+    env.DB.prepare('SELECT coins, custom, earn_day, earn_today, chal, knife, sniper FROM accounts WHERE id = ?').bind(id),
     env.DB.prepare('SELECT item FROM inventory WHERE account_id = ?').bind(id),
   ]);
   const r = (a.results && a.results[0]) || { coins: 0, custom: null, earn_day: 0, earn_today: 0 };
-  return { coins: r.coins | 0, custom: r.custom && parseLook(r.custom) ? r.custom : null, items: (inv.results || []).map((x) => x.item).filter((i) => itemById(i)), earnToday: r.earn_day === dayNow() ? r.earn_today | 0 : 0, dayCap: EARN.dayCap, chal: chalView(id, r.chal) };
+  const items = (inv.results || []).map((x) => x.item).filter((i) => itemById(i));
+  const knife = knifeKind(r.knife) && (isFreeItem(r.knife) || items.includes(r.knife)) ? r.knife : null;
+  const sniper = sniperKind(r.sniper) && (isFreeItem(r.sniper) || items.includes(r.sniper)) ? r.sniper : null;
+  return { coins: r.coins | 0, custom: r.custom && parseLook(r.custom) ? r.custom : null, items, knife, sniper, earnToday: r.earn_day === dayNow() ? r.earn_today | 0 : 0, dayCap: EARN.dayCap, chal: chalView(id, r.chal) };
+}
+export async function equipSniper(env, id, itemId) {
+  const clear = itemId == null || itemId === '';
+  if (!clear) {
+    if (!sniperKind(itemId)) return false;
+    if (!isFreeItem(itemId)) {
+      const own = await env.DB.prepare('SELECT 1 AS x FROM inventory WHERE account_id = ? AND item = ?').bind(id, itemId).first();
+      if (!own) return false;
+    }
+  }
+  await env.DB.prepare('UPDATE accounts SET sniper = ?2 WHERE id = ?1').bind(id, clear ? null : itemId).run();
+  return true;
+}
+// equipar faca: '' volta pra faca de churrasqueiro. Paga só entra se estiver na mochila. O preço não volta.
+export async function equipKnife(env, id, itemId) {
+  const clear = itemId == null || itemId === '';
+  if (!clear) {
+    if (!knifeKind(itemId)) return false;
+    if (!isFreeItem(itemId)) {
+      const own = await env.DB.prepare('SELECT 1 AS x FROM inventory WHERE account_id = ? AND item = ?').bind(id, itemId).first();
+      if (!own) return false;
+    }
+  }
+  await env.DB.prepare('UPDATE accounts SET knife = ?2 WHERE id = ?1').bind(id, clear ? null : itemId).run();
+  return true;
 }
 
 // compra: erro amigável por pré-leitura, segurança por lote atômico (INSERT condicional + débito condicional; chave primária barra compra dupla)

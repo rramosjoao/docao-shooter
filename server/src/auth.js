@@ -8,7 +8,7 @@
 import { cleanNick, nickKey, nickError, passError } from '../../shared/nick.js';
 import { START_COINS } from '../../shared/closet.js';
 import { SKINS, skinOk } from '../../skins.js';
-import { coinCreditStmt, chalUpdates, wallet, buyItem, equipSkin } from './shop.js';
+import { coinCreditStmt, chalUpdates, wallet, buyItem, equipSkin, equipKnife, equipSniper } from './shop.js';
 
 const ITERS = 100000; // teto do WebCrypto do Workers
 const SESSION_TTL = 30 * 24 * 3600; // s
@@ -73,7 +73,7 @@ async function newSession(env, accountId) {
 // token → { id, nick, skin } ou null (inexistente/vencido/inválido)
 export async function accountFromToken(env, token) {
   if (!env.DB || typeof token !== 'string' || !/^[A-Za-z0-9_-]{20,64}$/.test(token)) return null;
-  return env.DB.prepare('SELECT a.id, a.nick, a.skin FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ? AND s.expires_at > ?').bind(await sha256hex(token), now()).first();
+  return env.DB.prepare('SELECT a.id, a.nick, a.skin, a.knife, a.sniper FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ? AND s.expires_at > ?').bind(await sha256hex(token), now()).first();
 }
 // apelido pertence a uma conta? (convidados não podem usar)
 export async function nickRegistered(env, raw) {
@@ -112,7 +112,7 @@ async function myStats(env, id) {
 // devolve Response ou null (rota não é de conta). json(obj, status, extraHeaders)
 export async function handleAccountRoute(req, env, url, json) {
   const p = url.pathname, m = req.method;
-  if (!(p.startsWith('/api/auth/') || p === '/api/me' || p === '/api/me/skin' || p === '/api/shop/buy' || p === '/api/rank')) return null;
+  if (!(p.startsWith('/api/auth/') || p === '/api/me' || p === '/api/me/skin' || p === '/api/me/knife' || p === '/api/me/sniper' || p === '/api/shop/buy' || p === '/api/rank')) return null;
   if (!env.DB) return json({ error: 'Contas indisponíveis no momento. Você pode jogar como convidado.' }, 503);
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
   try {
@@ -168,12 +168,22 @@ export async function handleAccountRoute(req, env, url, json) {
     if (p === '/api/me' && m === 'GET') {
       const a = await accountFromToken(env, tok); if (!a) return json({ error: 'Sessão inválida' }, 401);
       const w = await wallet(env, a.id);
-      return json({ account: { ...publicAcc(a), custom: w.custom, coins: w.coins }, stats: await myStats(env, a.id), items: w.items, earn: { today: w.earnToday, cap: w.dayCap }, chal: w.chal });
+      return json({ account: { ...publicAcc(a), custom: w.custom, coins: w.coins, knife: w.knife, sniper: w.sniper }, stats: await myStats(env, a.id), items: w.items, earn: { today: w.earnToday, cap: w.dayCap }, chal: w.chal });
     }
     if (p === '/api/me/skin' && m === 'PUT') {
       const a = await accountFromToken(env, tok); if (!a) return json({ error: 'Sessão inválida' }, 401);
       const b = await readJson(req); if (!b || typeof b.skin !== 'string' || !(await saveSkin(env, a.id, b.skin))) return json({ error: 'Skin inválida ou com partes que você ainda não comprou' }, 400);
       return json({ ok: true, skin: b.skin });
+    }
+    if (p === '/api/me/knife' && m === 'PUT') {
+      const a = await accountFromToken(env, tok); if (!a) return json({ error: 'Sessão inválida' }, 401);
+      const b = await readJson(req); if (!b || typeof b.knife !== 'string' || !(await equipKnife(env, a.id, b.knife))) return json({ error: 'Essa faca não está na sua mochila' }, 400);
+      return json({ ok: true, knife: b.knife || null });
+    }
+    if (p === '/api/me/sniper' && m === 'PUT') {
+      const a = await accountFromToken(env, tok); if (!a) return json({ error: 'Sessão inválida' }, 401);
+      const b = await readJson(req); if (!b || typeof b.sniper !== 'string' || !(await equipSniper(env, a.id, b.sniper))) return json({ error: 'Essa skin não está na sua mochila' }, 400);
+      return json({ ok: true, sniper: b.sniper || null });
     }
     if (p === '/api/shop/buy' && m === 'POST') {
       const a = await accountFromToken(env, tok); if (!a) return json({ error: 'Sessão inválida' }, 401);

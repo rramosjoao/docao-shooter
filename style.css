@@ -1159,25 +1159,42 @@ body.invout #deathpick,body.invout #stamp,body.invout #centermsg{display:none!im
  border-color:#4b3524;box-shadow:inset 0 0 60px #14251b99,0 15px 60px #160c08bb
 }
 #menu[data-crate-state=inside][data-container=wardrobe] .ticket-board::after{border-color:#8e744c}
-#menu[data-crate-state=inside] #menu-operator:not([hidden]){display:grid;grid-template-columns:.85fr 1.15fr;grid-template-rows:auto 1fr;gap:0 24px;min-height:100%}
+#menu[data-crate-state=inside][data-container=wardrobe] .section-heading{padding-bottom:8px}
+#menu[data-crate-state=inside][data-container=wardrobe] .menu-content{overflow:hidden;display:flex;flex-direction:column}
+#menu[data-crate-state=inside] #menu-operator:not([hidden]){display:grid;grid-template-columns:.85fr 1.15fr;grid-template-rows:auto minmax(0,1fr);gap:0 24px;flex:1;min-height:0;height:100%;overflow:hidden}
 #menu[data-crate-state=inside] #menu-operator .section-heading{grid-column:1/-1}
 #menu[data-crate-state=inside] #menu-operator:focus-visible{outline:none}
-#menu[data-crate-state=inside] #menu-operator .skinpick{align-self:center;padding:24px 12px;background:#14251b66;border:2px solid #547052;box-shadow:inset 0 2px #b0b57a22,0 4px #16261c;transform:rotate(-.5deg)}
+#menu[data-crate-state=inside] #menu-operator .skinpick{align-self:stretch;min-height:0;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;padding:12px 12px 14px;background:#14251b66;border:2px solid #547052;box-shadow:inset 0 2px #b0b57a22,0 4px #16261c;transform:none;scrollbar-width:thin;scrollbar-color:#d5c597 #14251b}
+#menu[data-crate-state=inside] #wardrobeOwned{flex:0 0 auto;max-height:46%;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#d5c597 #14251b}
+#menu[data-crate-state=inside] #skinList{flex:0 0 auto;overflow:visible}
 #menu[data-crate-state=inside] #menu-operator .label2{color:#d5c597}
 #menu[data-crate-state=inside] #skinName{color:#fff0cc;font:900 clamp(24px,2.5vw,35px)/1.1 var(--font);text-shadow:1px 2px #14251b}
 #menu[data-crate-state=inside] #skinIdx{color:#d5c597;margin-left:8px;font-size:12px}
-#menu[data-crate-state=inside] #skinList{gap:17px;padding:18px 12px;margin-top:16px}
+#menu[data-crate-state=inside] #skinList{gap:10px;padding:10px 8px;margin-top:8px}
 #menu[data-crate-state=inside] button.skinchip{width:37px;height:37px;border:3px solid #172b20;border-radius:5px;transform:rotate(-3deg);box-shadow:1px 3px #11201788}
 #menu[data-crate-state=inside] button.skinchip:nth-child(2n){transform:rotate(3deg)}
 #menu[data-crate-state=inside] button.skinchip.active{outline:3px solid #edc982;outline-offset:3px}
 #menu[data-crate-state=inside] button.arrow{background:#5a6d46;color:#fff0cc;box-shadow:0 3px #15291d}
-#menu[data-crate-state=inside] .wardrobe-preview{display:block;position:relative;align-self:stretch;min-height:420px;isolation:isolate;background:radial-gradient(ellipse at 50% 95%,#0c1d1577 0,transparent 45%)}
+#menu[data-crate-state=inside] .wardrobe-preview{display:block;position:relative;align-self:stretch;min-height:0;height:100%;isolation:isolate;background:radial-gradient(ellipse at 50% 95%,#0c1d1577 0,transparent 45%)}
 #menu[data-crate-state=inside] .wardrobe-preview canvas{display:block;position:absolute;inset:0;width:100%;height:100%;z-index:1}
 #menu .wardrobe-preview>span{position:absolute;bottom:6px;left:0;right:0;text-align:center;font:900 10px var(--font);letter-spacing:2px;color:#d5c597;z-index:2}
+#menu .wardrobe-owned{margin-top:18px;text-align:left}
+#menu .wardrobe-owned h4,#menu .wardrobe-note{margin:8px 0 4px;font:900 11px var(--font);letter-spacing:1px;text-transform:uppercase;color:#5b4a2c}
+#menu .wardrobe-note{letter-spacing:0;text-transform:none;font-weight:700;line-height:1.35}
+#menu .wardrobe-owned .closet-slot{margin:8px 0}
+#menu .wardrobe-owned .closet-chips button,#menu .wardrobe-owned .closet-sw{margin:0;width:auto;padding:5px 9px;font:800 12px var(--font);color:var(--ink);background:#e6d3a8;border:2px solid var(--ink);border-radius:3px;box-shadow:none}
+#menu .wardrobe-owned .closet-chips button:hover,#menu .wardrobe-owned .closet-sw:hover{background:#fff0cc}
+#menu .wardrobe-owned .closet-chips button.on{background:var(--ink);color:#efdfbb}
+#menu .wardrobe-owned .closet-sw{width:26px;height:26px;padding:0;border-radius:50%}
+#menu .wardrobe-owned .closet-sw.on{outline:3px solid var(--red);outline-offset:1px}
+#menu .wardrobe-save{width:100%;margin-top:12px;padding:10px;font:900 13px var(--font);letter-spacing:1px;color:#fff0cc;background:#203e35;border:2px solid #14251b;border-radius:3px;box-shadow:0 3px #112017}
+#menu .wardrobe-save:hover{background:#2f5a48}
+#menu[data-crate-state=inside] .wardrobe-owned h4,#menu[data-crate-state=inside] .wardrobe-note{color:#d5c597}
 @media(max-width:720px){
- #menu[data-crate-state=inside] #menu-operator:not([hidden]){grid-template-columns:1fr;grid-template-rows:auto auto auto;gap:18px}
+ #menu[data-crate-state=inside][data-container=wardrobe] .menu-content{overflow:auto}
+ #menu[data-crate-state=inside] #menu-operator:not([hidden]){grid-template-columns:1fr;grid-template-rows:auto auto auto;gap:18px;overflow:visible;height:auto}
  #menu[data-crate-state=inside] .wardrobe-preview{grid-row:2;min-height:310px;height:310px}
- #menu[data-crate-state=inside] #menu-operator .skinpick{grid-row:3;padding:18px 10px}
+ #menu[data-crate-state=inside] #menu-operator .skinpick{grid-row:3;padding:18px 10px;overflow:visible}
  #menu[data-crate-state=inside] #skinList{gap:16px}
 }
 

@@ -63,6 +63,20 @@ export async function buyItem(item) { // o servidor decide: preço, saldo e se j
   if (!r.ok) { if (r.status === 409 && !items.includes(item)) { items.push(item); emit(); } return { error: r.data.error || 'Não deu pra comprar' }; }
   if (!items.includes(r.data.item)) items.push(r.data.item); account.coins = r.data.coins; emit(); return { ok: true, coins: r.data.coins };
 }
+export async function equipKnife(id) { // '' volta pra faca de churrasqueiro. O servidor só aceita faca que está na mochila.
+  if (!token || !account) return { error: 'Entre na sua conta para equipar' };
+  const r = await api('/api/me/knife', { method: 'PUT', body: { knife: id || '' }, auth: true });
+  if (r.status === 401) { dropSession(); return { error: 'Sessão expirada. Entre de novo.' }; }
+  if (!r.ok) return { error: r.data.error || 'Não deu pra equipar' };
+  account.knife = r.data.knife || null; emit(); return { ok: true, knife: account.knife };
+}
+export async function equipSniper(id) {
+  if (!token || !account) return { error: 'Entre na sua conta para equipar' };
+  const r = await api('/api/me/sniper', { method: 'PUT', body: { sniper: id || '' }, auth: true });
+  if (r.status === 401) { dropSession(); return { error: 'Sessão expirada. Entre de novo.' }; }
+  if (!r.ok) return { error: r.data.error || 'Não deu pra equipar' };
+  account.sniper = r.data.sniper || null; emit(); return { ok: true, sniper: account.sniper };
+}
 export async function loadRank(mode = 'all', sort = 'kills') {
   const r = await api(`/api/rank?mode=${encodeURIComponent(mode)}&sort=${encodeURIComponent(sort)}&limit=20`);
   return r.ok ? r.data.rows || [] : null;

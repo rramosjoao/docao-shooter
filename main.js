@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import { kickRecoil, stepRecoil, resetRecoil, cancelRecoilReturn } from './shared/recoil.js';
 import { makeWardrobeCase } from './menu-wardrobe.js';
 import { makeMenuBackdrop } from './menu-backdrop.js';
-import { makeDocao, makeFPArms, makeFPForearm, poseFPForearm, setPose, setCrouchPose, toon, outline, makeCup, makeRocket, drawLogo, makeKnife, setExpression, updateExpression, makeNukeRider } from './docao.js';
+import { makeDocao, makeFPArms, makeFPForearm, poseFPForearm, setPose, setCrouchPose, toon, outline, makeCup, makeRocket, drawLogo, makeKnife, applyKnifeSkin, poseButterfly, setExpression, updateExpression, makeNukeRider } from './docao.js';
 import { DANCES, PAID_DANCE_LIST, isPaidDance, normDance, poseVictory, makeShadowDancer, hideVictoryGuns, resetVictoryPose } from './victory-dance.js';
 import { DANCE_TIME, danceId } from './shared/emote.js';
-import { makeFPSniper, poseSniperBolt } from './sniper-view.js';
+import { makeFPSniper, poseSniperBolt, applySniperSkin } from './sniper-view.js';
 import { makeFPSaber, makeWorldSaber, setSaberColor, poseSaber } from './saber-view.js';
 import { makeFPCrossbow, makeFPBow, poseDraw, poseRelease, makeFlightShaft } from './bow-view.js';
 import { makeFPSlingshot } from './slingshot-view.js';
@@ -61,8 +61,9 @@ import { SHIELD, isShieldW, shieldRaised, shieldOnBack, resetShield, shieldStage
 import { makeFPShield } from './shield-view.js';
 import { rounds, spendRound, drumsFull, drumsEmpty, refillDrums, resetDrums, setDrum, rollFumble, pickBotSecondary, akimboReady, ammoLow } from './shared/revolver.js';
 import { getAccount, getItems, onAccount, loadMe, saveSkin as saveAcctSkin, dropSession } from './account.js';
+import { knifeKind, knifeFinish, sniperKind } from './shared/closet.js';
 import { initAccountUI } from './account-ui.js';
-import { initCloset } from './closet-ui.js';
+import { initCloset, refreshWardrobeLook } from './closet-ui.js';
 import { bindGrenadeVoice, playGrenadeVoice, grenadeVoiceEnabled, setGrenadeVoiceEnabled } from './grenade-voice.js';
 import { POWER_UPS, normHand, clampLoadout, botPool, powerOn, savedToLimits, limitsToSaved } from './shared/loadout.js';
 // fonte Fredoka (canvas de HUD/nomes usa a fonte só depois de carregada; o CSS já tem font-display: swap)
@@ -683,6 +684,7 @@ function ensureGhost(skinId) {
     if (ghost.model.snout) ghost.model.snoutBase = ghost.model.snout.scale.clone();
     scene.add(ghost.model.group);
   }
+  paintSniper(ghost.model, (getAccount() && getAccount().sniper) || '');
   return ghost;
 }
 const victory = { on: false, model: null, clock: 0 };
@@ -1490,7 +1492,7 @@ function switchWeapon(e, idx) {
     if (W.revolver) noteCapataz('equip', { dual: !!W.akimbo, fumble: !!(e.forceFumble || rollFumble()), dur });
     e.forceFumble = false;
     if (idx !== KNIFE) playCueList(drawCues(W.key), e.switchDur);
-    if (idx === KNIFE) { fp.knifeDrawT = MELEE.draw + 0.1; sfx.knifeDraw(0.8); rightStale = rightDown; } // mirando e trocou pra faca: só estoca num clique novo
+    if (idx === KNIFE) { fp.knifeDrawT = MELEE.draw + 0.1; sfx.knifeDraw(0.8); rightStale = rightDown; startButterfly(); } // mirando e trocou pra faca: só estoca num clique novo
   }
 }
 // troca rápida (V): corpo a corpo (faca ou sabre) ↔ última arma
@@ -3190,6 +3192,44 @@ const fp = (() => {
   const brass = add(new THREE.CylinderGeometry(0.012, 0.012, 0.045, 6), toon(0xd9a441), 0, 0, 0, root, 0); brass.visible = false; brass.rotation.z = Math.PI / 2; // molde da cápsula (uma malha só, reaproveitada)
   return { root, guns, flash, setSkin, cup, cupHand, cupThrowT: 0, kick: 0, bob: 0, flashT: 0, pumpPart, get pumpHand() { return pumpHand; }, pumpShoulder, rocketTip, slide, fpRef, actionT: 0, actionLen: 1, shellT: 0, stringT: 0, kr, kpiv, rMag, rCh, cMag, cCh, pMag, uMag, uCh, p90Mag, p90Ch, nStrip, semiMag, semiCh, lmgMag, lmgCh, lmgBarrel, brass, discLoaded, famasMag, famasCh, famasCase, cornCob, cornCore, cornCrank, cornBits, cornKernels, cornCrankT: 0, sling, mini: { group: mini, barrels: mgBarrels, glow: mgGlow, glowMat: mgGlowMat }, mgBox, mgCase, cycT: 0, climb: 0, sShell, sRound, loadRocket, drops: [], reloadSeen: 0, knifeT: 9, knifeKind: 'slash', knifeDrawT: 0 };
 })();
+function knifeLook(id) {
+  const kind = knifeKind(id);
+  return { kind: kind || 'chef', finish: kind ? (knifeFinish(id) || 'factory') : 'factory' };
+}
+function applyHeldKnife(id) {
+  const mesh = fp.kpiv && fp.kpiv.children.find((c) => c.userData.knifeSkin);
+  if (!mesh) return;
+  const look = knifeLook(id);
+  applyKnifeSkin(mesh, look.kind, look.finish);
+}
+function applyWorldKnife(e, id) {
+  if (!(e && e.model && e.model.guns && e.model.guns[KNIFE])) return;
+  const look = knifeLook(id);
+  applyKnifeSkin(e.model.guns[KNIFE], look.kind, look.finish);
+}
+const SNIPER_W = WEAPONS.findIndex((w) => w.key === 'sniper');
+function paintSniper(model, id) {
+  const g = model && model.guns && model.guns[SNIPER_W];
+  if (!g) return;
+  const kind = sniperKind(id);
+  if (kind) resetWeaponCamo(g);
+  applySniperSkin(g, kind);
+}
+function applyHeldSniper(id) {
+  const gun = fp.guns[SNIPER_W];
+  const kind = sniperKind(id);
+  if (gun) {
+    if (kind) resetWeaponCamo(gun);
+    applySniperSkin(gun, kind);
+    if (!kind && player && player.gunKills) applyWeaponCamo(gun, camoLevel(player.gunKills[SNIPER_W]));
+  }
+  if (player) paintSniper(player.model, id);
+  if (weaponThumbs.length && gun) {
+    try { weaponThumbs[SNIPER_W] = renderWeaponThumb(gun); } catch (e) { /* miniatura segue a de fábrica */ }
+    paintWeaponThumbs();
+  }
+}
+function applyWorldSniper(e, id) { if (e && e.model) paintSniper(e.model, id); }
 fp.tablet = makeTablet(); fp.laptop = makeLaptop(); fp.radio = makeRadio(); fpScene.add(fp.tablet, fp.laptop, fp.radio);
 // Mãos dentro da arma (pump, ferrolho, braço da faca) não entram na camuflagem nem na miniatura.
 function markWeaponHands() {
@@ -3224,7 +3264,8 @@ function weaponTitleParts(p) {
   const w = WEAPONS[p.weapon], n = (p.gunKills && p.gunKills[p.weapon]) || 0;
   const info = camoInfo(n), nxt = nextCamo(n);
   const meta = info && !nxt ? info.name : info && nxt ? `${info.name} · ${n}/${nxt.at}` : nxt ? `${n}/${nxt.at}` : '';
-  return { name: w.name, meta };
+  const name = w.key === 'sniper' && sniperKind((getAccount() && getAccount().sniper) || '') ? 'A Docão Lore' : w.name;
+  return { name, meta };
 }
 function weaponTitle(p) {
   const t = weaponTitleParts(p);
@@ -3321,7 +3362,7 @@ function startInspect(p) {
   if (!canInspect(p) || (fp.ins && !fp.ins.out && fp.ins.t < INSPECT_DUR * 0.8)) return false; // no meio: só reinicia na volta
   fp.ins = { t: 0, wpn: p.weapon, kind: inspectKind(WEAPONS[p.weapon]), fade: 1, out: false, hold: false, flipped: false, egg: !reducedAnims() && Math.random() < EGG_P, pig: false };
   if (WEAPONS[p.weapon].revolver) noteCapataz('inspect', { dual: !!WEAPONS[p.weapon].akimbo });
-  sfx.inspect(); if (fp.ins.egg) flairCue('boop', 0.05, 0.5); playCueList(inspectCues(WEAPONS[p.weapon].key), INSPECT_DUR, fp.ins.egg ? 1 : 0.75); showInspectHud(p); return true;
+  sfx.inspect(); if (fp.ins.egg) flairCue('boop', 0.05, 0.5); playCueList(inspectCues(WEAPONS[p.weapon].key), INSPECT_DUR, fp.ins.egg ? 1 : 0.75); showInspectHud(p); startButterfly(); return true;
 }
 function stopInspect(hard) { if (!fp.ins) return; if (hard) fp.ins = null; else fp.ins.out = true; showInspectHud(null); }
 function showInspectHud(p) {
@@ -3401,7 +3442,7 @@ function updateFP(dt) {
   const bolting = !!(w.bolt && fp.actionT > 0);
   const drawn = p.weapon === CROSS || p.weapon === BOW || p.weapon === EGG_W;
   fp.fpRef.arms.visible = p.weapon !== PISTOL && p.weapon !== NAIL && p.weapon !== KNIFE && !isSaber(p.weapon) && !w.shield && !w.revolver && !drawn && !bolting && !shatter; fp.fpRef.armsP.visible = (p.weapon === PISTOL || p.weapon === NAIL) && !shatter && !w.revolver;
-  if (p.weapon === KNIFE) { knifeAnim(dt); fp.kpiv.rotation.x = ins.flip; } // inspecionar: gira a faca no dedo (só a lâmina; o braço fica em kr)
+  if (p.weapon === KNIFE) { knifeAnim(dt); const bfly = fp.kpiv.children.some((c) => c.userData.bflyBlade); fp.kpiv.rotation.x = bfly ? 0 : ins.flip; } // inspecionar: as outras facas giram no dedo; a butterfly gira a lâmina no pino
   let dip = 0, tilt = 0;
   // animações de ação: pump da Calibre 12, ferrolho do Sniper, ferrolho da pistola, foguete na boca da bazuca
   fp.actionT = Math.max(0, fp.actionT - dt); fp.shellT = Math.max(0, fp.shellT - dt);
@@ -3741,6 +3782,19 @@ function knifeAnim(dt) {
   if (fp.knifeDrawT > 0) { const d = fp.knifeDrawT / (MELEE.draw + 0.1); py -= 0.35 * d; rx += 0.9 * d; rz += 1.6 * d; }
   if (!reducedAnims() && k < 1 && fp.knifeKind === 'slash') { const ex = knifeExtra(fp.knifeVar || 0, Math.min(1, k)); px += ex.x; py += ex.y; pz += ex.z; rx += ex.rx; ry += ex.ry; rz += ex.rz; }
   kr.position.set(px, py, pz); kr.rotation.set(rx, ry, 0); kp.rotation.z = rz;
+  const mesh = kp.children.find((c) => c.userData.knifeSkin);
+  if (mesh && mesh.userData.bflyBlade) {
+    const attacking = k < 1;
+    if (attacking || reducedAnims()) fp.bflyT = BFLY_DUR;
+    else if (fp.bflyT < BFLY_DUR) fp.bflyT += dt;
+    poseButterfly(mesh, !(fp.bflyT < BFLY_DUR) ? 1 : fp.bflyT / BFLY_DUR);
+  }
+}
+const BFLY_DUR = 0.95;
+function startButterfly() {
+  const mesh = fp.kpiv && fp.kpiv.children.find((c) => c.userData.knifeSkin);
+  if (!mesh || !mesh.userData.bflyBlade || reducedAnims()) return;
+  fp.bflyT = 0;
 }
 
 // ---------------- Mira (botão direito) ----------------
@@ -4490,6 +4544,14 @@ function animateBot(b, dt) { // visual: andar, flutuar, piscar ao levar dano, bo
       else { a.rotation.y = 0.25 + (k < 0.25 ? -0.9 * (k / 0.25) : -0.9 + 2.0 * Math.min(1, (k - 0.25) / 0.35)) * (1 - Math.max(0, (k - 0.6) / 0.4)); a.rotation.x = -1.05 - 0.35 * sn; }
       if (b.swingVar) { const ex = knifeExtra(b.swingVar, Math.min(1, k)); a.rotation.y += ex.ry * 0.45; a.rotation.x += ex.rx * 0.35; }
     }
+    const kn = m.guns[KNIFE];
+    if (kn && kn.userData.bflyBlade && b.weapon === KNIFE) {
+      if (b.bflyKey !== b.switchEnd) { b.bflyKey = b.switchEnd; b.bflyT = 0; }
+      const attacking = (b.swingT ?? 9) < 0.6;
+      if (attacking || reducedAnims()) b.bflyT = 0.95;
+      else if (b.bflyT < 0.95) b.bflyT += dt;
+      poseButterfly(kn, Math.min(1, (b.bflyT || 0) / 0.95));
+    }
   }
   if (pose === 'saber') { // as duas mãos no cabo; o corte gira o braço direito e o sabre vai junto
     b.swingT = (b.swingT ?? 9) + dt; const k = b.swingT / 0.48, a = m.arms[0], off = m.arms[1];
@@ -4632,7 +4694,9 @@ function botShoot(b, t, dist = 10) {
 // Entradas do menu fazem parte da vitrine; a comanda mantém a partida a um clique.
 const menuViewButtons = [...document.querySelectorAll('[data-menu-view]')];
 let menuViewTrigger = null;
+let wardrobeDraft = false;
 function setMenuView(view, trigger) {
+  if (view !== 'operator' && wardrobeDraft) commitMenuSkin();
   if (view !== 'arsenal') closeBench(); // fechou a caixa do Arsenal: a bancada fecha junto
   for (const name of ['match', 'arsenal', 'operator', 'settings']) $('menu-' + name).hidden = name !== view;
   for (const button of menuViewButtons) button.setAttribute('aria-expanded', String(button.dataset.menuView === view));
@@ -4642,6 +4706,7 @@ function setMenuView(view, trigger) {
   if (trigger) menuViewTrigger = trigger;
   if (view !== 'match') $('menu-' + view).focus();
   else if (menuViewTrigger) menuViewTrigger.focus();
+  if (view === 'operator') refreshWardrobeLook();
 }
 // Uma única progressão dirige tampa, personagem, câmera e interface, inclusive na volta.
 const crateJourney = { progress: 0, target: 0, phase: 'closed', view: 'arsenal', nextView: 'match', homeNear: .1, homePosition: new V3(), homeQuaternion: new THREE.Quaternion(), homeOffset: 0 };
@@ -5125,24 +5190,29 @@ function buildPrimaryPickers() {
   const row = $('saberRow'); if (row) row.hidden = !isSaber(selectedMelee);
   buildDeathSec(); buildDeathMelee();
 }
-function setPreview(id) {
-  selectedSkin = getSkin(id).id; try { localStorage.setItem('docao.skin', selectedSkin); } catch (e) { /* sem storage */ }
-  saveAcctSkin(selectedSkin); // com conta: guarda a skin (sem conta não faz nada)
+function paintPreview(id, persist) {
+  const skin = getSkin(id), shown = skin.id;
+  if (persist) {
+    selectedSkin = shown; wardrobeDraft = false;
+    try { localStorage.setItem('docao.skin', selectedSkin); } catch (e) { /* sem storage */ }
+    saveAcctSkin(selectedSkin);
+  } else wardrobeDraft = true;
   if (preview) showcase.remove(preview.group);
-  preview = makeDocao(selectedSkin, { withGun: false, pose: 'idle' }); showcase.add(preview.group);
-  $('skinName').textContent = getSkin(selectedSkin).name;
-  $('wardrobePreview').setAttribute('aria-label', `Prévia do visual ${getSkin(selectedSkin).name}`);
-  { const n = SKINS.findIndex((s) => s.id === selectedSkin); $('skinIdx').textContent = n < 0 ? 'meu visual' : `${n + 1}/${SKINS.length}`; }
-  document.querySelectorAll('.skinchip').forEach((c) => c.classList.toggle('active', c.dataset.id === selectedSkin));
+  preview = makeDocao(shown, { withGun: false, pose: 'idle' }); showcase.add(preview.group);
+  $('skinName').textContent = skin.name;
+  $('wardrobePreview').setAttribute('aria-label', `Prévia do visual ${skin.name}`);
+  { const n = SKINS.findIndex((s) => s.id === shown); $('skinIdx').textContent = n < 0 ? (persist ? 'meu visual' : 'rascunho') : `${n + 1}/${SKINS.length}`; }
+  document.querySelectorAll('.skinchip').forEach((c) => c.classList.toggle('active', persist && c.dataset.id === selectedSkin));
 }
+function setPreview(id) { paintPreview(id, true); }
 function buildSkinPicker() {
   const list = $('skinList'); list.innerHTML = '';
   for (const sk of SKINS) {
     const b = document.createElement('button'); b.className = 'skinchip'; b.dataset.id = sk.id; b.title = sk.name;
     const base = sk.shirt && sk.shirt.color ? sk.shirt.color : '#d8261c'; const acc = (sk.parts || []).find((p) => p.color);
-    b.style.background = acc ? `linear-gradient(180deg, ${acc.color} 0 45%, ${base} 45% 100%)` : base; b.onclick = () => setPreview(sk.id); list.appendChild(b);
+    b.style.background = acc ? `linear-gradient(180deg, ${acc.color} 0 45%, ${base} 45% 100%)` : base; b.onclick = () => { setPreview(sk.id); document.dispatchEvent(new CustomEvent('docao-skin-catalog')); }; list.appendChild(b);
   }
-  const step = (d) => { let i = SKINS.findIndex((s) => s.id === selectedSkin); if (i < 0) i = d > 0 ? -1 : 0; setPreview(SKINS[(i + d + SKINS.length) % SKINS.length].id); };
+  const step = (d) => { let i = SKINS.findIndex((s) => s.id === selectedSkin); if (i < 0) i = d > 0 ? -1 : 0; setPreview(SKINS[(i + d + SKINS.length) % SKINS.length].id); document.dispatchEvent(new CustomEvent('docao-skin-catalog')); };
   $('skinPrev').onclick = () => step(-1); $('skinNext').onclick = () => step(1);
 }
 const weaponThumbs = [];
@@ -5222,6 +5292,16 @@ function buildDancePicks() {
 }
 buildDancePicks();
 document.addEventListener('docao-dance-pick', (e) => setDance(e.detail));
+document.addEventListener('docao-knife-pick', (e) => {
+  applyHeldKnife(e.detail);
+  if (player && player.weapon === KNIFE) startButterfly();
+  if (online && online.net) online.net.send({ t: 'prof', knife: e.detail || '' });
+});
+document.addEventListener('docao-sniper-pick', (e) => {
+  applyHeldSniper(e.detail);
+  if (online && online.net) online.net.send({ t: 'prof', sniper: e.detail || '' });
+});
+document.addEventListener('docao-look-preview', (e) => paintPreview(e.detail, false));
 function layoutDanceCast() {
   danceCast.forEach((d) => {
     if (!d.model) { d.model = makeShadowDancer(); danceScene.add(d.model.group); }
@@ -5393,7 +5473,13 @@ function cycleExplorePrimary(dir) {
   if (player.weapon !== i) switchWeapon(player, i); else setWeapon(player, i);
   flashMsg(WEAPONS[i].name);
 }
+function commitMenuSkin() {
+  if (!wardrobeDraft) return;
+  setPreview(selectedSkin);
+  document.dispatchEvent(new CustomEvent('docao-skin-catalog'));
+}
 function startGame(mapId) {
+  commitMenuSkin();
   clearMatchEnding(); closeBench(); // bancada do Arsenal aberta no menu comia W/S/setas/1-5 dentro da partida
   endVictory(); stopEmote();
   resetAds(); stopInspect(true); // inspeção velha não sobrevive ao 'Jogar de novo'
@@ -5433,6 +5519,8 @@ function startGame(mapId) {
   flashMsg(mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : `Mapa: ${currentMap.name} · bots ${diffWord}`); refreshModeHud();
   for (const ev of bombEv) onBombEvent(ev);
   $('menu').classList.add('hidden'); $('gameover').classList.add('hidden'); $('pause').classList.add('hidden'); $('hud').classList.remove('hidden'); $('socialHud').classList.remove('hidden'); $('voiceHud').classList.add('hidden'); chatSetRoom(true); // offline: o chat fica (pros códigos), sem voz $('overChat').classList.add('hidden');
+  applyHeldKnife(getAccount() && getAccount().knife);
+  applyHeldSniper(getAccount() && getAccount().sniper);
   camera.clearViewOffset(); state = 'playing'; lockPointer();
 }
 function endGame() {
@@ -6486,7 +6574,7 @@ $('lobbyNameBtn').onclick = () => sendName();
 // ---------- conta (opcional): apelido fixo + skin guardada ----------
 function applyAccount(a) {
   for (const id of NAME_FIELDS) { const el = $(id); el.readOnly = !!a; el.title = a ? 'Apelido fixo da sua conta' : ''; el.classList.toggle('locked', !!a); }
-  if (a) { saveName(a.nick); if (a.skin && skinOk(a.skin) && a.skin !== selectedSkin) setPreview(a.skin); else if (!a.skin) saveAcctSkin(selectedSkin); }
+  if (a) { saveName(a.nick); if (a.skin && skinOk(a.skin) && a.skin !== selectedSkin) setPreview(a.skin); else if (!a.skin) saveAcctSkin(selectedSkin); applyHeldSniper(a.sniper); }
   else { if (selectedSkin.startsWith('x1.')) setPreview(DEFAULT_SKIN); /* visual personalizado é só de conta */ let n = ''; try { n = localStorage.getItem('docao.name') || ''; } catch (e) { /* sem storage */ } for (const id of NAME_FIELDS) $(id).value = cleanName(n || 'Docão'); }
 }
 onAccount(applyAccount); initAccountUI(); initCloset(); document.addEventListener('docao-look-saved', () => { const a = getAccount(); if (a && a.skin && skinOk(a.skin)) setPreview(a.skin); }); loadMe().then(() => applyAccount(getAccount()));
@@ -6631,7 +6719,7 @@ $('leaveLobby').onclick = () => leaveOnline();
 // ---------- menu online ----------
 function onlineTab(create) { $('tabCreate').classList.toggle('active', create); $('tabJoin').classList.toggle('active', !create); $('paneCreate').classList.toggle('hidden', !create); $('paneJoin').classList.toggle('hidden', create); }
 $('roomMode').onchange = () => { if ($('roomMode').value === X1.mode) $('roomMax').value = '2'; fillMapSelect($('roomMap'), $('roomMode').value === 'bomb' ? BOMB_MAP : $('roomMap').value, $('roomMode').value); syncRoomLimits(); };
-$('onlineBtn').onclick = () => { if (invMenu()) $('roomMode').value = INV.mode; else if (bombMenu()) $('roomMode').value = 'bomb'; fillMapSelect($('roomMap'), selectedMap, $('roomMode').value); syncRoomLimits(); $('onlineErr').textContent = ''; $('menu').classList.add('hidden'); $('onlineModal').classList.remove('hidden'); };
+$('onlineBtn').onclick = () => { commitMenuSkin(); if (invMenu()) $('roomMode').value = INV.mode; else if (bombMenu()) $('roomMode').value = 'bomb'; fillMapSelect($('roomMap'), selectedMap, $('roomMode').value); syncRoomLimits(); $('onlineErr').textContent = ''; $('menu').classList.add('hidden'); $('onlineModal').classList.remove('hidden'); };
 $('onlineClose').onclick = () => { $('onlineModal').classList.add('hidden'); $('menu').classList.remove('hidden'); };
 $('tabCreate').onclick = () => onlineTab(true); $('tabJoin').onclick = () => { onlineTab(false); $('joinCode').focus(); };
 $('createBtn').onclick = async () => {
@@ -6662,7 +6750,7 @@ function remoteEnt(info) {
   }
   const e = makeEntity(info.name, false, info.skin, info.tag || '#ffffff');
   Object.assign(e, { id: info.id, remote: true, netId: info.id, bot: !!info.bot, buf: [], kills: info.kills || 0, deaths: info.deaths || 0, alive: false, primary: info.primary || 0, ping: 0 });
-  e.model.group.visible = false; setWeapon(e, info.w || 0); e.slots = [e.primary, e.secondary ?? PISTOL, e.melee ?? KNIFE]; e.caps = info.caps || 0; applyTeam(e, info.team ?? -1);
+  e.model.group.visible = false; setWeapon(e, info.w || 0); e.slots = [e.primary, e.secondary ?? PISTOL, e.melee ?? KNIFE]; e.caps = info.caps || 0; applyTeam(e, info.team ?? -1); if (info.kn) applyWorldKnife(e, info.kn); if (info.sn) applyWorldSniper(e, info.sn);
   o.ents.set(info.id, e); entities.push(e); return e;
 }
 function removeEnt(id) {
@@ -6684,7 +6772,7 @@ function startOnlineMatch(m) {
   player = makeEntity(me.name, true, me.skin, '#ffd27a'); player.netId = player.id = o.myId; player.sq = 0; player.alive = false; player.respawnAt = Infinity;
   player.kills = me.kills || 0; player.deaths = me.deaths || 0; player.gunKills = WEAPONS.map(() => 0); revengeName = null; resetFeedback(); resetMatchCamos();
   player.primary = player.nextPrimary = selectedPrimary; player.nextSecondary = selectedSecondary; player.nextMelee = selectedMelee; player.slots = [selectedPrimary, selectedSecondary, selectedMelee]; setWeapon(player, selectedPrimary); // até o servidor mandar o renascimento
-  entities.push(player); o.ents.set(o.myId, player); fp.setSkin(me.skin); player.caps = me.caps || 0; applyTeam(player, me.team ?? -1);
+  entities.push(player); o.ents.set(o.myId, player); fp.setSkin(me.skin); applyHeldKnife(me.kn); applyHeldSniper(me.sn); player.caps = me.caps || 0; applyTeam(player, me.team ?? -1);
   for (const info of m.ents) remoteEnt(info);
   invApplyLook(invMode()); if (invMode()) for (const [id, ki, pos] of m.drops || []) invAddDrop(id, DROP_KEYS[ki], pos);
   if (mode === 'bomb' && m.bomb) setupBomb({ sites: m.bomb.sites.map(([x, y, z], i) => ({ x, y, z, name: SITE_NAMES[i] })), atk: m.bomb.atk, def: m.bomb.def, pts: m.bomb.pts ? m.bomb.pts.map(([x, y, z]) => ({ x, y, z })) : undefined }, unpackBomb(m.bomb.s)); else if (mode === 'bomb') mode = 'dm';
@@ -6911,6 +6999,8 @@ function netEvent(ev) {
     const at = a3v(ev[3]); saberSparks(at, ev[2] === 2 ? 16 : 8);
     if (ev[2] === 2) saberSfx.parry(true); else if (ev[2] === 3) saberSfx.spinHit(); else saberSfx.clash();
   } else if (k === 'j') { remoteEnt(ev[1]); }
+  else if (k === 'jkn') { const e = entOf(ev[1]); if (e === player) applyHeldKnife(ev[2]); else applyWorldKnife(e, ev[2]); }
+  else if (k === 'jsn') { const e = entOf(ev[1]); if (e === player) applyHeldSniper(ev[2]); else applyWorldSniper(e, ev[2]); }
   else if (k === 'l') { removeEnt(ev[1]); }
 }
 function personalEvent(ev) {
@@ -7500,4 +7590,5 @@ window.__docao = { get state() { return state; }, toMenu: () => toMenu(), benchO
   invUse: () => invUsePower(), invCycle: () => invCycle(), invOpenPick: () => invOpenPick(), invEquipNow, INV, POWERS, ZOMBIES, INV_MAPS, makeZombieEnt, get invHal() { return invGfx.hal; }, get invMusic() { return invMusic && { on: invMusic.on, level: invMusic.level }; },
   invGive: (list) => { if (inv && player) { player.inv = list.slice(0, INV.INV_MAX); invSetInv(player.inv.map((k) => POWER_KEYS.indexOf(k))); } else if (online) online.net.send({ t: 'testInv', give: list }); },
   bomb: bombTest,
+  makeKnife, poseButterfly,
 };

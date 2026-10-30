@@ -179,12 +179,50 @@ ITEMS.push(
   { id: 'd7', name: 'Passinho do Jamal', emoji: '🕺', price: 450, dance: 'jamal', line: 'Pé cruzando e ombro gingando' },
   { id: 'd8', name: 'Macarena', emoji: '🎶', price: 400, dance: 'macarena', line: 'Braço, braço, ombro, cabeça e rebola' },
 );
+// Facas (espaço "k"): não entram no visual do Docão. Cada modelo tem as mesmas cores; quem equipa escolhe uma.
+export const KNIFE_MODELS = [
+  { knife: 'skeleton', name: 'Skeleton Knife', emoji: '🔪', line: 'Três furos pequenos na lâmina e um furo grande no meio.' },
+  { knife: 'karambit', name: 'Karambit', emoji: '🪝', line: 'Garra curva e argola no dedo.' },
+  { knife: 'bayonet', name: 'Bayonetta', emoji: '🗡️', line: 'Baioneta: lâmina reta, guarda cruzada e anel do cano.' },
+  { knife: 'butterfly', name: 'Butterfly', emoji: '🦋', line: 'Cabo duplo: a lâmina gira no pino e abre.' },
+];
+export const KNIFE_COLORS = [
+  { finish: 'factory', name: 'Fábrica', price: 500, line: 'Cor de fábrica.' },
+  { finish: 'rusty', name: 'Rusty', price: 750, line: 'Aspecto enferrujado.' },
+  { finish: 'rainbow', name: 'Rainbow', price: 1250, line: 'Aspecto de arco-íris.' },
+  { finish: 'sapphire', name: 'Sapphire', price: 1000, line: 'Aspecto de safira.' },
+  { finish: 'emerald', name: 'Emerald', price: 1000, line: 'Aspecto de esmeralda.' },
+  { finish: 'ruby', name: 'Ruby', price: 1000, line: 'Aspecto de rubi.' },
+];
+const KNIFE_ID = {
+  skeleton: ['k1', 'k4', 'k7', 'k10', 'k13', 'k16'],
+  karambit: ['k2', 'k5', 'k8', 'k11', 'k14', 'k17'],
+  bayonet: ['k3', 'k6', 'k9', 'k12', 'k15', 'k18'],
+  butterfly: ['k19', 'k20', 'k21', 'k22', 'k23', 'k24'],
+};
+ITEMS.push(...KNIFE_MODELS.flatMap((model) => KNIFE_COLORS.map((color, i) => ({
+  id: KNIFE_ID[model.knife][i],
+  name: `${model.name} · ${color.name}`,
+  emoji: model.emoji,
+  price: color.price,
+  knife: model.knife,
+  finish: color.finish,
+  line: `${model.line} ${color.line}`,
+}))));
+// Sniper Torresmo (espaço "t"): não entra no código do visual. A equipada troca a pintura da arma.
+export const SNIPER_SKINS = [
+  { id: 't1', name: 'A Docão Lore', emoji: '🐉', price: 2000, sniper: 'lore', line: 'Dourada no jeito da Dragon Lore, com dragão, focinho, orelha e o C! do Docão.' },
+];
+ITEMS.push(...SNIPER_SKINS);
 for (const it of ITEMS) it.slot = it.id[0];
-export const COSTUME_SLOT = 'c', DANCE_SLOT = 'd';
+export const COSTUME_SLOT = 'c', DANCE_SLOT = 'd', KNIFE_SLOT = 'k';
 export const isLookSlot = (k) => SLOTS.some(([x]) => x === k);
 export const danceItems = () => ITEMS.filter((i) => i.slot === DANCE_SLOT);
 export const itemForDance = (dance) => ITEMS.find((i) => i.dance === dance) || null;
 export const itemById = (id) => ITEMS.find((i) => i.id === id) || null;
+export const knifeKind = (id) => { const i = itemById(id); return (i && i.knife) || ''; };
+export const knifeFinish = (id) => { const i = itemById(id); return (i && i.finish) || ''; };
+export const sniperKind = (id) => { const i = itemById(id); return (i && i.sniper) || ''; };
 export const teamItems = (team) => ITEMS.filter((i) => i.team === team).sort((a, b) => (a.teamOrder | 0) - (b.teamOrder | 0) || (a.id < b.id ? -1 : 1));
 export const itemPrice = (id) => { const i = itemById(id); return i ? i.price : 0; };
 // Padrão de graça: não passa pela compra nem precisa de linha na mochila. Preço 0 sozinho também conta, pra não cobrar por engano.

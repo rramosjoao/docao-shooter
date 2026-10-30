@@ -4,18 +4,23 @@
 //  Convidado não salva nem compra (a janela só convida a entrar na conta).
 // ============================================================
 import * as THREE from 'three';
-import { makeDocao } from './docao.js';
+import { makeDocao, makeKnife, poseButterfly } from './docao.js';
 import { poseVictory, resetVictoryPose, ALL_DANCES, isPaidDance, normDance } from './victory-dance.js';
 import './costumes.js';
-import { getAccount, getItems, getEarn, getChal, onAccount, refreshStats, equipLook, buyItem } from './account.js';
+import { getAccount, getItems, getEarn, getChal, onAccount, refreshStats, equipLook, buyItem, equipKnife, equipSniper } from './account.js';
 import { CHAL_PER_DAY, TIERS } from './shared/challenges.js';
-import { COLORS, SLOTS, ITEMS, SHOP_TEAMS, CURRENCY, COIN_ICON, SHOP_NAME, SHOP_EMOJI, SHOP_BUTTON, DEFAULT_LOOK, COSTUME_SLOT, DANCE_SLOT, encodeLook, parseLook, itemById, itemForDance, isFreeItem, teamItems } from './shared/closet.js';
+import { COLORS, SLOTS, ITEMS, SHOP_TEAMS, CURRENCY, COIN_ICON, SHOP_NAME, SHOP_EMOJI, SHOP_BUTTON, DEFAULT_LOOK, COSTUME_SLOT, DANCE_SLOT, KNIFE_SLOT, KNIFE_MODELS, KNIFE_COLORS, encodeLook, parseLook, itemById, itemForDance, isFreeItem, teamItems } from './shared/closet.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let look = { ...DEFAULT_LOOK, items: {} }, tab = 'look', trial = null, busy = false, three = null, raf = 0, pendingBuy = null;
 
-const currentCode = () => { const items = { ...look.items }; if (trial && trial.slot !== DANCE_SLOT) { if (trial.slot !== COSTUME_SLOT) delete items[COSTUME_SLOT]; items[trial.slot] = trial.id; } return encodeLook({ shirt: look.shirt, pants: look.pants, items }); };
+const currentCode = () => { const items = { ...look.items }; if (trial && trial.slot !== DANCE_SLOT && trial.slot !== KNIFE_SLOT && !(itemById(trial.id) && itemById(trial.id).sniper)) { if (trial.slot !== COSTUME_SLOT) delete items[COSTUME_SLOT]; items[trial.slot] = trial.id; } return encodeLook({ shirt: look.shirt, pants: look.pants, items }); };
+const previewKnife = () => {
+  if (trial) { const it = itemById(trial.id); if (it && it.knife) return it; }
+  const id = getAccount() && getAccount().knife;
+  return id && owned(id) ? itemById(id) : null;
+};
 const msg = (t, ok = false) => { const m = $('closetMsg'); m.textContent = t || ''; m.style.color = ok ? '#2a6f4a' : ''; };
 
 // ---------- prévia 3D ----------
@@ -29,9 +34,12 @@ function startThree() {
   bindSpin(canvas);
 }
 function showModel() {
-  if (!three) return; const code = currentCode(); if (three.code === code && three.model) return;
-  if (three.model) three.scene.remove(three.model.group); three.code = code;
-  three.model = makeDocao(code, { withGun: false, pose: 'idle' }); three.scene.add(three.model.group); three.last = 0;
+  if (!three) return; const code = currentCode(), held = previewKnife(), key = code + '|' + (held ? held.id : '');
+  if (three.code === key && three.model) return;
+  if (three.model) three.scene.remove(three.model.group); three.code = key;
+  three.model = makeDocao(code, { withGun: false, pose: 'idle' });
+  if (held) { const kn = makeKnife(1.7, 0.006, held.knife, held.finish); kn.rotation.set(-Math.PI / 2, 0, 0); kn.position.set(0, -0.6, 0.02); three.model.arms[0].add(kn); }
+  three.scene.add(three.model.group); three.last = 0; three.bfly = 0;
 }
 // Prévia PARADA, de frente. Só gira se a pessoa arrastar o boneco ou apertar ◀ ▶ (e "Frente" volta pro centro).
 function bindSpin(canvas) {
@@ -53,7 +61,11 @@ function loop(now) {
   if (m) {
     if (three.dance && now > three.danceUntil) stopDance();
     if (three.dance) { three.t += dt; m.danceBase = { x: 0, y: 0, z: 0, yaw: three.yaw }; poseVictory(m, three.dance, three.t); }
-    else m.group.rotation.y = three.yaw;
+    else {
+      m.group.rotation.y = three.yaw;
+      const kn = m.arms[0] && m.arms[0].children.find((c) => c.userData && c.userData.bflyBlade);
+      if (kn) { three.bfly = (three.bfly || 0) + dt; const u = three.bfly % 2.4; poseButterfly(kn, u < 0.95 ? u / 0.95 : 1); }
+    }
   }
   three.renderer.render(three.scene, three.cam); raf = requestAnimationFrame(loop);
 }
@@ -72,6 +84,19 @@ function renderLook() {
   for (const [k, name] of SLOTS) {
     const mine = ITEMS.filter((i) => i.slot === k && (isFreeItem(i.id) || owned.has(i.id)));
     h += `<div class="closet-slot"><h4>${name}${k === COSTUME_SLOT ? ' <small>(troca camiseta, shorts e peças de uma vez)</small>' : ''}</h4><div class="closet-chips"><button type="button" data-slot="${k}" data-item=""${!look.items[k] ? ' class="on"' : ''}>Nada</button>${mine.map((i) => `<button type="button" data-slot="${k}" data-item="${i.id}"${look.items[k] === i.id ? ' class="on"' : ''}>${i.emoji} ${esc(i.name)}${isFreeItem(i.id) ? ' · grátis' : ''}</button>`).join('')}${mine.length ? '' : '<span class="closet-note">Nada na mochila ainda. Veja a Loja!</span>'}</div></div>`;
+  }
+  const curK = (getAccount() && getAccount().knife) || '';
+  h += `<div class="closet-slot"><h4>Faca</h4><div class="closet-chips"><button type="button" data-knife=""${!curK ? ' class="on"' : ''}>Faca de churrasqueiro</button></div></div>`;
+  for (const model of KNIFE_MODELS) {
+    const mine = ITEMS.filter((i) => i.knife === model.knife && owned.has(i.id));
+    const chips = mine.map((i) => { const color = KNIFE_COLORS.find((c) => c.finish === i.finish); return `<button type="button" data-knife="${i.id}"${curK === i.id ? ' class="on"' : ''}>${esc(color ? color.name : i.name)}</button>`; }).join('');
+    h += `<div class="closet-slot"><h4>${model.emoji} ${esc(model.name)}</h4><div class="closet-chips">${chips || '<span class="closet-note">Nenhuma cor na mochila. A Loja tem Fábrica, Rusty, Rainbow, Sapphire, Emerald e Ruby.</span>'}</div></div>`;
+  }
+  const curS = (getAccount() && getAccount().sniper) || '';
+  h += `<div class="closet-slot"><h4>Sniper Torresmo</h4><div class="closet-chips"><button type="button" data-sniper=""${!curS ? ' class="on"' : ''}>De fábrica</button></div></div>`;
+  for (const skin of ITEMS.filter((i) => i.sniper)) {
+    const has = owned.has(skin.id);
+    h += `<div class="closet-slot"><h4>${skin.emoji} ${esc(skin.name)}</h4><div class="closet-chips">${has ? `<button type="button" data-sniper="${skin.id}"${curS === skin.id ? ' class="on"' : ''}>Equipar</button>` : '<span class="closet-note">Ainda não está na mochila. A Loja vende por 2000 Docoins.</span>'}</div></div>`;
   }
   const cur = curDance(), mineD = ALL_DANCES.filter((d) => !isPaidDance(d.id) || owned.has(d.item));
   h += `<div class="closet-slot"><h4>Dança da vitória (tecla B)</h4><div class="closet-chips">${mineD.map((d) => `<button type="button" data-dance-pick="${d.id}"${cur === d.id ? ' class="on"' : ''}>💃 ${esc(d.name)}</button>`).join('')}</div></div>`;
@@ -100,6 +125,11 @@ function renderShop() {
     if (!list.length) continue;
     h += `<div class="closet-sec"><h4>${esc(name)}</h4><div class="closet-grid">${list.map((i) => shopCard(i, owned, coins)).join('')}</div></div>`;
   }
+  for (const model of KNIFE_MODELS) {
+    const list = ITEMS.filter((i) => i.knife === model.knife);
+    h += `<div class="closet-sec"><h4>${model.emoji} ${esc(model.name)} <small>(escolha a cor)</small></h4><div class="closet-grid">${list.map((i) => shopCard(i, owned, coins)).join('')}</div></div>`;
+  }
+  h += `<div class="closet-sec"><h4>🐉 Sniper Torresmo</h4><div class="closet-grid">${ITEMS.filter((i) => i.sniper).map((i) => shopCard(i, owned, coins)).join('')}</div></div>`;
   h += `<div class="closet-sec"><h4>Danças da vitória <small>(tecla B)</small></h4><div class="closet-grid">${ITEMS.filter((i) => i.slot === DANCE_SLOT).map((i) => shopCard(i, owned, coins)).join('')}</div></div>`;
   $('closetShop').innerHTML = h;
 }
@@ -146,7 +176,14 @@ function askBuy(it) {
 function closeCloset() { clearInterval(chalTimer); closeAsk(); $('closetModal').classList.add('hidden'); trial = null; stopDance(); stopThree(); }
 async function finishBuy(it) {
   busy = true; msg('Comprando…'); const r = await buyItem(it.id); busy = false;
-  if (r.error) msg(r.error); else { msg(`Comprou: ${it.name}! Já está na sua mochila.`, true); if (it.dance) { try { localStorage.setItem('docao.dance', it.dance); } catch (er) { /* sem storage */ } document.dispatchEvent(new CustomEvent('docao-dance-pick', { detail: it.dance })); } else { if (it.slot === COSTUME_SLOT) look.items = {}; else delete look.items[COSTUME_SLOT]; look.items[it.slot] = it.id; } trial = null; }
+  if (r.error) msg(r.error); else {
+    msg(`Comprou: ${it.name}! Já está na sua mochila.`, true);
+    if (it.sniper) { const er = await equipSniper(it.id); if (!er.error) document.dispatchEvent(new CustomEvent('docao-sniper-pick', { detail: it.id })); }
+    else if (it.knife) { const er = await equipKnife(it.id); if (!er.error) document.dispatchEvent(new CustomEvent('docao-knife-pick', { detail: it.id })); }
+    else if (it.dance) { try { localStorage.setItem('docao.dance', it.dance); } catch (er) { /* sem storage */ } document.dispatchEvent(new CustomEvent('docao-dance-pick', { detail: it.dance })); }
+    else { if (it.slot === COSTUME_SLOT) look.items = {}; else delete look.items[COSTUME_SLOT]; look.items[it.slot] = it.id; }
+    trial = null;
+  }
   render();
 }
 
@@ -165,6 +202,20 @@ async function onClick(e) {
     if (sl.dataset.item) { if (k === COSTUME_SLOT) look.items = {}; else delete look.items[COSTUME_SLOT]; look.items[k] = sl.dataset.item; } else delete look.items[k]; // fantasia completa não mistura com outras partes
     msg(''); render(); return;
   }
+  const sb = t.closest('[data-sniper]');
+  if (sb) {
+    const id = sb.dataset.sniper;
+    busy = true; const r = await equipSniper(id); busy = false;
+    if (r.error) msg(r.error); else { document.dispatchEvent(new CustomEvent('docao-sniper-pick', { detail: id })); msg(id ? 'A Docão Lore entrou na Torresmo.' : 'A Torresmo voltou para a pintura de fábrica.', true); render(); }
+    return;
+  }
+  const kb = t.closest('[data-knife]');
+  if (kb) {
+    const id = kb.dataset.knife;
+    busy = true; const r = await equipKnife(id); busy = false;
+    if (r.error) msg(r.error); else { document.dispatchEvent(new CustomEvent('docao-knife-pick', { detail: id })); msg(id ? 'Faca equipada. Ela entra na mão quando você saca.' : 'Voltou pra faca de churrasqueiro.', true); render(); }
+    return;
+  }
   const dp = t.closest('[data-dance-pick]');
   if (dp) { const id = dp.dataset.dancePick; try { localStorage.setItem('docao.dance', id); } catch (er) { /* sem storage */ } document.dispatchEvent(new CustomEvent('docao-dance-pick', { detail: id })); playDance(id, false); msg('Dança escolhida! Ela roda no B durante a partida.', true); render(); return; }
   if (t.closest('[data-turn]')) { turn(t.closest('[data-turn]').dataset.turn === 'front' ? 0 : +t.closest('[data-turn]').dataset.turn); return; }
@@ -178,8 +229,85 @@ async function onClick(e) {
   if (card) {
     const it = itemById(card.dataset.try); trial = trial && trial.id === it.id ? null : { id: it.id, slot: it.slot };
     if (trial && it.dance) playDance(it.dance, true); else stopDance();
-    msg(trial ? (isFreeItem(it.id) ? `Prévia: ${it.name}. Já é sua, sem gastar Docoin.` : owned(it.id) ? 'Prévia (você já tem). Clique de novo pra tirar.' : 'Prévia (ainda não é seu). Clique de novo pra tirar.') : ''); render();
+    msg(trial ? (it.sniper ? (owned(it.id) ? 'Já está na mochila. Equipe em Personalizar ou em Trocar visual.' : 'Skin da Torresmo. O boneco não veste a arma — ela aparece quando você saca.') : isFreeItem(it.id) ? `Prévia: ${it.name}. Já é sua, sem gastar Docoin.` : owned(it.id) ? 'Prévia (você já tem). Clique de novo pra tirar.' : 'Prévia (ainda não é seu). Clique de novo pra tirar.') : ''); render();
   }
+}
+
+let wardrobeDirty = false, wardrobeCustom = false, wardrobeSniper = '';
+const wardrobeNote = (t, ok = false) => { const m = $('wardrobeOwnedMsg'); if (!m) return; m.textContent = t || ''; m.style.color = ok ? '#d5c597' : '#ffb4a8'; };
+function paintWardrobe() {
+  const box = $('wardrobeOwned'); if (!box) return;
+  const a = getAccount();
+  if (!a) {
+    box.innerHTML = '<p class="wardrobe-note">Entre na conta para montar o visual com o que você já comprou. As skins da lista continuam aqui.</p><button type="button" id="wardrobeLogin" class="wardrobe-save">ENTRAR</button>';
+    wardrobeNote('');
+    return;
+  }
+  const ownedSet = new Set(getItems());
+  const swatches = (attr, val) => COLORS.map((c, i) => `<button type="button" class="closet-sw${wardrobeCustom && val === i ? ' on' : ''}" data-${attr}="${i}" style="background:${c}" aria-label="Cor ${i + 1}"></button>`).join('');
+  let h = '<h4>Mochila</h4><p class="wardrobe-note">Use o que já é seu. Comprar continua no Brechó.</p>';
+  h += `<div class="closet-slot"><h4>Camiseta</h4><div class="closet-chips">${swatches('wshirt', look.shirt)}</div></div>`;
+  h += `<div class="closet-slot"><h4>Shorts</h4><div class="closet-chips">${swatches('wpants', look.pants)}</div></div>`;
+  for (const [k, name] of SLOTS) {
+    const mine = ITEMS.filter((i) => i.slot === k && (isFreeItem(i.id) || ownedSet.has(i.id)));
+    h += `<div class="closet-slot"><h4>${name}</h4><div class="closet-chips"><button type="button" data-wslot="${k}" data-witem=""${wardrobeCustom && !look.items[k] ? ' class="on"' : ''}>Nada</button>${mine.map((i) => `<button type="button" data-wslot="${k}" data-witem="${i.id}"${wardrobeCustom && look.items[k] === i.id ? ' class="on"' : ''}>${i.emoji} ${esc(i.name)}</button>`).join('')}${mine.length ? '' : '<span class="wardrobe-note">Nada comprado neste espaço.</span>'}</div></div>`;
+  }
+  h += `<div class="closet-slot"><h4>Sniper Torresmo</h4><div class="closet-chips"><button type="button" data-wsniper=""${!wardrobeSniper ? ' class="on"' : ''}>De fábrica</button>`;
+  for (const skin of ITEMS.filter((i) => i.sniper)) {
+    if (ownedSet.has(skin.id)) h += `<button type="button" data-wsniper="${skin.id}"${wardrobeSniper === skin.id ? ' class="on"' : ''}>${skin.emoji} ${esc(skin.name)}</button>`;
+    else h += `<span class="wardrobe-note">${skin.emoji} ${esc(skin.name)} está no Brechó · ${skin.price} Docoins</span>`;
+  }
+  h += '</div></div><button type="button" id="wardrobeSave" class="wardrobe-save">SALVAR E USAR ESTE VISUAL</button>';
+  box.innerHTML = h;
+}
+function markWardrobe() {
+  wardrobeDirty = true; wardrobeCustom = true;
+  document.dispatchEvent(new CustomEvent('docao-look-preview', { detail: encodeLook(look) }));
+  paintWardrobe();
+}
+export function refreshWardrobeLook() {
+  if (!wardrobeDirty) {
+    const a = getAccount();
+    if (a) { loadLookFromAccount(); wardrobeSniper = a.sniper || ''; wardrobeCustom = !!(a.skin && String(a.skin).startsWith('x1.')); }
+    else { wardrobeCustom = false; wardrobeSniper = ''; }
+  }
+  paintWardrobe();
+}
+async function onWardrobeClick(e) {
+  const t = e.target; if (busy) return;
+  if (t.closest('#wardrobeLogin')) { const b = $('acctBtn'); if (b) b.click(); return; }
+  const sw = t.closest('[data-wshirt],[data-wpants]');
+  if (sw) {
+    if (sw.dataset.wshirt !== undefined) look.shirt = +sw.dataset.wshirt;
+    if (sw.dataset.wpants !== undefined) look.pants = +sw.dataset.wpants;
+    wardrobeNote(''); markWardrobe(); return;
+  }
+  const sl = t.closest('button[data-wslot]');
+  if (sl) {
+    const k = sl.dataset.wslot;
+    if (sl.dataset.witem) { if (k === COSTUME_SLOT) look.items = {}; else delete look.items[COSTUME_SLOT]; look.items[k] = sl.dataset.witem; }
+    else delete look.items[k];
+    wardrobeNote(''); markWardrobe(); return;
+  }
+  const sn = t.closest('[data-wsniper]');
+  if (sn) { wardrobeSniper = sn.dataset.wsniper; wardrobeDirty = true; wardrobeNote(''); paintWardrobe(); return; }
+  if (!t.closest('#wardrobeSave')) return;
+  const a = getAccount(); if (!a) { wardrobeNote('Entre na conta para salvar.'); return; }
+  const sniperChanged = (a.sniper || '') !== wardrobeSniper;
+  busy = true; wardrobeNote('Salvando…');
+  if (wardrobeCustom) {
+    const r = await equipLook(encodeLook(look));
+    if (r.error) { busy = false; wardrobeNote(r.error); return; }
+    document.dispatchEvent(new CustomEvent('docao-look-saved'));
+  }
+  if (sniperChanged) {
+    const er = await equipSniper(wardrobeSniper);
+    if (er.error) { busy = false; wardrobeNote(er.error); return; }
+    document.dispatchEvent(new CustomEvent('docao-sniper-pick', { detail: wardrobeSniper }));
+  }
+  busy = false; wardrobeDirty = false;
+  wardrobeNote(wardrobeCustom || sniperChanged ? 'Visual salvo. Ele já está valendo.' : 'Escolha peças da mochila ou a skin da Torresmo.', !!(wardrobeCustom || sniperChanged));
+  refreshWardrobeLook();
 }
 
 export function initCloset() {
@@ -191,5 +319,13 @@ export function initCloset() {
   $('closetModal').addEventListener('click', onClick);
   $('closetModal').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') { if (pendingBuy) closeAsk(); else closeCloset(); } });
   $('closetModal').addEventListener('mousedown', (e) => e.stopPropagation());
-  onAccount((a) => { if (!a && !$('closetModal').classList.contains('hidden')) { stopThree(); render(); } else if (a && !$('closetModal').classList.contains('hidden') && !busy) { renderWallet(); renderShop(); renderChal(); } });
+  const ownedBox = $('wardrobeOwned'); if (ownedBox) ownedBox.addEventListener('click', onWardrobeClick);
+  document.addEventListener('docao-skin-catalog', () => { wardrobeDirty = false; wardrobeCustom = false; refreshWardrobeLook(); });
+  document.addEventListener('docao-look-saved', () => { if (wardrobeDirty) return; refreshWardrobeLook(); });
+  refreshWardrobeLook();
+  onAccount((a) => {
+    if (!wardrobeDirty) refreshWardrobeLook();
+    if (!a && !$('closetModal').classList.contains('hidden')) { stopThree(); render(); }
+    else if (a && !$('closetModal').classList.contains('hidden') && !busy) { renderWallet(); renderShop(); renderChal(); }
+  });
 }
