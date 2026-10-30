@@ -4,6 +4,16 @@ Jogue em **https://docao.mvalentim.dev**
 
 ---
 
+## Próxima versão — HOTMILK à Noite
+
+🌙 **SÓ NO SURVIVAL.** Campus da HOTMILK de madrugada, maior que o de dia: saguão do Bloco 01 (a partida inteira nasce lá), cozinha, estoque, câmara fria, dois andares, telhado, Bloco 02, garagem de teto baixo e a Rua do Leite. Não entra no rodízio dos outros modos.
+
+🚪 **PORTAS.** Pra sair do saguão compra a folha (E): 750, 1000, 1250 e sobe até 3250. O servidor confere a distância e o saldo da partida, debita quem comprou e abre pra todo mundo. A área nova passa a soltar zumbi. Cada área tem uma segunda porta, então dá pra kitear em circuito.
+
+💰 **PONTOS DA PARTIDA.** 500 pra começar. Abate paga (andador 70, até o chefão 500; cabeça e faca dão um extra). É o saldo que a máquina de upgrade, a mystery box e a arma de parede vão usar — os lugares já estão marcados no mapa. O seletor Survival/Padrão entra na outra branch. Detalhe em `docs/HOTMILK-NOITE.md`.
+
+---
+
 ## Próxima versão — Luneta da Carabina
 
 🔭 **CARABINA DA GRANJA.** A luneta demora **0,1725 s** pra entrar: 15% mais lenta que os **0,15 s** de antes do flinch. Os 0,24 s (60% mais lentos) ficaram longos demais. Pente, recuo e as outras armas continuam iguais. A lente ainda só cobre a tela quando a arma já chegou no ombro.

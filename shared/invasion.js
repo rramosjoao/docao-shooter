@@ -218,9 +218,14 @@ export class InvasionCore {
   // onde nasce um zumbi: ponto ALEATÓRIO andável do mapa inteiro (nav.good = chão alcançável, fora de parede),
   // a pelo menos SPAWN_MIN m de todo jogador vivo e, se der, fora da linha de visão deles (sem susto à queima-roupa)
   spawnPos() {
-    const good = (this.A.nav && this.A.nav.good) || [], H = this.A.players().filter((p) => p.alive), P = this.A.P;
+    // Survival: A.spawnPoints() devolve só os pontos das áreas já compradas (array).
+    // Sem o método, ou devolvendo null, continua o sorteio no mapa inteiro.
+    const custom = this.A.spawnPoints ? this.A.spawnPoints() : null;
+    if (custom && !custom.length) return null;
+    const good = custom || ((this.A.nav && this.A.nav.good) || []), H = this.A.players().filter((p) => p.alive), P = this.A.P;
     let best = null, bs = -1e9;
-    for (let i = 0; i < 60 && good.length; i++) {
+    const tries = custom ? Math.min(80, Math.max(24, custom.length * 4)) : 60;
+    for (let i = 0; i < tries && good.length; i++) {
       const nd = good[Math.floor(this.rnd() * good.length)];
       let dp = 1e9; for (const p of H) dp = Math.min(dp, d3(nd, p.pos)); if (dp < INV.SPAWN_MIN) continue;
       let seen = false;

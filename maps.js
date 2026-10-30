@@ -1,3 +1,4 @@
+import { addHotmilkNoite } from './maps-hotmilk-noite.js';
 // ============================================================
 //  MAPAS DO DOCÃO SHOOTER: só dados (geometria original).
 //  Cada mapa: id, name (pt-BR), desc, size [meia-largura X, meia-profundidade Z], wallH (muro do limite),
@@ -1215,13 +1216,17 @@ function flipHotmilkZ(part, cz) {
   }
 }
 
+addHotmilkNoite(MAPS, { B, R, building, fin, slab, crate });
+
 export const getMap = (id) => MAPS.find((m) => m.id === id) || MAPS[0];
 // mapas jogáveis nas listas/rodízio (o Estande só abre no modo Treino; os currais do X1 só abrem no X1)
 // Modo Invasão: o Rodízio do Docão e a Fazenda Mal-Assombrada só abrem na Invasão (os outros modos continuam com os mapas de sempre)
+// Survival: HOTMILK à Noite é survivalOnly — não entra no rodízio de nenhum outro modo (shared/survival.js)
 const INV_ONLY = new Set(['rodizio', 'fazenda-assombrada']);
-export const PLAY_MAPS = MAPS.filter((m) => !m.training && !m.invasionOnly && !m.x1 && !INV_ONLY.has(m.id));
+export const PLAY_MAPS = MAPS.filter((m) => !m.training && !m.invasionOnly && !m.survivalOnly && !m.x1 && !INV_ONLY.has(m.id));
 export const X1_MAPS = MAPS.filter((m) => m.x1);
 // mapas da Invasão: os dois feitos pra ela primeiro, depois os de sempre (com decoração de Halloween só nesse modo)
 // mapas do Modo Bomba: só os com sites/spawns feitos à mão (o Rodízio, que na Invasão é exclusivo, vale aqui: foi feito pra Bomba); Pátio Ferrugem é pequeno demais e o Estande é do Treino
-export const BOMB_MAPS = MAPS.filter((m) => m.bomb && !m.training && !m.invasionOnly);
+export const BOMB_MAPS = MAPS.filter((m) => m.bomb && !m.training && !m.invasionOnly && !m.survivalOnly);
 export const INV_MAPS = [...MAPS.filter((m) => INV_ONLY.has(m.id)), ...PLAY_MAPS];
+export const SURVIVAL_MAPS = MAPS.filter((m) => m.survivalOnly);

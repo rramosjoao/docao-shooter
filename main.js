@@ -26,8 +26,10 @@ import { mountStreakUi, setStreakCount, setStreakCycle, setStreakReady, openStri
 import { makeTablet, poseTablet, makeLaptop, poseLaptop, makeRadio, poseRadio } from './fp-gear.js';
 import { SKINS, getSkin, DEFAULT_SKIN, skinOk } from './skins.js';
 import './costumes.js';
-import { MAPS, PLAY_MAPS, INV_MAPS, BOMB_MAPS, X1_MAPS, getMap, BOMB_MAP } from './maps.js';
+import { MAPS, PLAY_MAPS, INV_MAPS, BOMB_MAPS, X1_MAPS, SURVIVAL_MAPS, getMap, BOMB_MAP } from './maps.js';
 import { INV, INV_AMMO, DROP_KEYS, invRefillAmmo, isInvasion, ZOMBIES, POWERS, POWER_KEYS, KEYS, SPIT_GRAV, InvasionCore, parseState, coreView, scaleHit } from './shared/invasion.js';
+import { SURVIVAL, isSurvivalMode, createMatchSurvival, closedDoorSolids, evaluateDoorBuy, commitDoorBuy, nearestClosedDoor, unlockedZombieSpawns, pointsForKill, pointsForHit, grantPoints, DOOR_FAIL } from './shared/survival.js';
+import { createNightAmbience } from './night-ambience.js';
 import { createInvMusic } from './invasion-music.js';
 import { makeZombie, animateZombie, dieZombie, applyHalloweenPalette, buildHalloween, makeFogWall, makeDropMesh, tickDrop, makeSpitMesh, makePowerPumpkin, makeRing, tickRing, makeLanternCone, setGhostLook } from './invasion-gfx.js';
 import { TRAIN, isTraining, dummyX } from './shared/training.js';
@@ -39,7 +41,7 @@ import { initChat, chatTyping, chatShown, chatRoomOn, chatConsumeUnlock, chatNot
 import { initVoice, voicePtt, voiceCycle, voiceReset, voiceRoster, voiceSignal, voiceTalking, voiceMuted, voiceToggleMute, voiceRefresh } from './voice.js';
 import { SEND_HZ, INTERP_DELAY } from './config.js';
 import { cleanName, NAME_MAX } from './shared/names.js';
-import { createPhysics, rayHitboxes } from './shared/physics.js';
+import { createPhysics, mapSolids, rayHitboxes } from './shared/physics.js';
 import { CROUCH, crouchAmount, stanceScale, eyeHeight, stepCrouch } from './shared/stance.js';
 import { explosionHits, rayCapsule, ROCKET_PAD, sniperSpread, shotKnock } from './shared/combat.js';
 import { meleeHit, MELEE_KINDS } from './shared/melee.js';
@@ -361,7 +363,7 @@ document.querySelectorAll('[data-reduced-anim]').forEach((el) => {
 let mode = 'dm', teamScore = [0, 0], zone = null, zoneT = 0; // modo de jogo: 'dm' (mata-mata) | 'dom' (Dominação) | 'explore' (mapa vazio) | 'treino' | 'bomb' (Bomba, protótipo)
 let botDiff = 'ceva'; // dificuldade dos bots (shared/bot-difficulty.js); a preferência entra mais abaixo, quando o menu existe
 let bombS = null, bombL = null; // Modo Bomba: estado da rodada (shared/bomb.js) e layout do mapa (sites A/B, lados)
-const MODE_OK = (m) => (m === 'dom' || isArmsRace(m) || m === 'bomb' || m === 'explore' || m === TRAIN.mode || m === INV.mode || isX1(m) ? m : 'dm');
+const MODE_OK = (m) => (m === 'dom' || isArmsRace(m) || m === 'bomb' || m === 'explore' || m === TRAIN.mode || m === INV.mode || m === 'survival' || isX1(m) ? m : 'dm');
 const armsMode = () => isArmsRace(mode);
 const respawnDelay = () => armsMode() ? ARMS_RACE.respawnTime : RESPAWN_TIME;
 let armsWinner = null;
@@ -378,7 +380,11 @@ let rulesLive = false;
 const teamMode = () => mode === 'dom' || armsMode() || mode === 'bomb'; // modos com times
 const training = () => isTraining(mode); // Estande do Docão: bots viram alvos
 const exploreMode = () => mode === 'explore';
-const invMode = () => isInvasion(mode); // Invasão 🎃: co-op contra zumbis (shared/invasion.js)
+let matchVariant = ''; // 'survival' quando a sala é Survival mesmo com mode 'inv' (cfg.variant)
+const survivalMode = () => isSurvivalMode(mode, { variant: matchVariant });
+const invMode = () => isInvasion(mode) || survivalMode(); // Invasão 🎃, e o Survival que usa as mesmas waves
+let surv = null, doorGroups = new Map(), nightLights = [];
+const nightAmb = createNightAmbience();
 let inv = null, invNet = null; // offline: InvasionCore local · online: estado lido do snapshot (parseState)
 const invGfx = { hal: null, fog: null, drops: new Map(), projs: new Map(), rings: [], cones: new Map(), inv: [], sel: 0 };
 let invZid = 1000, invMusic = null; // trilha de terror procedural (invasion-music.js)
@@ -1441,6 +1447,7 @@ function damage(t, amount, attacker, wIdx, head, back = false, fx = 0, origin = 
   if (!t.alive || gameTime < t.invulnUntil || friends(t, attacker) || bombFrozen(bombS)) return false; // sem fogo amigo; Bomba: sem dano na preparação
   if (invMode() && !t.zt && attacker && !attacker.zt && !attacker.fog) return false; // Invasão: jogador nunca machuca jogador (nem a si mesmo)
   t.hp -= amount; t.lastAttacker = attacker; t.flashUntil = gameTime + 0.12; noteHurt(t, attacker, gameTime); // regen só com dano de outro
+  if (!online && survivalMode() && t.zt && attacker && attacker.isPlayer && t.hp > 0) { const n = grantPoints(attacker, pointsForHit(t)); if (n) { survPop(n); refreshSurvPts(); } }
   if (t.isPlayer) { hurtFlash(); noteHit(origin); if (attacker && attacker !== t) noteFlinch(amount); sfx.oink(0.8, 1.15); }
   else { if (attacker && attacker !== t && !t.target) { t.target = attacker; t.aim = t.reaction * 0.5; } if (Math.random() < 0.3) sfx.oink(distVol(t.pos) * 0.6, 1.3); }
   if (attacker && attacker.isPlayer && attacker !== t) { if (t.hp > 0) feedbackHit({ head, wall: !!(fx & 1) }); sfx.hit(); if (training()) dmgPopup(t, amount, head); }
@@ -5533,6 +5540,8 @@ function loadMap(id, inv = false) { // inv: Invasão tem mais caixas de muniçã
   if (worldGroup) { scene.remove(worldGroup); disposeWorld(worldGroup); }
   for (const p of pickups) scene.remove(p.mesh); pickups.length = 0;
   const w = buildWorld(map); worldGroup = w.group; scene.add(worldGroup);
+  doorGroups = new Map(); for (const g of w.doors || []) doorGroups.set(g.userData.doorId, g);
+  nightLights = w.nightLights || []; nightAmb.stop();
   solids = w.solids; worldMeshes = w.meshes; mapBounds = map.size; indexSolids();
   applyPalette(scene, hemi, sun, map); fpHemi.intensity = map.palette.stars ? 1.25 : 1.8;
   SPAWNS = map.spawns.map(([x, z, y = 0]) => new V3(x, groundAt(x, z, y + 0.3), z));
@@ -5544,14 +5553,87 @@ function loadMap(id, inv = false) { // inv: Invasão tem mais caixas de muniçã
   showcase.position.set(...map.showcase); showBaseY = map.showcase[1]; pickShowcaseCam();
   currentMap = map; return map;
 }
+// Survival: folhas fechadas entram na colisão e saem quando a porta abre. O grafo dos zumbis refaz junto.
+function syncSurvivalSpace() {
+  if (!currentMap || !surv) return;
+  solids = mapSolids(currentMap).concat(closedDoorSolids(currentMap, surv.open));
+  mapBounds = currentMap.size; indexSolids();
+  const src = currentMap.survival.playerSpawns;
+  SPAWNS = src.map(([x, z, y = 0]) => new V3(x, groundAt(x, z, y + 0.3), z));
+  const seeds = currentMap.spawns.map(([x, z, y = 0]) => [x, groundAt(x, z, y + 0.3), z]);
+  const t0 = performance.now();
+  nav = buildNav({ hx: currentMap.size[0], hz: currentMap.size[1], spacing: currentMap.navSpacing || 2, collides, groundAt, solids, topAt, seeds, extra: currentMap.waypoints || [] });
+  navMs = performance.now() - t0;
+  if (inv) { inv.A.nav = nav; inv.A.P = PHYS; inv.rev = null; for (const z of inv.zombies || []) z.node = null; }
+}
+function applyDoorLeaf(id, open) {
+  const g = doorGroups.get(id); if (!g) return;
+  g.userData.want = open ? g.userData.openAngle : 0;
+  if (open) g.rotation.y = g.userData.want;
+}
+function beginSurvival(saved) {
+  if (!currentMap || !currentMap.survival) { surv = null; return; }
+  surv = createMatchSurvival(currentMap);
+  if (saved) { for (const id of saved.open || []) surv.open.add(id); for (const id of saved.areas || []) surv.areas.add(id); }
+  for (const e of entities) if (e && !e.zt && !e.bot && e.points == null) e.points = SURVIVAL.START_POINTS;
+  syncSurvivalSpace();
+  for (const [id, g] of doorGroups) applyDoorLeaf(id, surv.open.has(id));
+  initAudio(); if (actx && master) nightAmb.start(actx, master);
+  refreshSurvPts();
+}
+function refreshSurvPts() {
+  const el = $('survPts'); if (!el) return;
+  const on = survivalMode() && player;
+  el.classList.toggle('hidden', !on);
+  if (on) el.textContent = `${player.points | 0} pts`;
+}
+function survPop(n) {
+  const box = $('points'); if (!box || !n) return;
+  const node = document.createElement('div');
+  node.className = 'pop' + (n > 0 ? ' kill' : '');
+  node.textContent = (n > 0 ? '+' : '') + n;
+  box.appendChild(node);
+  setTimeout(() => node.remove(), 700);
+}
+function tryBuyDoor() {
+  if (!survivalMode() || !surv || !player || !player.alive || state !== 'playing') return;
+  const near = nearestClosedDoor(currentMap, surv, player.pos); if (!near) return;
+  if (online && online.net) { online.net.send({ t: 'door', id: near.door.id }); return; }
+  const r = evaluateDoorBuy(currentMap, surv, player, near.door.id);
+  if (!r.ok) { if (DOOR_FAIL[r.reason]) flashMsg(DOOR_FAIL[r.reason]); return; }
+  commitDoorBuy(surv, player, r.door);
+  applyDoorLeaf(r.door.id, true); syncSurvivalSpace();
+  flashMsg(`${r.door.name} aberta`); survPop(-r.price); refreshSurvPts(); sfx.pickup();
+}
+function survivalPrompt() {
+  const el = $('bPrompt'); if (!el || !survivalMode()) return;
+  if (!surv || !player || !player.alive || state !== 'playing') { el.classList.add('hidden'); return; }
+  const near = nearestClosedDoor(currentMap, surv, player.pos);
+  if (!near) { el.classList.add('hidden'); return; }
+  const d = near.door, have = player.points | 0;
+  el.classList.remove('hidden'); el.className = have >= d.price ? 'hot' : 'soft';
+  el.querySelector('.bp1').innerHTML = `Aperte <kbd>E</kbd> · ${d.prompt}`;
+  el.querySelector('.bp2').textContent = `${d.price} pontos · você tem ${have}`;
+}
+function tickNight(dt) {
+  const calm = typeof reducedAnims === 'function' && reducedAnims();
+  for (const l of nightLights) {
+    const base = l.userData.base || 1;
+    if (calm) { l.intensity = base; continue; }
+    if (l.userData.flicker === 'alarm') l.intensity = base * (((gameTime * 2.2) % 1) < 0.55 ? 1 : 0.15);
+    else l.intensity = base * (Math.sin(gameTime * 47) > 0.92 ? 0.18 : 0.84 + 0.16 * Math.sin(gameTime * 21));
+  }
+  for (const g of doorGroups.values()) { const w = g.userData.want || 0; g.rotation.y += (w - g.rotation.y) * Math.min(1, dt * 5); }
+  if (survivalMode()) nightAmb.tick();
+}
 // seletor: mapa salvo no navegador ('random' = aleatório a cada partida)
 const invMenu = () => $('modeSel').value === INV.mode; // Invasão tem lista de mapas própria (Rodízio + Fazenda + os normais)
 const bombMenu = () => $('modeSel').value === 'bomb';
-const menuPool = (md) => (isX1(md) ? X1_MAPS : md === 'bomb' ? BOMB_MAPS : isInvasion(md) ? INV_MAPS : PLAY_MAPS); // lista de mapas de cada modo (Bomba: só os com sites feitos à mão; X1: os currais)
+const menuPool = (md) => (isSurvivalMode(md) ? SURVIVAL_MAPS : isX1(md) ? X1_MAPS : md === 'bomb' ? BOMB_MAPS : isInvasion(md) ? INV_MAPS : PLAY_MAPS); // Survival: só a HOTMILK à Noite. Bomba: sites feitos à mão. X1: currais.
 const mapKey = () => (bombMenu() ? 'docao.bombMap' : invMenu() ? 'docao.invMap' : x1Menu() ? 'docao.x1Map' : 'docao.map');
 const x1Menu = () => $('modeSel').value === X1.mode;
 const mapPool = () => menuPool($('modeSel').value);
-function storedMap() { let v = null; try { v = localStorage.getItem(mapKey()); } catch (e) { /* */ } return v === 'random' || mapPool().some((m) => m.id === v) ? v : bombMenu() ? BOMB_MAP : invMenu() ? INV.DEFAULT_MAP : MAPS[0].id; }
+function storedMap() { let v = null; try { v = localStorage.getItem(mapKey()); } catch (e) { /* */ } return v === 'random' || mapPool().some((m) => m.id === v) ? v : bombMenu() ? BOMB_MAP : isSurvivalMode($('modeSel').value) ? SURVIVAL.DEFAULT_MAP : invMenu() ? INV.DEFAULT_MAP : MAPS[0].id; }
 let selectedMap = storedMap();
 function syncMapForMode() {
   if (x1Menu()) { selectedMap = 'random'; if (!currentMap || !currentMap.x1) loadMap(X1_MAPS[0].id); buildMapGrid(); return; }
@@ -5593,7 +5675,7 @@ function invThumbs() { // Rodízio/Fazenda: renderiza a miniatura só quando o m
 }
 function buildMapGrid() { if (invMenu()) invThumbs(); const g = $('mapGrid'); g.innerHTML = ''; for (const m of mapPool()) g.appendChild(mapCard(m.id)); g.appendChild(mapCard('random')); refreshMapUI(); }
 function makeThumbs() { // miniaturas renderizadas da vista aérea, uma por quadro pra não travar o menu
-  const L = MAPS.filter((m) => PLAY_MAPS.includes(m) || !INV_MAPS.includes(m)); // mapas só da Invasão: miniatura sob demanda (invThumbs)
+  const L = MAPS.filter((m) => !m.survivalOnly && (PLAY_MAPS.includes(m) || !INV_MAPS.includes(m))); // HOTMILK à Noite e os mapas só da Invasão: miniatura sob demanda
   let i = 0; const next = () => {
     if (i >= L.length) { buildMapGrid(); window.__thumbsReady = true; return; }
     const m = L[i++]; try { thumbs[m.id] = renderThumb(m); } catch (e) { console.warn('miniatura', m.id, e); }
@@ -5602,7 +5684,7 @@ function makeThumbs() { // miniaturas renderizadas da vista aérea, uma por quad
 }
 function nextOfflineMap() {
   if (x1Mode() || x1Menu()) { const i = X1_MAPS.findIndex((m) => currentMap && m.id === currentMap.id); return X1_MAPS[(i + 1) % X1_MAPS.length].id; }
-  const P = mode === 'bomb' ? BOMB_MAPS : invMode() ? INV_MAPS : MAPS.filter((x) => PLAY_MAPS.includes(x) || !INV_MAPS.includes(x)); return P[(P.indexOf(currentMap) + 1) % P.length].id;
+  const P = mode === 'bomb' ? BOMB_MAPS : survivalMode() ? SURVIVAL_MAPS : invMode() ? INV_MAPS : MAPS.filter((x) => PLAY_MAPS.includes(x) || !INV_MAPS.includes(x)); return P[(P.indexOf(currentMap) + 1) % P.length].id;
 } // Bomba: só mapas com sites. X1: o próximo curral.
 function resolveX1Map(mapId) {
   if (typeof mapId === 'string' && X1_MAPS.some((m) => m.id === mapId) && (!currentMap || mapId !== currentMap.id)) return mapId;
@@ -5611,7 +5693,7 @@ function resolveX1Map(mapId) {
 }
 function pickMapForMatch() {
   if (selectedMap !== 'random' && mapPool().some((m) => m.id === selectedMap)) return selectedMap;
-  if (selectedMap !== 'random') return bombMenu() ? BOMB_MAP : invMenu() ? INV.DEFAULT_MAP : PLAY_MAPS[0].id; // Bomba: mapa sem sites → Rodízio
+  if (selectedMap !== 'random') return bombMenu() ? BOMB_MAP : isSurvivalMode($('modeSel').value) ? SURVIVAL.DEFAULT_MAP : invMenu() ? INV.DEFAULT_MAP : PLAY_MAPS[0].id; // Bomba: mapa sem sites → Rodízio. Survival: HOTMILK à Noite.
   const pool = mapPool().filter((m) => !currentMap || m.id !== currentMap.id); return pool[Math.floor(Math.random() * pool.length)].id;
 }
 $('mapBtn').onclick = () => { buildMapGrid(); $('mapModal').classList.remove('hidden'); };
@@ -5659,7 +5741,7 @@ function startGame(mapId) {
   clearBots(); gameTime = 0; inv = null; invNet = null;
   const picked = $('modeSel').value;
   saveBotDiff($('botDiff').value);
-  mode = MODE_OK(picked); armsWinner = null; teamScore = [0, 0]; zone = null; window.__capLog = []; offlineMinutes = normTime($('timeSel').value);
+  mode = MODE_OK(picked); matchVariant = isSurvivalMode(picked) ? 'survival' : ''; armsWinner = null; teamScore = [0, 0]; zone = null; window.__capLog = []; offlineMinutes = normTime($('timeSel').value);
   matchLimits = { weapons: null, powers: null }; rulesLive = true; // solo: arsenal inteiro. O limite de armas é regra da sala, escolhida ao criar.
   player = makeEntity(name, true, selectedSkin, '#ffd27a'); entities.push(player); fp.setSkin(selectedSkin);
   const legal = clampLoadout(selectedPrimary, selectedSecondary, selectedMelee, matchLimits.weapons);
@@ -5675,7 +5757,8 @@ function startGame(mapId) {
   } else for (const e of entities) applyTeam(e, -1);
   const bombEv = mode === 'bomb' ? startBombOffline() : [];
   for (const e of entities) e.caps = 0;
-  for (const e of entities) { e.alive = false; }
+  for (const e of entities) { e.alive = false; if (survivalMode() && !e.bot) e.points = SURVIVAL.START_POINTS; }
+  if (survivalMode()) beginSurvival();
   if (x1Mode()) { x1Gun = rollX1Weapon(-1, x1WeaponOk); entities.forEach((e, i) => { e.x1Side = i % 2; }); }
   for (const e of entities) respawn(e);
   pickups.forEach((p) => { const on = clientPower(p.type); p.active = on; p.mesh.visible = on; if (!on) p.respawnAt = Infinity; });
@@ -5683,7 +5766,7 @@ function startGame(mapId) {
   showcase.visible = false;
   $('killfeed').innerHTML = '';
   const diffWord = botDiffMeta(botDiff).label;
-  flashMsg(armsMode() ? `Corrida Armada · time ${TEAM_NAMES[player.team]} · 2 abates por etapa · V rouba etapa` : mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : `Mapa: ${currentMap.name} · bots ${diffWord}`); refreshModeHud();
+  flashMsg(armsMode() ? `Corrida Armada · time ${TEAM_NAMES[player.team]} · 2 abates por etapa · V rouba etapa` : mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : survivalMode() ? `Survival · ${currentMap.name} · portas no E · ${player.points | 0} pontos` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : `Mapa: ${currentMap.name} · bots ${diffWord}`); refreshModeHud();
   for (const ev of bombEv) onBombEvent(ev);
   $('menu').classList.add('hidden'); $('gameover').classList.add('hidden'); $('pause').classList.add('hidden'); $('hud').classList.remove('hidden'); $('socialHud').classList.remove('hidden'); $('voiceHud').classList.add('hidden'); chatSetRoom(true); // offline: o chat fica (pros códigos), sem voz $('overChat').classList.add('hidden');
   applyHeldKnife(getAccount() && getAccount().knife);
@@ -5771,7 +5854,7 @@ function toMenu() {
   if (online) leaveOnline();
   endVictory(); stopEmote(); document.body.classList.remove('deadgray');
   zone = null; mode = 'dm'; document.body.classList.remove('armsmode'); endBomb(); $('domhud').classList.add('hidden'); $('zoneMark').classList.add('hidden'); $('teamPick').classList.add('hidden');
-  state = 'menu'; rulesLive = false; clearBots(); inv = null; invNet = null; if (selectedMap !== 'random') loadMap(selectedMap); invApplyLook(false); showcase.visible = true; pickups.forEach((p) => (p.mesh.visible = false)); camera.clearViewOffset();
+  state = 'menu'; rulesLive = false; clearBots(); inv = null; invNet = null; surv = null; matchVariant = ''; nightAmb.stop(); if (selectedMap !== 'random') loadMap(selectedMap); invApplyLook(false); showcase.visible = true; pickups.forEach((p) => (p.mesh.visible = false)); camera.clearViewOffset(); refreshSurvPts();
   closePauseClass(); ['pause', 'pauseClass', 'gameover', 'hud'].forEach((id) => { const el = $(id); if (el) el.classList.add('hidden'); }); document.body.classList.remove('cls-on', 'dead', 'killcam'); $('menu').classList.remove('hidden');
   if (document.pointerLockElement) document.exitPointerLock();
 }
@@ -5901,6 +5984,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
   if (e.code !== 'Space' || !e.repeat) keys[e.code] = true;
+  if (state === 'playing' && survivalMode() && e.code === 'KeyE' && !e.repeat && player && player.alive) { e.preventDefault(); tryBuyDoor(); return; }
   if (state === 'playing' && player && invKey(e)) { e.preventDefault(); return; } // Invasão: G poder · X troca · B painel de armas na pausa
   if (state === 'playing' && player && gunner) { // no Chopper: 1/2 trocam a arma dele, F sai
     if (e.code === 'Digit1') setGunnerMode('mini');
@@ -5964,7 +6048,7 @@ function loop() {
     if (online) netTick(dt);
     for (const e of entities) if (!e.isPlayer) updateBot(e, dt);
     updatePickups(dt); updateGrenades(dt); updateTacticals(dt); updateShocks(dt); updateRockets(dt); updateDiscs(dt); updateCorn(dt); updateEggs(dt); updatePokeFx(dt); stepLocalSabers(dt); updateStrikes(dt); updateParticles(dt); updateBacon(dt); updateBaconPickups(); if (training()) { trainRefill(); updateDmgPops(dt); } if (!online && !x1Mode()) for (const e of entities) if (!e.zt) regenStep(e, gameTime, dt); updateFP(dt); updateEffects(dt); updateShafts(dt); updateHud(dt); updateRewards(dt);
-    updateDomOffline(dt); updateZoneGfx(dt); invTick(dt); updateBombOffline(dt); updateBombGfx(dt);
+    updateDomOffline(dt); updateZoneGfx(dt); invTick(dt); updateBombOffline(dt); updateBombGfx(dt); tickNight(dt); if (survivalMode()) survivalPrompt();
     if (!online && !exploreMode() && gameTime >= matchLimit()) endGame();
   } else if (state === 'menu') {
     menuT += dt * 0.25; danceT += dt;
@@ -6841,9 +6925,9 @@ function fillMapSelect(sel, value, md) { // Invasão: lista própria (Rodízio, 
     if (sel.dataset.pool !== 'x1') { sel.innerHTML = ''; sel.dataset.pool = 'x1'; sel.add(new Option('Sortido · curral pequeno', 'random')); }
     sel.value = 'random'; return;
   }
-  const iv = isInvasion(md), L = menuPool(md), key = md === 'bomb' ? 'bomb' : iv ? 'inv' : 'play';
-  if (!sel.options.length || sel.dataset.pool !== key) { sel.innerHTML = ''; sel.dataset.pool = key; for (const m of L) sel.add(new Option(m.name, m.id)); sel.add(new Option('Aleatório', 'random')); }
-  if (value && [...sel.options].some((o) => o.value === value)) sel.value = value; else if (value) sel.value = md === 'bomb' ? BOMB_MAP : iv ? INV.DEFAULT_MAP : L[0].id; // Bomba: mapa sem sites → Rodízio
+  const iv = isInvasion(md), sv = isSurvivalMode(md), L = menuPool(md), key = md === 'bomb' ? 'bomb' : sv ? 'surv' : iv ? 'inv' : 'play';
+  if (!sel.options.length || sel.dataset.pool !== key) { sel.innerHTML = ''; sel.dataset.pool = key; for (const m of L) sel.add(new Option(m.name, m.id)); if (!sv) sel.add(new Option('Aleatório', 'random')); }
+  if (value && [...sel.options].some((o) => o.value === value)) sel.value = value; else if (value) sel.value = md === 'bomb' ? BOMB_MAP : sv ? SURVIVAL.DEFAULT_MAP : iv ? INV.DEFAULT_MAP : L[0].id; // Bomba: mapa sem sites → Rodízio. Survival: um mapa só.
   if (md === 'bomb' && value === 'random') sel.value = BOMB_MAP;
 }
 function renderLobby() {
@@ -6928,7 +7012,7 @@ function remoteEnt(info) {
     z.model.group.visible = false; o.ents.set(info.id, z); entities.push(z); return z;
   }
   const e = makeEntity(info.name, false, info.skin, info.tag || '#ffffff');
-  Object.assign(e, { id: info.id, remote: true, netId: info.id, bot: !!info.bot, buf: [], kills: info.kills || 0, deaths: info.deaths || 0, alive: false, primary: info.primary || 0, ping: 0 });
+  Object.assign(e, { id: info.id, remote: true, netId: info.id, bot: !!info.bot, buf: [], kills: info.kills || 0, deaths: info.deaths || 0, points: info.pts | 0, alive: false, primary: info.primary || 0, ping: 0 });
   if (armsMode()) { [e.armsStage, e.armsKills] = info.arms || [0, 0]; equipArmsLocal(e); }
   e.model.group.visible = false; setWeapon(e, info.w || 0); e.slots = [e.primary, e.secondary ?? PISTOL, e.melee ?? KNIFE]; e.caps = info.caps || 0; if (armsMode()) equipArmsLocal(e); applyTeam(e, info.team ?? -1); if (info.kn) applyWorldKnife(e, info.kn); if (info.sn) applyWorldSniper(e, info.sn); if (info.gn) applyWorldGuns(e, info.gn);
   o.ents.set(info.id, e); entities.push(e); return e;
@@ -6944,23 +7028,24 @@ function startOnlineMatch(m) {
     for (const info of m.ents) if (!o.ents.has(info.id) && info.id !== o.myId) remoteEnt(info);
     return;
   }
-  clearMatchEnding(); resetAds(); loadMap(m.map, isInvasion(m.mode)); clearBots(); gameTime = m.T; o.mapId = m.map; o.inMatch = true; o.ents.clear(); o.tmap = [];
-  mode = MODE_OK(m.mode); armsWinner = null; if (x1Mode()) x1Gun = m.gun ?? 0; inv = null; invNet = m.iv ? parseState(m.iv) : null; window.__capLog = []; o.limit = m.limit > 0 ? m.limit : 0; endBomb();
+  clearMatchEnding(); resetAds(); loadMap(m.map, isInvasion(m.mode) || isSurvivalMode(m.mode, m)); clearBots(); gameTime = m.T; o.mapId = m.map; o.inMatch = true; o.ents.clear(); o.tmap = [];
+  mode = MODE_OK(m.mode); matchVariant = m.variant === 'survival' || m.mode === 'survival' ? 'survival' : ''; armsWinner = null; if (x1Mode()) x1Gun = m.gun ?? 0; inv = null; invNet = m.iv ? parseState(m.iv) : null; window.__capLog = []; o.limit = m.limit > 0 ? m.limit : 0; endBomb();
   matchLimits = { weapons: (o.cfg && o.cfg.weapons) || null, powers: o.cfg && o.cfg.powers != null ? o.cfg.powers : null }; rulesLive = true;
   zone = m.zone ? newZoneState({ x: m.zone[0], y: m.zone[1], z: m.zone[2] }) : null; teamScore = m.zone ? [m.zone[8], m.zone[9]] : [0, 0];
   const me = m.ents.find((x) => x.id === o.myId) || { name: profile().name, skin: selectedSkin };
   player = makeEntity(me.name, true, me.skin, '#ffd27a'); player.netId = player.id = o.myId; player.sq = 0; player.alive = false; player.respawnAt = Infinity;
-  player.kills = me.kills || 0; player.deaths = me.deaths || 0; player.gunKills = WEAPONS.map(() => 0); revengeName = null; resetFeedback(); resetMatchCamos();
+  player.kills = me.kills || 0; player.deaths = me.deaths || 0; player.points = me.pts != null ? me.pts : (survivalMode() ? SURVIVAL.START_POINTS : 0); player.gunKills = WEAPONS.map(() => 0); revengeName = null; resetFeedback(); resetMatchCamos();
   player.primary = player.nextPrimary = selectedPrimary; player.nextSecondary = selectedSecondary; player.nextMelee = selectedMelee; player.slots = [selectedPrimary, selectedSecondary, selectedMelee]; setWeapon(player, selectedPrimary); // até o servidor mandar o renascimento
   if (armsMode()) { [player.armsStage, player.armsKills] = me.arms || [0, 0]; equipArmsLocal(player); }
   entities.push(player); o.ents.set(o.myId, player); fp.setSkin(me.skin); applyHeldKnife(me.kn); applyHeldSniper(me.sn); applyHeldGuns(me.gn); player.caps = me.caps || 0; applyTeam(player, me.team ?? -1);
   for (const info of m.ents) remoteEnt(info);
+  if (survivalMode()) beginSurvival(m.surv);
   invApplyLook(invMode()); if (invMode()) for (const [id, ki, pos] of m.drops || []) invAddDrop(id, DROP_KEYS[ki], pos);
   if (mode === 'bomb' && m.bomb) setupBomb({ sites: m.bomb.sites.map(([x, y, z], i) => ({ x, y, z, name: SITE_NAMES[i] })), atk: m.bomb.atk, def: m.bomb.def, pts: m.bomb.pts ? m.bomb.pts.map(([x, y, z]) => ({ x, y, z })) : undefined }, unpackBomb(m.bomb.s)); else if (mode === 'bomb') mode = 'dm';
   refreshModeHud(); $('teamPick').classList.add('hidden');
   if (teamMode() && me.pend) showTeamPick(m.ents);
   pickups.forEach((p, i) => { p.active = !!(m.pk ? m.pk[i] : 1); p.mesh.visible = p.active; });
-  showcase.visible = false; $('killfeed').innerHTML = ''; flashMsg(invMode() ? `Invasão 🎃 · ${currentMap.name} · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun] ? WEAPONS[x1Gun].short : ''}` : `Mapa: ${currentMap.name}`);
+  showcase.visible = false; $('killfeed').innerHTML = ''; flashMsg(survivalMode() ? `Survival · ${currentMap.name} · portas no E · ${player.points | 0} pontos` : invMode() ? `Invasão 🎃 · ${currentMap.name} · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun] ? WEAPONS[x1Gun].short : ''}` : `Mapa: ${currentMap.name}`);
   ['menu', 'gameover', 'pause', 'lobby', 'onlineModal'].forEach((id) => $(id).classList.add('hidden')); $('hud').classList.remove('hidden'); $('socialHud').classList.remove('hidden'); $('voiceHud').classList.remove('hidden'); $('overChat').classList.add('hidden');
   $('netbar').classList.remove('hidden'); $('netRoom').textContent = 'Sala ' + o.code;
   camera.clearViewOffset(); state = 'playing'; if ($('teamPick').classList.contains('hidden')) lockPointer(); // escolhendo time: mouse livre pros botões
@@ -7020,6 +7105,15 @@ function remoteMuzzle(e) { return center(e, 1.3).add(new V3(Math.sin(e.yaw) * 1.
 const NET_SHOOTER = { sh: 1, ml: 1, dl: 2, el: 2, cl: 1, rk: 2, sk: 2 }; // índice do id de quem disparou em cada evento
 function netEvent(ev) {
   const o = online, k = ev[0];
+  if (k === 'door' && surv) {
+    const door = (currentMap.survival && currentMap.survival.doors || []).find((d) => d.id === ev[1]);
+    surv.open.add(ev[1]); for (const id of ev[4] || []) surv.areas.add(id);
+    applyDoorLeaf(ev[1], true); syncSurvivalSpace();
+    const buyer = entOf(ev[2]); if (buyer) buyer.points = ev[3];
+    if (buyer === player) refreshSurvPts();
+    flashMsg(`${door ? door.name : 'Porta'} aberta`); sfx.pickup();
+    return;
+  }
   { const si = NET_SHOOTER[k]; const se = si && entOf(ev[si]); if (se && se.model) setExpression(se.model, 'angry', 0.5); } // cara de brava de quem atirou/golpeou
   if (INV_EVENTS.has(k)) { invEvent(ev); return; } // Invasão
   if (k === 'sh') {
@@ -7192,6 +7286,8 @@ function netEvent(ev) {
 }
 function personalEvent(ev) {
   const p = player; if (!p) return;
+  if (ev[0] === 'pts') { p.points = ev[1] | 0; if (ev[2]) survPop(ev[2]); refreshSurvPts(); return; }
+  if (ev[0] === 'doorNo') { const msg = DOOR_FAIL[ev[1]]; if (msg) flashMsg(msg); return; }
   if (ev[0] === 'pos') { p.pos.set(ev[1][0], ev[1][1], ev[1][2]); p.vel.set(0, 0, 0); }
   else if (ev[0] === 'pxw') { pauseSwapLast = performance.now() - (PX_COOLDOWN - (ev[1] | 0)) * 1000; flashMsg(`Espera ${ev[1]} s pra trocar de arma de novo`); } // servidor recusou a troca que derruba
   else if (ev[0] === 'inv') invSetInv(ev[1] || []); // Invasão: inventário de poderes
@@ -7216,14 +7312,14 @@ function onlineEnd(m) {
   for (const r of m.board) { const e = entOf(r[0]); if (e && r[6] != null) e.caps = r[6]; }
   const w = m.board[0];
   invClosePick();
-  if (isInvasion(m.mode)) { $('winner').dataset.tone = m.inv && m.inv.won ? 'won' : 'lost'; $('winner').textContent = invEndText(); }
+  if (isInvasion(m.mode) || isSurvivalMode(m.mode, m)) { $('winner').dataset.tone = m.inv && m.inv.won ? 'won' : 'lost'; $('winner').textContent = invEndText(); }
   else if (m.mode === 'dom' || isArmsRace(m.mode) || m.mode === 'bomb') { teamScore = m.ts || teamScore; if (isArmsRace(m.mode)) armsWinner = entOf(m.winner); setTeamWinner(m.winTeam ?? -1); }
   else $('winner').textContent = w && w[0] === o.myId ? 'Você venceu! 🏆' : `${w ? w[1] : '???'} venceu!`;
   const rows = entities.filter((e) => !e.zt).sort((a, b) => scoreOf(b) - scoreOf(a) || a.deaths - b.deaths);
   const teamGame = m.mode === 'dom' || isArmsRace(m.mode) || m.mode === 'bomb', winTeam = m.winTeam ?? -1;
-  const tied = !isInvasion(m.mode) && !teamGame && m.board.length > 1 && m.board[0][2] === m.board[1][2] && m.board[0][3] === m.board[1][3];
+  const tied = !isInvasion(m.mode) && !isSurvivalMode(m.mode, m) && !teamGame && m.board.length > 1 && m.board[0][2] === m.board[1][2] && m.board[0][3] === m.board[1][3];
   if (tied) $('winner').textContent = 'Empate!';
-  const outcome = isInvasion(m.mode) ? (m.inv && m.inv.won ? 'win' : 'loss') : teamGame ? (winTeam < 0 ? 'draw' : player.team === winTeam ? 'win' : 'loss') : tied ? 'draw' : w && w[0] === o.myId ? 'win' : 'loss';
+  const outcome = isInvasion(m.mode) || isSurvivalMode(m.mode, m) ? (m.inv && m.inv.won ? 'win' : 'loss') : teamGame ? (winTeam < 0 ? 'draw' : player.team === winTeam ? 'win' : 'loss') : tied ? 'draw' : w && w[0] === o.myId ? 'win' : 'loss';
   matchEnding.dance = outcome === 'win' && playerWonMatch({ mode: m.mode, rows, teamW: winTeam, invWon: m.inv && m.inv.won });
   $('finalboard').innerHTML = boardHtml();
   if (player && player.shieldBlocked > 0) $('finalboard').insertAdjacentHTML('beforeend', `<p class="shieldend">Dano segurado na tampa: ${Math.round(player.shieldBlocked)}</p>`);
@@ -7354,7 +7450,7 @@ function updateZombie(z, dt) {
 }
 function killZombieLocal(t, a, wIdx, head, back) {
   t.alive = false; t.hp = 0; t.deaths++; t.deathAt = gameTime; t.respawnAt = Infinity; t.fxDeath = t.deathAt;
-  if (a && a !== t && !a.zt) a.kills++;
+  if (a && a !== t && !a.zt) { a.kills++; if (!online && survivalMode() && a.isPlayer) { const n = grantPoints(a, pointsForKill(t.zt, { head, knife: isKnife(wIdx) })); survPop(n); refreshSurvPts(); } }
   sfx.die(distVol(t.pos) * 0.7);
   if (a && a.isPlayer) { sfx.kill(); notePlayerKill(t, head); if (wIdx >= 0) noteWeaponKill(a, wIdx); }
   if (t.zt === 'boss') addKillFeed(a, t, wIdx, head, back);
@@ -7367,6 +7463,10 @@ function startInvasionOffline() {
     T: () => gameTime, P: PHYS, nav, size: currentMap.size, botDiff: () => botDiff,
     players: () => entities.filter((e) => e.isPlayer),
     spawnZombie(type, pos) { const z = makeZombieEnt(type); z.id = invZid++; z.pos.set(pos.x, pos.y, pos.z); z.yaw = Math.atan2(-pos.x, -pos.z); entities.push(z); return z; },
+    spawnPoints: () => {
+      if (!survivalMode() || !surv || !currentMap) return null;
+      return unlockedZombieSpawns(currentMap, surv).map((s) => ({ x: s.x, z: s.z, y: groundAt(s.x, s.z, s.y + 0.35) })).filter((s) => !collides(s.x, s.y, s.z));
+    },
     removeZombie(z) { scene.remove(z.model.group); entities = entities.filter((x) => x !== z); },
     hurtPlayer(p, dmg, src) { if (!src) fogSrc.pos.set(inv.fog.cx, p.pos.y, inv.fog.cz); damage(p, dmg, src || fogSrc, src ? KNIFE : W_NADE, false); },
     hurtZombie(z, dmg, by, kind) { damage(z, dmg, by, W_NADE, false); },
