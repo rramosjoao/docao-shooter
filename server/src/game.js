@@ -13,7 +13,7 @@ import { isKnife } from '../../shared/rules.js';
 import { X1, isX1, rollX1Weapon, x1SpawnSide } from '../../shared/x1.js';
 import { buildNav } from '../../nav.js';
 import { SKINS, skinOk } from '../../skins.js';
-import { EARN, knifeKind, sniperKind } from '../../shared/closet.js';
+import { EARN, knifeKind, sniperKind, parseGuns } from '../../shared/closet.js';
 import { CHAL_MODES } from '../../shared/challenges.js';
 import { cleanName, uniqueName, NAME_MAX } from '../../shared/names.js';
 import { KILL_LIMIT, TIME_LIMIT, normTime, RESPAWN_TIME, INVULN, JUMP, SPEED, BOT_SPEED, EYE, WEAPONS, PRIMARIES, SECONDARIES, MELEES, PISTOL, KNIFE, SABER, SABER2, isSaber, POKE, isPokeCode, MINIGUN, isMiniCode, UZI, P90, DISC_W, CORN_W, EGG_W, NAIL, SEMI, MELEE, W_NADE, NADE, BACON_ITEM, noteHurt, resetRegen, regenStep, BOT_DEFS, BOT_RANGE, TAG_COLORS, TAMPA } from '../../shared/rules.js';
@@ -109,7 +109,7 @@ export class Game {
       e.token = token && /^[a-z0-9]{8,32}$/i.test(token) ? token : Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8);
       e.arrived = true;
     }
-    if (acct) { e.knife = knifeKind(acct.knife) ? acct.knife : ''; e.sniper = sniperKind(acct.sniper) ? acct.sniper : ''; }
+    if (acct) { e.knife = knifeKind(acct.knife) ? acct.knife : ''; e.sniper = sniperKind(acct.sniper) ? acct.sniper : ''; e.guns = parseGuns(acct.guns); }
     // Partida no ar: o humano ocupa a vaga de um bot (mata-mata e dominação). Reconectar também, porque a saída tinha preenchido o lugar.
     if (this.state === 'playing' && this.P && !this.training && !this.invasion) this.syncBots();
     if (!this.hostId || !this.ents.get(this.hostId)?.connected) this.hostId = e.id;
@@ -181,7 +181,7 @@ export class Game {
     resetArmsRace(e);
     this.ents.set(id, e); return e;
   }
-  entInfo(e) { const o = { id: e.id, name: e.name, skin: e.skin, bot: e.bot, tag: e.tag, kills: e.kills, deaths: e.deaths, alive: e.alive, primary: e.primary, w: e.weapon, team: e.team, caps: e.caps, pend: e.pendingTeam ? 1 : 0, kn: e.knife || undefined, sn: e.sniper || undefined };
+  entInfo(e) { const o = { id: e.id, name: e.name, skin: e.skin, bot: e.bot, tag: e.tag, kills: e.kills, deaths: e.deaths, alive: e.alive, primary: e.primary, w: e.weapon, team: e.team, caps: e.caps, pend: e.pendingTeam ? 1 : 0, kn: e.knife || undefined, sn: e.sniper || undefined, gn: e.guns && Object.keys(e.guns).length ? e.guns : undefined };
     if (this.armsMode) { o.arms = [e.armsStage, e.armsKills]; }
     if (e.zt) { o.zt = e.zt; o.hp = Math.round(e.hp); o.mx = Math.round(e.maxHp || 100); } return o; }
   sendLobby() {

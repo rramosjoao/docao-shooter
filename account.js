@@ -77,6 +77,22 @@ export async function equipSniper(id) {
   if (!r.ok) return { error: r.data.error || 'Não deu pra equipar' };
   account.sniper = r.data.sniper || null; emit(); return { ok: true, sniper: account.sniper };
 }
+export async function equipGun(key, id) {
+  if (!token || !account) return { error: 'Entre na sua conta para equipar' };
+  const r = await api('/api/me/gun', { method: 'PUT', body: { key, item: id || '' }, auth: true });
+  if (r.status === 401) { dropSession(); return { error: 'Sessão expirada. Entre de novo.' }; }
+  if (!r.ok) return { error: r.data.error || 'Não deu pra equipar' };
+  account.guns = r.data.guns || {}; emit(); return { ok: true, guns: account.guns };
+}
+export async function openBox() {
+  if (!token || !account) return { error: 'Entre na sua conta para abrir o caixote' };
+  const r = await api('/api/lootbox/open', { method: 'POST', auth: true });
+  if (r.status === 401) { dropSession(); return { error: 'Sessão expirada. Entre de novo.' }; }
+  if (!r.ok) return { error: r.data.error || 'Não deu pra abrir' };
+  if (!r.data.dupe && r.data.item && !items.includes(r.data.item.id)) items.push(r.data.item.id);
+  account.coins = r.data.coins | 0; account.boxes = r.data.boxes | 0; emit();
+  return { ok: true, dupe: !!r.data.dupe, item: r.data.item, coins: account.coins, gain: r.data.gain | 0, boxes: account.boxes };
+}
 export async function loadRank(mode = 'all', sort = 'kills') {
   const r = await api(`/api/rank?mode=${encodeURIComponent(mode)}&sort=${encodeURIComponent(sort)}&limit=20`);
   return r.ok ? r.data.rows || [] : null;

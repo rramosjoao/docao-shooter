@@ -186,47 +186,87 @@ export const KNIFE_MODELS = [
   { knife: 'bayonet', name: 'Bayonetta', emoji: '🗡️', line: 'Baioneta: lâmina reta, guarda cruzada e anel do cano.' },
   { knife: 'butterfly', name: 'Butterfly', emoji: '🦋', line: 'Cabo duplo: a lâmina gira no pino e abre.' },
 ];
+// Peso = raridade no Caixote (não é preço). Skin de arma/faca não se compra: loot:true.
 export const KNIFE_COLORS = [
-  { finish: 'factory', name: 'Fábrica', price: 500, line: 'Cor de fábrica.' },
-  { finish: 'rusty', name: 'Rusty', price: 750, line: 'Aspecto enferrujado.' },
-  { finish: 'rainbow', name: 'Rainbow', price: 1250, line: 'Aspecto de arco-íris.' },
-  { finish: 'sapphire', name: 'Sapphire', price: 1000, line: 'Aspecto de safira.' },
-  { finish: 'emerald', name: 'Emerald', price: 1000, line: 'Aspecto de esmeralda.' },
-  { finish: 'ruby', name: 'Ruby', price: 1000, line: 'Aspecto de rubi.' },
+  { finish: 'factory', name: 'Fábrica', weight: 500, line: 'Cor de fábrica.' },
+  { finish: 'rusty', name: 'Rusty', weight: 750, line: 'Aspecto enferrujado.' },
+  { finish: 'rainbow', name: 'Rainbow', weight: 1250, line: 'Aspecto de arco-íris.' },
+  { finish: 'sapphire', name: 'Sapphire', weight: 1000, line: 'Aspecto de safira.' },
+  { finish: 'emerald', name: 'Emerald', weight: 1000, line: 'Aspecto de esmeralda.' },
+  { finish: 'ruby', name: 'Ruby', weight: 1000, line: 'Aspecto de rubi.' },
+  { finish: 'camo', name: 'Camuflagem', weight: 500, line: 'Verde de exército, manchas de camuflagem.' },
 ];
 const KNIFE_ID = {
-  skeleton: ['k1', 'k4', 'k7', 'k10', 'k13', 'k16'],
-  karambit: ['k2', 'k5', 'k8', 'k11', 'k14', 'k17'],
-  bayonet: ['k3', 'k6', 'k9', 'k12', 'k15', 'k18'],
-  butterfly: ['k19', 'k20', 'k21', 'k22', 'k23', 'k24'],
+  skeleton: ['k1', 'k4', 'k7', 'k10', 'k13', 'k16', 'k25'],
+  karambit: ['k2', 'k5', 'k8', 'k11', 'k14', 'k17', 'k26'],
+  bayonet: ['k3', 'k6', 'k9', 'k12', 'k15', 'k18', 'k27'],
+  butterfly: ['k19', 'k20', 'k21', 'k22', 'k23', 'k24', 'k28'],
 };
 ITEMS.push(...KNIFE_MODELS.flatMap((model) => KNIFE_COLORS.map((color, i) => ({
   id: KNIFE_ID[model.knife][i],
   name: `${model.name} · ${color.name}`,
-  emoji: model.emoji,
-  price: color.price,
+  emoji: color.finish === 'camo' ? '🪖' : model.emoji,
+  weight: color.weight,
+  loot: true,
   knife: model.knife,
   finish: color.finish,
   line: `${model.line} ${color.line}`,
 }))));
 // Sniper Torresmo (espaço "t"): não entra no código do visual. A equipada troca a pintura da arma.
 export const SNIPER_SKINS = [
-  { id: 't1', name: 'A Docão Lore', emoji: '🐉', price: 2000, sniper: 'lore', line: 'Dourada no jeito da Dragon Lore, com dragão, focinho, orelha e o C! do Docão.' },
+  { id: 't1', name: 'A Docão Lore', emoji: '🐉', weight: 2000, loot: true, gun: 'sniper', paint: 'lore', sniper: 'lore', line: 'Dourada no jeito da Dragon Lore, com dragão, focinho, orelha e o C! do Docão.' },
 ];
 ITEMS.push(...SNIPER_SKINS);
+// Pinturas de arma do Caixote da Primeira Safra. sniper também preenche o campo sniper (a coluna da conta continua uma só).
+const GUN_LABEL = { pistol: 'Pistola', sniper: 'Sniper Torresmo', p90: 'P90', carabina: 'Carabina', rifle: 'Fuzil' };
+const GUN_PAINTS = [
+  { paint: 'camo', name: 'Camuflagem', weight: 500, emoji: '🪖', line: 'Verde de exército, manchas de camuflagem.', guns: ['pistol', 'sniper', 'p90', 'carabina', 'rifle'] },
+  { paint: 'rust', name: 'Ferrugem', weight: 750, emoji: '🪨', line: 'Aspecto enferrujado.', guns: ['pistol', 'sniper', 'p90', 'carabina', 'rifle'] },
+  { paint: 'waves', name: 'Ferrugem Waves', weight: 1000, emoji: '🌊', line: 'Tema aquático, com desenho de onda.', guns: ['pistol', 'sniper', 'p90', 'carabina', 'rifle'] },
+  { paint: 'rainbow', name: 'Rainbow', weight: 1250, emoji: '🌈', line: 'Arco-íris na Pistolinha.', guns: ['pistol'] },
+  { paint: 'gold', name: 'Gold Docão', weight: 2000, emoji: '👑', line: 'Fuzil dourado com focinho, orelha e o C! do Docão.', guns: ['rifle'] },
+];
+GUN_PAINTS.forEach((paint) => paint.guns.forEach((gun) => {
+  const it = {
+    id: 'a' + (ITEMS.filter((i) => i.gun && i.id[0] === 'a').length + 1),
+    name: `${GUN_LABEL[gun]} · ${paint.name}`,
+    emoji: paint.emoji,
+    weight: paint.weight,
+    loot: true,
+    gun,
+    paint: paint.paint,
+    line: paint.line,
+  };
+  if (gun === 'sniper') it.sniper = paint.paint;
+  ITEMS.push(it);
+}));
 for (const it of ITEMS) it.slot = it.id[0];
 export const COSTUME_SLOT = 'c', DANCE_SLOT = 'd', KNIFE_SLOT = 'k';
 export const isLookSlot = (k) => SLOTS.some(([x]) => x === k);
 export const danceItems = () => ITEMS.filter((i) => i.slot === DANCE_SLOT);
 export const itemForDance = (dance) => ITEMS.find((i) => i.dance === dance) || null;
 export const itemById = (id) => ITEMS.find((i) => i.id === id) || null;
+export const GUN_GROUPS = [['pistol', 'Pistola'], ['sniper', 'Sniper Torresmo'], ['p90', 'P90'], ['carabina', 'Carabina'], ['rifle', 'Fuzil']];
+export const GUN_EQUIP_KEYS = ['pistol', 'p90', 'carabina', 'rifle']; // a Torresmo fica na coluna sniper
 export const knifeKind = (id) => { const i = itemById(id); return (i && i.knife) || ''; };
 export const knifeFinish = (id) => { const i = itemById(id); return (i && i.finish) || ''; };
 export const sniperKind = (id) => { const i = itemById(id); return (i && i.sniper) || ''; };
+export const gunKey = (id) => { const i = itemById(id); return (i && i.gun) || ''; };
+export const gunPaint = (id) => { const i = itemById(id); return (i && i.paint) || ''; };
+export function parseGuns(raw) {
+  let o = null; try { o = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { o = null; }
+  const out = {};
+  if (!o || typeof o !== 'object') return out;
+  for (const k of GUN_EQUIP_KEYS) { const id = o[k]; if (typeof id === 'string' && gunKey(id) === k) out[k] = id; }
+  return out;
+}
 export const teamItems = (team) => ITEMS.filter((i) => i.team === team).sort((a, b) => (a.teamOrder | 0) - (b.teamOrder | 0) || (a.id < b.id ? -1 : 1));
-export const itemPrice = (id) => { const i = itemById(id); return i ? i.price : 0; };
+export const itemPrice = (id) => { const i = itemById(id); return i && !i.loot && i.price > 0 ? i.price : 0; };
+export const itemWeight = (id) => { const i = itemById(id); return i && i.weight > 0 ? i.weight : 0; };
 // Padrão de graça: não passa pela compra nem precisa de linha na mochila. Preço 0 sozinho também conta, pra não cobrar por engano.
-export const isFreeItem = (id) => { const i = itemById(id); return !!(i && (i.free || !(i.price > 0))); };
+// Skin de caixote (loot) nunca é grátis: sem a linha na mochila, não equipa.
+export const isLootItem = (id) => { const i = itemById(id); return !!(i && i.loot); };
+export const isFreeItem = (id) => { const i = itemById(id); return !!(i && !i.loot && (i.free || !(i.price > 0))); };
 
 // ---------- visual personalizado ----------
 export const LOOK_PREFIX = 'x1.';
