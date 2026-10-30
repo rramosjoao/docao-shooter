@@ -6,7 +6,7 @@ Jogue em **https://docao.mvalentim.dev**
 
 ## Próxima versão — Luneta da Carabina
 
-🔭 **CARABINA DA GRANJA.** A luneta demora **0,276 s** pra entrar: 15% mais lenta que os 0,24 s de antes. Pente, recuo e as outras armas continuam iguais. A lente ainda só cobre a tela quando a arma já chegou no ombro.
+🔭 **CARABINA DA GRANJA.** A luneta demora **0,1725 s** pra entrar: 15% mais lenta que os **0,15 s** de antes do flinch. Os 0,24 s (60% mais lentos) ficaram longos demais. Pente, recuo e as outras armas continuam iguais. A lente ainda só cobre a tela quando a arma já chegou no ombro.
 
 ## Próxima versão — Corrida Armada
 - Dois times, progresso individual e sequência fixa de armas. Duas eliminações por etapa; a faca padrão rouba uma etapa e a faca dourada decide a vitória.

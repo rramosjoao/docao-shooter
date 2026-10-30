@@ -11,7 +11,7 @@ const near = (a, b, e = 1e-6) => Math.abs(a - b) < e;
 
 const granja = WEAPONS.find((w) => w.key === 'carabina');
 ok(granja && granja.mag === 5 && granja.reserve === 40, `Carabina da Granja 5/40 (mag ${granja && granja.mag}, reserva ${granja && granja.reserve})`);
-ok(granja.adsIn === 0.24 * 1.15 && granja.scopeAt === 0.97, `ADS da Granja ${granja.adsIn}s (15% mais lento que 0,24), lente em ${granja.scopeAt}`);
+ok(granja.adsIn === 0.15 * 1.15 && granja.scopeAt === 0.97, `ADS da Granja ${granja.adsIn}s (15% mais lento que os 0,15 originais), lente em ${granja.scopeAt}`);
 ok(!WEAPONS.find((w) => w.key === 'sniper').adsIn && !WEAPONS.find((w) => w.key === 'canhao').adsIn, 'Torresmo e Canhão continuam no tempo global de ADS');
 
 ok(isAssault(0) && isAssault(FAMAS) && isAssault(COMMANDO), 'fuzil, FAMAS e Commando são AR');
