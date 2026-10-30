@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { kickRecoil, stepRecoil, resetRecoil, cancelRecoilReturn } from './shared/recoil.js';
 import { makeWardrobeCase } from './menu-wardrobe.js';
 import { makeMenuBackdrop } from './menu-backdrop.js';
-import { makeDocao, makeFPArms, makeFPForearm, poseFPForearm, setPose, setCrouchPose, toon, outline, makeCup, makeRocket, drawLogo, makeKnife, applyKnifeSkin, setExpression, updateExpression, makeNukeRider } from './docao.js';
+import { makeDocao, makeFPArms, makeFPForearm, poseFPForearm, setPose, setCrouchPose, toon, outline, makeCup, makeRocket, drawLogo, makeKnife, applyKnifeSkin, poseButterfly, setExpression, updateExpression, makeNukeRider } from './docao.js';
 import { DANCES, PAID_DANCE_LIST, isPaidDance, normDance, poseVictory, makeShadowDancer, hideVictoryGuns, resetVictoryPose } from './victory-dance.js';
 import { DANCE_TIME, danceId } from './shared/emote.js';
 import { makeFPSniper, poseSniperBolt } from './sniper-view.js';
@@ -1491,7 +1491,7 @@ function switchWeapon(e, idx) {
     if (W.revolver) noteCapataz('equip', { dual: !!W.akimbo, fumble: !!(e.forceFumble || rollFumble()), dur });
     e.forceFumble = false;
     if (idx !== KNIFE) playCueList(drawCues(W.key), e.switchDur);
-    if (idx === KNIFE) { fp.knifeDrawT = MELEE.draw + 0.1; sfx.knifeDraw(0.8); rightStale = rightDown; } // mirando e trocou pra faca: só estoca num clique novo
+    if (idx === KNIFE) { fp.knifeDrawT = MELEE.draw + 0.1; sfx.knifeDraw(0.8); rightStale = rightDown; startButterfly(); } // mirando e trocou pra faca: só estoca num clique novo
   }
 }
 // troca rápida (V): corpo a corpo (faca ou sabre) ↔ última arma
@@ -3337,7 +3337,7 @@ function startInspect(p) {
   if (!canInspect(p) || (fp.ins && !fp.ins.out && fp.ins.t < INSPECT_DUR * 0.8)) return false; // no meio: só reinicia na volta
   fp.ins = { t: 0, wpn: p.weapon, kind: inspectKind(WEAPONS[p.weapon]), fade: 1, out: false, hold: false, flipped: false, egg: !reducedAnims() && Math.random() < EGG_P, pig: false };
   if (WEAPONS[p.weapon].revolver) noteCapataz('inspect', { dual: !!WEAPONS[p.weapon].akimbo });
-  sfx.inspect(); if (fp.ins.egg) flairCue('boop', 0.05, 0.5); playCueList(inspectCues(WEAPONS[p.weapon].key), INSPECT_DUR, fp.ins.egg ? 1 : 0.75); showInspectHud(p); return true;
+  sfx.inspect(); if (fp.ins.egg) flairCue('boop', 0.05, 0.5); playCueList(inspectCues(WEAPONS[p.weapon].key), INSPECT_DUR, fp.ins.egg ? 1 : 0.75); showInspectHud(p); startButterfly(); return true;
 }
 function stopInspect(hard) { if (!fp.ins) return; if (hard) fp.ins = null; else fp.ins.out = true; showInspectHud(null); }
 function showInspectHud(p) {
@@ -3417,7 +3417,7 @@ function updateFP(dt) {
   const bolting = !!(w.bolt && fp.actionT > 0);
   const drawn = p.weapon === CROSS || p.weapon === BOW || p.weapon === EGG_W;
   fp.fpRef.arms.visible = p.weapon !== PISTOL && p.weapon !== NAIL && p.weapon !== KNIFE && !isSaber(p.weapon) && !w.shield && !w.revolver && !drawn && !bolting && !shatter; fp.fpRef.armsP.visible = (p.weapon === PISTOL || p.weapon === NAIL) && !shatter && !w.revolver;
-  if (p.weapon === KNIFE) { knifeAnim(dt); fp.kpiv.rotation.x = ins.flip; } // inspecionar: gira a faca no dedo (só a lâmina; o braço fica em kr)
+  if (p.weapon === KNIFE) { knifeAnim(dt); const bfly = fp.kpiv.children.some((c) => c.userData.bflyBlade); fp.kpiv.rotation.x = bfly ? 0 : ins.flip; } // inspecionar: as outras facas giram no dedo; a butterfly gira a lâmina no pino
   let dip = 0, tilt = 0;
   // animações de ação: pump da Calibre 12, ferrolho do Sniper, ferrolho da pistola, foguete na boca da bazuca
   fp.actionT = Math.max(0, fp.actionT - dt); fp.shellT = Math.max(0, fp.shellT - dt);
@@ -3757,6 +3757,19 @@ function knifeAnim(dt) {
   if (fp.knifeDrawT > 0) { const d = fp.knifeDrawT / (MELEE.draw + 0.1); py -= 0.35 * d; rx += 0.9 * d; rz += 1.6 * d; }
   if (!reducedAnims() && k < 1 && fp.knifeKind === 'slash') { const ex = knifeExtra(fp.knifeVar || 0, Math.min(1, k)); px += ex.x; py += ex.y; pz += ex.z; rx += ex.rx; ry += ex.ry; rz += ex.rz; }
   kr.position.set(px, py, pz); kr.rotation.set(rx, ry, 0); kp.rotation.z = rz;
+  const mesh = kp.children.find((c) => c.userData.knifeSkin);
+  if (mesh && mesh.userData.bflyBlade) {
+    const attacking = k < 1;
+    if (attacking || reducedAnims()) fp.bflyT = BFLY_DUR;
+    else if (fp.bflyT < BFLY_DUR) fp.bflyT += dt;
+    poseButterfly(mesh, !(fp.bflyT < BFLY_DUR) ? 1 : fp.bflyT / BFLY_DUR);
+  }
+}
+const BFLY_DUR = 0.95;
+function startButterfly() {
+  const mesh = fp.kpiv && fp.kpiv.children.find((c) => c.userData.knifeSkin);
+  if (!mesh || !mesh.userData.bflyBlade || reducedAnims()) return;
+  fp.bflyT = 0;
 }
 
 // ---------------- Mira (botão direito) ----------------
@@ -4506,6 +4519,14 @@ function animateBot(b, dt) { // visual: andar, flutuar, piscar ao levar dano, bo
       else { a.rotation.y = 0.25 + (k < 0.25 ? -0.9 * (k / 0.25) : -0.9 + 2.0 * Math.min(1, (k - 0.25) / 0.35)) * (1 - Math.max(0, (k - 0.6) / 0.4)); a.rotation.x = -1.05 - 0.35 * sn; }
       if (b.swingVar) { const ex = knifeExtra(b.swingVar, Math.min(1, k)); a.rotation.y += ex.ry * 0.45; a.rotation.x += ex.rx * 0.35; }
     }
+    const kn = m.guns[KNIFE];
+    if (kn && kn.userData.bflyBlade && b.weapon === KNIFE) {
+      if (b.bflyKey !== b.switchEnd) { b.bflyKey = b.switchEnd; b.bflyT = 0; }
+      const attacking = (b.swingT ?? 9) < 0.6;
+      if (attacking || reducedAnims()) b.bflyT = 0.95;
+      else if (b.bflyT < 0.95) b.bflyT += dt;
+      poseButterfly(kn, Math.min(1, (b.bflyT || 0) / 0.95));
+    }
   }
   if (pose === 'saber') { // as duas mãos no cabo; o corte gira o braço direito e o sabre vai junto
     b.swingT = (b.swingT ?? 9) + dt; const k = b.swingT / 0.48, a = m.arms[0], off = m.arms[1];
@@ -5240,6 +5261,7 @@ buildDancePicks();
 document.addEventListener('docao-dance-pick', (e) => setDance(e.detail));
 document.addEventListener('docao-knife-pick', (e) => {
   applyHeldKnife(e.detail);
+  if (player && player.weapon === KNIFE) startButterfly();
   if (online && online.net) online.net.send({ t: 'prof', knife: e.detail || '' });
 });
 function layoutDanceCast() {
@@ -7522,5 +7544,5 @@ window.__docao = { get state() { return state; }, toMenu: () => toMenu(), benchO
   invUse: () => invUsePower(), invCycle: () => invCycle(), invOpenPick: () => invOpenPick(), invEquipNow, INV, POWERS, ZOMBIES, INV_MAPS, makeZombieEnt, get invHal() { return invGfx.hal; }, get invMusic() { return invMusic && { on: invMusic.on, level: invMusic.level }; },
   invGive: (list) => { if (inv && player) { player.inv = list.slice(0, INV.INV_MAX); invSetInv(player.inv.map((k) => POWER_KEYS.indexOf(k))); } else if (online) online.net.send({ t: 'testInv', give: list }); },
   bomb: bombTest,
-  makeKnife,
+  makeKnife, poseButterfly,
 };

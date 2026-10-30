@@ -882,10 +882,41 @@ function fillBayonet(g, th, pal) {
   pal.dress(m(new THREE.CylinderGeometry(0.016, 0.018, 0.02, 10), pal.metal())).rotation.z = Math.PI / 2;
   g.children[g.children.length - 1].position.set(0, 0, 0.078);
 }
-const KNIFE_FILL = { chef: fillChef, skeleton: fillSkeleton, karambit: fillKarambit, bayonet: fillBayonet };
+// Butterfly (balisong): um cabo fica na mão e o outro gira no pino, junto com a lâmina.
+function fillButterfly(g, th, pal) {
+  const m = (parent, geo, mat, t = th) => { const o = new THREE.Mesh(geo, mat); parent.add(o); if (t) outline(o, t); return o; };
+  const pivot = new THREE.Group(); pivot.position.set(0, 0, -0.02); g.add(pivot);
+  const blade = new THREE.Group(); const bite = new THREE.Group();
+  pivot.add(blade); pivot.add(bite);
+  g.userData.bflyBlade = blade; g.userData.bflyBite = bite;
+  const s = new THREE.Shape();
+  s.moveTo(0, 0.01); s.lineTo(0.16, 0.008); s.lineTo(0.22, -0.001); s.lineTo(0.16, -0.012); s.lineTo(0, -0.01); s.closePath();
+  pal.dress(knifeShape(blade, th, s, pal.steel(), new THREE.Vector3(0, 0.002, 0)));
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.004, 0.14), pal.edge()); edge.position.set(0, -0.01, -0.08); blade.add(edge);
+  const pin = pal.dress(m(g, new THREE.CylinderGeometry(0.008, 0.008, 0.046, 10), pal.metal(), 0.002));
+  pin.rotation.z = Math.PI / 2; pin.position.copy(pivot.position);
+  const channel = (parent, x) => {
+    m(parent, new THREE.BoxGeometry(0.011, 0.009, 0.16), pal.dark()).position.set(x, 0.013, 0.09);
+    m(parent, new THREE.BoxGeometry(0.011, 0.009, 0.16), pal.dark()).position.set(x, -0.013, 0.09);
+    pal.dress(m(parent, new THREE.BoxGeometry(0.018, 0.034, 0.016), pal.metal(), 0.002)).position.set(x, 0, 0.175);
+  };
+  const safe = new THREE.Group(); safe.position.copy(pivot.position); g.add(safe);
+  channel(safe, -0.011);
+  channel(bite, 0.011);
+}
+const KNIFE_FILL = { chef: fillChef, skeleton: fillSkeleton, karambit: fillKarambit, bayonet: fillBayonet, butterfly: fillButterfly };
 function fillKnife(g, kind, th, finish) {
+  g.userData.bflyBlade = null; g.userData.bflyBite = null;
   if (!KNIFE_FILL[kind] || kind === 'chef') { fillChef(g, th); return; }
   KNIFE_FILL[kind](g, th, knifePal(finish));
+}
+// k 0 = aberta na mão, k 1 = aberta de novo. No meio a lâmina dá uma volta e o cabo de cima abre.
+export function poseButterfly(group, k) {
+  const blade = group && group.userData.bflyBlade, bite = group && group.userData.bflyBite;
+  if (!blade || !bite) return;
+  const t = Math.min(1, Math.max(0, k)), e = t * t * (3 - 2 * t);
+  blade.rotation.x = e * Math.PI * 2;
+  bite.rotation.x = Math.sin(e * Math.PI) * Math.PI;
 }
 function dropKnife(group) {
   for (const c of group.children.slice()) {

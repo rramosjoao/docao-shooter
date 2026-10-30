@@ -184,6 +184,7 @@ export const KNIFE_MODELS = [
   { knife: 'skeleton', name: 'Skeleton Knife', emoji: '🔪', line: 'Três furos pequenos na lâmina e um furo grande no meio.' },
   { knife: 'karambit', name: 'Karambit', emoji: '🪝', line: 'Garra curva e argola no dedo.' },
   { knife: 'bayonet', name: 'Bayonetta', emoji: '🗡️', line: 'Baioneta: lâmina reta, guarda cruzada e anel do cano.' },
+  { knife: 'butterfly', name: 'Butterfly', emoji: '🦋', line: 'Cabo duplo: a lâmina gira no pino e abre.' },
 ];
 export const KNIFE_COLORS = [
   { finish: 'factory', name: 'Fábrica', price: 500, line: 'Cor de fábrica.' },
@@ -193,9 +194,14 @@ export const KNIFE_COLORS = [
   { finish: 'emerald', name: 'Emerald', price: 1000, line: 'Aspecto de esmeralda.' },
   { finish: 'ruby', name: 'Ruby', price: 1000, line: 'Aspecto de rubi.' },
 ];
-const KNIFE_BASE = { skeleton: 1, karambit: 2, bayonet: 3 };
+const KNIFE_ID = {
+  skeleton: ['k1', 'k4', 'k7', 'k10', 'k13', 'k16'],
+  karambit: ['k2', 'k5', 'k8', 'k11', 'k14', 'k17'],
+  bayonet: ['k3', 'k6', 'k9', 'k12', 'k15', 'k18'],
+  butterfly: ['k19', 'k20', 'k21', 'k22', 'k23', 'k24'],
+};
 ITEMS.push(...KNIFE_MODELS.flatMap((model) => KNIFE_COLORS.map((color, i) => ({
-  id: i === 0 ? 'k' + KNIFE_BASE[model.knife] : 'k' + (3 + KNIFE_COLORS.slice(1).indexOf(color) * 3 + KNIFE_BASE[model.knife]),
+  id: KNIFE_ID[model.knife][i],
   name: `${model.name} · ${color.name}`,
   emoji: model.emoji,
   price: color.price,

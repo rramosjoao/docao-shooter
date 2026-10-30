@@ -4,7 +4,7 @@
 //  Convidado não salva nem compra (a janela só convida a entrar na conta).
 // ============================================================
 import * as THREE from 'three';
-import { makeDocao, makeKnife } from './docao.js';
+import { makeDocao, makeKnife, poseButterfly } from './docao.js';
 import { poseVictory, resetVictoryPose, ALL_DANCES, isPaidDance, normDance } from './victory-dance.js';
 import './costumes.js';
 import { getAccount, getItems, getEarn, getChal, onAccount, refreshStats, equipLook, buyItem, equipKnife } from './account.js';
@@ -39,7 +39,7 @@ function showModel() {
   if (three.model) three.scene.remove(three.model.group); three.code = key;
   three.model = makeDocao(code, { withGun: false, pose: 'idle' });
   if (held) { const kn = makeKnife(1.7, 0.006, held.knife, held.finish); kn.rotation.set(-Math.PI / 2, 0, 0); kn.position.set(0, -0.6, 0.02); three.model.arms[0].add(kn); }
-  three.scene.add(three.model.group); three.last = 0;
+  three.scene.add(three.model.group); three.last = 0; three.bfly = 0;
 }
 // Prévia PARADA, de frente. Só gira se a pessoa arrastar o boneco ou apertar ◀ ▶ (e "Frente" volta pro centro).
 function bindSpin(canvas) {
@@ -61,7 +61,11 @@ function loop(now) {
   if (m) {
     if (three.dance && now > three.danceUntil) stopDance();
     if (three.dance) { three.t += dt; m.danceBase = { x: 0, y: 0, z: 0, yaw: three.yaw }; poseVictory(m, three.dance, three.t); }
-    else m.group.rotation.y = three.yaw;
+    else {
+      m.group.rotation.y = three.yaw;
+      const kn = m.arms[0] && m.arms[0].children.find((c) => c.userData && c.userData.bflyBlade);
+      if (kn) { three.bfly = (three.bfly || 0) + dt; const u = three.bfly % 2.4; poseButterfly(kn, u < 0.95 ? u / 0.95 : 1); }
+    }
   }
   three.renderer.render(three.scene, three.cam); raf = requestAnimationFrame(loop);
 }
