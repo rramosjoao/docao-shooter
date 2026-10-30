@@ -54,7 +54,7 @@ import { traceShot } from './shared/penetration.js';
 import { CORN, cornDirs, cornAim, stepCorn, popChain, popOpts } from './shared/corn.js';
 import { EGG, eggSpeed, eggDmg, stepEgg } from './shared/egg.js';
 import { killIcon, weaponSvg } from './killfeed-icons.js';
-import { KILL_LIMIT, TIME_LIMIT, normTime, RESPAWN_TIME, INVULN, GRAV, JUMP, SPEED, BOT_SPEED, STEP, RADIUS, HEIGHT, EYE, WEAPONS, PRIMARIES, BOT_PRIMARIES, SECONDARIES, MELEES, CATEGORIES, PISTOL, KNIFE, SABER, UZI, P90, NAIL, SEMI, CROSS, BOW, FAMAS, DISC_W, SABER2, CORN_W, EGG_W, isSaber, POKE, isPokeCode, MINIGUN, isMiniCode, LMG, COMMANDO, REV, REV2, TAMPA, MELEE, SABER_COLORS, W_NADE, NADE, WEAPON_SHORT, BOT_DEFS, BOT_RANGE, TAG_COLORS } from './shared/rules.js';
+import { KILL_LIMIT, TIME_LIMIT, normTime, RESPAWN_TIME, INVULN, GRAV, JUMP, SPEED, BOT_SPEED, STEP, RADIUS, HEIGHT, EYE, WEAPONS, PRIMARIES, BOT_PRIMARIES, SECONDARIES, MELEES, CATEGORIES, PISTOL, KNIFE, SABER, UZI, P90, NAIL, SEMI, CROSS, BOW, FAMAS, DISC_W, SABER2, CORN_W, EGG_W, isSaber, POKE, isPokeCode, MINIGUN, isMiniCode, LMG, COMMANDO, REV, REV2, TAMPA, MELEE, SABER_COLORS, W_NADE, NADE, WEAPON_SHORT, BOT_DEFS, BOT_RANGE, TAG_COLORS, RED_DOT, applyFlinch, decayFlinch } from './shared/rules.js';
 import { X1, isX1, rollX1Weapon, x1SpawnSide } from './shared/x1.js';
 import { normBotDiff, botDiffMeta, applyBotDiff, profileOf, nextThink, considerTarget, hitscanAim, nadeChoice, nadeWaitFor, nadeCooldown, rollStrafe, wantPanicReload, wantSafeReload, refreshCover, refreshFlank, hearGunshot, scopeDelay } from './shared/bot-difficulty.js';
 import { SHIELD, isShieldW, shieldRaised, shieldOnBack, resetShield, shieldStage, bulletOnShield, splashOnShield, meleeOnShield, hurtShield, noteBlocked, shieldBashHit, classifyRay, raisedAt, shieldAim, aimOffset, botWantsShield } from './shared/shield.js';
@@ -68,7 +68,7 @@ import { bindGrenadeVoice, playGrenadeVoice, grenadeVoiceEnabled, setGrenadeVoic
 import { POWER_UPS, normHand, clampLoadout, botPool, powerOn, savedToLimits, limitsToSaved } from './shared/loadout.js';
 // fonte Fredoka (canvas de HUD/nomes usa a fonte só depois de carregada; o CSS já tem font-display: swap)
 try { document.fonts?.load('700 32px Fredoka'); } catch {}
-import { CLASS_COUNT, clampClassIndex, clampKit, classLoad, compare, familyOf, normalizeClasses, pieceBlurb, pieceInfo, piecesOf, resolveWeapon, slotsOf, statBars } from './shared/attachments.js';
+import { CLASS_COUNT, clampClassIndex, clampKit, classLoad, compare, defaultKit, familyOf, kitIsDefault, normalizeClasses, pieceBlurb, pieceInfo, piecesOf, resolveWeapon, slotsOf, statBars } from './shared/attachments.js';
 import { fillBench, fillChips, fillSheet } from './classes-ui.js';
 
 const V3 = THREE.Vector3;
@@ -447,7 +447,8 @@ function pickSpawn(e) {
 function gunOf(e, idx) {
   const base = WEAPONS[idx] || WEAPONS[0];
   if (!e || !e.isPlayer) return base;
-  return resolveWeapon(idx, e.kit && e.kit[base.key]) || base;
+  const raw = e.kit && Object.prototype.hasOwnProperty.call(e.kit, base.key) ? e.kit[base.key] : undefined;
+  return resolveWeapon(idx, raw === undefined ? defaultKit(idx) : raw) || base;
 }
 function respawn(e) {
   e.pos.copy(pickSpawn(e)); e.vel.set(0, 0, 0); e.crouch = 0; e.hp = 100; e.alive = true; e.invulnUntil = gameTime + INVULN; resetRegen(e);
@@ -472,7 +473,7 @@ function respawn(e) {
   }
   e.yaw = Math.atan2(-e.pos.x, -e.pos.z) + Math.PI; e.bonk = false; // olha pro centro
   if (e.model) { e.model.group.visible = true; e.model.group.scale.set(1, 1, 1); e.target = null; e.wp = null; e.path = null; e.yaw = Math.atan2(-e.pos.x, -e.pos.z); }
-  else { e.pitch = 0; eggSplatUntil = 0; $('stamp').classList.remove('show'); onPlayerRespawn(); }
+  else { e.pitch = 0; e.flinch = null; eggSplatUntil = 0; $('stamp').classList.remove('show'); onPlayerRespawn(); }
   if (e.dummy) { e.invulnUntil = gameTime; e.slots = [0, PISTOL, KNIFE]; placeDummy(e); setWeapon(e, PISTOL); }
 }
 // Treino: posição do alvo (parado ou no trilho), sempre de frente pra linha de tiro
@@ -1426,7 +1427,7 @@ function damage(t, amount, attacker, wIdx, head, back = false, fx = 0, origin = 
   if (!t.alive || gameTime < t.invulnUntil || friends(t, attacker) || bombFrozen(bombS)) return false; // sem fogo amigo; Bomba: sem dano na preparação
   if (invMode() && !t.zt && attacker && !attacker.zt && !attacker.fog) return false; // Invasão: jogador nunca machuca jogador (nem a si mesmo)
   t.hp -= amount; t.lastAttacker = attacker; t.flashUntil = gameTime + 0.12; noteHurt(t, attacker, gameTime); // regen só com dano de outro
-  if (t.isPlayer) { hurtFlash(); noteHit(origin); sfx.oink(0.8, 1.15); }
+  if (t.isPlayer) { hurtFlash(); noteHit(origin); if (attacker && attacker !== t) noteFlinch(amount); sfx.oink(0.8, 1.15); }
   else { if (attacker && attacker !== t && !t.target) { t.target = attacker; t.aim = t.reaction * 0.5; } if (Math.random() < 0.3) sfx.oink(distVol(t.pos) * 0.6, 1.3); }
   if (attacker && attacker.isPlayer && attacker !== t) { if (t.hp > 0) feedbackHit({ head, wall: !!(fx & 1) }); sfx.hit(); if (training()) dmgPopup(t, amount, head); }
   if (t.hp <= 0) { kill(t, attacker, wIdx, head, back, false, null, fx); return true; }
@@ -1606,6 +1607,25 @@ const hitMarks = []; let hitDirsEl = null;
 function noteHit(origin) {
   if (!player || !player.alive || player.hp <= 0 || !origin) return;
   const r = addHit(hitMarks, origin, player.pos, gameTime); if (r && r.dropped && r.dropped.el) r.dropped.el.remove();
+}
+// 1 = luneta de sniper aberta; fração = sniper subindo a mira; 0 = qualquer outra coisa (tranco hip, bem menor).
+function scopeBlend() {
+  if (!player || !WEAPONS[player.weapon] || !WEAPONS[player.weapon].scope) return 0;
+  if (scoped()) return 1;
+  return Math.max(0, Math.min(1, ads));
+}
+function noteFlinch(amount) {
+  if (!player || !player.alive || !(amount > 0)) return;
+  const d = applyFlinch(player, amount, scopeBlend());
+  player.pitch = clamp(player.pitch + d.pitch, -1.5, 1.5);
+  player.yaw += d.yaw;
+}
+function stepFlinch(dt) {
+  if (!player || !player.flinch) return;
+  if (!player.alive) { player.flinch = null; return; }
+  const back = decayFlinch(player.flinch, dt);
+  player.pitch = clamp(player.pitch - back.pitch, -1.5, 1.5);
+  player.yaw -= back.yaw;
 }
 function clearHitMarks() { for (const m of hitMarks) if (m.el) m.el.remove(); hitMarks.length = 0; }
 const hitDirDir = new V3();
@@ -2939,6 +2959,39 @@ function updateHud(dt) {
   if (!$('tabboard').classList.contains('hidden')) $('tabboard').innerHTML = boardHtml();
 }
 
+// Red dot: corpo no trilho, anel de frente pra câmera, lente com reflexo e ponto vermelho no eixo.
+// O círculo do Three nasce no plano XY (normal +Z), que é a face que a câmera de 1ª pessoa enxerga.
+function makeRedDot() {
+  const g = new THREE.Group();
+  g.name = 'red-dot';
+  const housing = toon(0x1a1d24);
+  const put = (geo, mat, x, y, z, ol) => {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m);
+    if (ol) outline(m, ol);
+    return m;
+  };
+  put(new THREE.BoxGeometry(0.05, 0.012, 0.046), housing, 0, -0.032, 0, 0.003);
+  const win = 0.022, thick = 0.007;
+  put(new THREE.BoxGeometry(thick, win * 2 + thick, 0.018), housing, -win, 0, 0, 0.002);
+  put(new THREE.BoxGeometry(thick, win * 2 + thick, 0.018), housing, win, 0, 0, 0.002);
+  put(new THREE.BoxGeometry(win * 2 + thick, thick, 0.018), housing, 0, win, 0, 0.002);
+  put(new THREE.BoxGeometry(win * 2 + thick, thick, 0.018), housing, 0, -win, 0, 0.002);
+  const ring = put(new THREE.TorusGeometry(0.016, 0.0032, 8, 28), housing, 0, 0, 0.006, 0.002);
+  const glass = new THREE.Mesh(new THREE.CircleGeometry(0.0145, 24), new THREE.MeshStandardMaterial({
+    color: 0xd7ecff, metalness: 0.55, roughness: 0.08, transparent: true, opacity: 0.28,
+    emissive: 0x102030, emissiveIntensity: 0.35, depthWrite: false, side: THREE.DoubleSide,
+  }));
+  glass.position.set(0, 0, 0.004); glass.userData.noCamo = true; glass.renderOrder = 3; g.add(glass);
+  const glint = new THREE.Mesh(new THREE.PlaneGeometry(0.009, 0.0028), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+  glint.position.set(0.003, 0.005, 0.007); glint.rotation.z = -0.5; glint.userData.noCamo = true; glint.renderOrder = 4; g.add(glint);
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(0.008, 20), new THREE.MeshBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  glow.position.set(0, 0, 0.009); glow.userData.noCamo = true; glow.renderOrder = 5; g.add(glow);
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0046, 18), new THREE.MeshBasicMaterial({ color: 0xff1a1a, depthWrite: false, side: THREE.DoubleSide }));
+  dot.position.set(0, 0, 0.01); dot.userData.noCamo = true; dot.renderOrder = 6; g.add(dot);
+  g.userData.aim = dot; g.userData.glow = glow;
+  g.scale.setScalar(1.65);
+  return g;
+}
 // ---------------- Arma em 1ª pessoa (cascos segurando) ----------------
 const fp = (() => {
   const root = new THREE.Group(); fpScene.add(root);
@@ -2950,7 +3003,8 @@ const fp = (() => {
   add(new THREE.CylinderGeometry(0.022, 0.022, 0.32, 10), toon(0x22252c), 0, 0.01, -0.56, r).rotation.x = Math.PI / 2;
   const rMag = add(new THREE.BoxGeometry(0.075, 0.22, 0.11), toon(COLORS.red), 0, -0.15, -0.12, r); rMag.rotation.x = 0.2; // pente (sai/entra na recarga)
   add(new THREE.BoxGeometry(0.1, 0.15, 0.24), toon(COLORS.red), 0, -0.03, 0.3, r);
-  add(new THREE.BoxGeometry(0.04, 0.04, 0.1), toon(COLORS.cyan), 0, 0.09, -0.02, r);
+  const rIron = add(new THREE.BoxGeometry(0.04, 0.04, 0.1), toon(COLORS.cyan), 0, 0.09, -0.02, r);
+  const rDot = makeRedDot(); rDot.position.set(0, 0.118, -0.04); r.add(rDot); r.userData.redDot = rDot; r.userData.iron = rIron;
   const rCh = add(new THREE.BoxGeometry(0.03, 0.025, 0.04), toon(0x22252c), 0.07, 0.035, 0.08, r, 0.004); // alavanca de manejo
   // Calibre 12 (pump) no estilo SPAS-12: corpo preto, cano com protetor de calor furado, tubo de cartuchos, telha de polímero com sulcos, coronha de metal dobrada por cima
   const s = new THREE.Group(); root.add(s);
@@ -3088,7 +3142,8 @@ const fp = (() => {
   add(new THREE.CylinderGeometry(0.03, 0.026, 0.06, 10), toon(0x1a1c22), 0, 0.0, -0.79, famas, 0.004).rotation.x = Math.PI / 2; // quebra-chama
   add(new THREE.BoxGeometry(0.035, 0.03, 0.54), toon(0x22252c), 0, 0.155, -0.06, famas, 0.004); // alça de transporte
   for (const z of [-0.31, 0.19]) add(new THREE.BoxGeometry(0.035, 0.09, 0.035), toon(0x22252c), 0, 0.1, z, famas, 0.004);
-  add(new THREE.BoxGeometry(0.02, 0.03, 0.02), toon(COLORS.cyan), 0, 0.185, -0.31, famas, 0.003); // massa de mira
+  const famasIron = add(new THREE.BoxGeometry(0.02, 0.03, 0.02), toon(COLORS.cyan), 0, 0.185, -0.31, famas, 0.003); // massa de mira
+  const famasDot = makeRedDot(); famasDot.position.set(0, 0.248, -0.02); famas.add(famasDot); famas.userData.redDot = famasDot; famas.userData.iron = famasIron;
   add(new THREE.BoxGeometry(0.065, 0.15, 0.08), toon(0x2a2d35), 0, -0.12, 0.08, famas).rotation.x = 0.22;
   add(new THREE.BoxGeometry(0.03, 0.02, 0.22), toon(0x2a2d35), 0, -0.18, 0.02, famas, 0.003); // guarda-mato inteiro
   add(new THREE.BoxGeometry(0.1, 0.13, 0.03), toon(0x22252c), 0, -0.005, 0.36, famas, 0.004); // soleira
@@ -3172,6 +3227,7 @@ const fp = (() => {
   add(new THREE.BoxGeometry(0.065, 0.09, 0.28), toon(0x5c4632), 0, 0.0, 0.48, cmd); // coronha
   add(new THREE.BoxGeometry(0.045, 0.12, 0.055), toon(0x2a2d35), 0, -0.09, 0.18, cmd).rotation.x = 0.16; // cabo
   add(new THREE.BoxGeometry(0.03, 0.02, 0.22), toon(0x22252c), 0, 0.065, -0.06, cmd, 0.003); // trilho reto
+  const cDot = makeRedDot(); cDot.position.set(0, 0.168, -0.08); cmd.add(cDot); cmd.userData.redDot = cDot;
   const cMag = add(new THREE.BoxGeometry(0.055, 0.2, 0.08), toon(0x2a2d35), 0, -0.15, -0.12, cmd, 0.004); cMag.rotation.x = 0.2; // pente (sai/entra na recarga, igual ao fuzil)
   const cCh = add(new THREE.BoxGeometry(0.028, 0.02, 0.04), toon(0x22252c), 0.05, 0.04, 0.08, cmd, 0.003); // alavanca de manejo
   cmd.visible = false; guns.push(cmd); // 22 = Commando da Granja
@@ -3437,7 +3493,7 @@ function updateFP(dt) {
   fp.guns.forEach((g, i) => { g.visible = i === p.weapon; if (g.userData.twin) g.userData.twin.visible = g.visible; if (g.userData.extra) g.userData.extra.visible = g.visible; });
   const shatter = fp.breakT > 0.4 && fp.guns[TAMPA]; // cacos primeiro; depois a pistola fica na mão
   if (shatter) { fp.guns.forEach((g, i) => { if (i !== TAMPA) g.visible = false; }); fp.guns[TAMPA].visible = true; if (fp.guns[TAMPA].userData.setStage) fp.guns[TAMPA].userData.setStage(3); if (fp.guns[TAMPA].userData.tickBreak) fp.guns[TAMPA].userData.tickBreak(fp.breakT / 1.1); }
-  const w = WEAPONS[p.weapon];
+  const w = gunOf(p, p.weapon);
   const ins = inspectStep(p, dt); // inspecionar (I): delta de pose aplicado no root lá embaixo
   const bolting = !!(w.bolt && fp.actionT > 0);
   const drawn = p.weapon === CROSS || p.weapon === BOW || p.weapon === EGG_W;
@@ -3518,19 +3574,35 @@ function updateFP(dt) {
     fp.swayY = (fp.swayY || 0) + (clamp(-dpit * 1.6, -0.07, 0.07) - (fp.swayY || 0)) * sk;
   }
   fp.strafe = (fp.strafe || 0) + (clamp(-sideVel * 0.012, -0.09, 0.09) - (fp.strafe || 0)) * Math.min(1, dt * 8);
-  const swA = 1 - ads * 0.85;
+  const dotGun = fp.guns[p.weapon];
+  const dotRig = w.redDot && dotGun && dotGun.userData.redDot;
+  const dotSteady = !!(dotRig && ads >= (w.redDotAds ?? RED_DOT.ads));
+  for (const g of fp.guns) {
+    if (!g.userData.redDot) continue;
+    const on = !!(w.redDot && g === dotGun);
+    g.userData.redDot.visible = on;
+    if (g.userData.iron) g.userData.iron.visible = !on;
+  }
+  const swA = (1 - ads * 0.85) * (dotSteady ? 0 : 1);
   if (w.pump || w.bolt) tilt += cyc * 0.12;
   let vib = 0; // minigun: canos giram com o embalo, a capa acende com o calor, a arma treme
   if (fp.mini) { const M = fp.mini, on = p.weapon === MINIGUN, h = p.mgHeat || 0; if (on) M.barrels.rotation.z += (p.mgSpin || 0) * dt * 42; M.glow.visible = on && h > 0.25; M.glowMat.opacity = sstep(0.25, 1, h) * 0.85; M.glowMat.color.setRGB(1, 0.18 + 0.3 * (1 - h), 0.06); if (on) vib = (p.mgSpin || 0) * 0.0025 + (p.mgFiring ? 0.006 : 0); }
-  const bobA = 1 - ads * 0.8; // mirando: arma no centro, levantada, quase sem balanço
+  const bobA = (1 - ads * 0.8) * (dotSteady ? 0 : 1); // mirando: arma no centro, levantada, quase sem balanço. Red dot: parado, senão o ponto sai do meio.
   const bMul = plain ? 1 : bobMul(w.key);
-  const rec = plain
+  let rec = plain
     ? { z: fp.kick * (0.5 - ads * 0.25), rx: fp.kick * 1.2, ry: 0, rz: 0 }
-    : recoilFlair(w.key, fp.kick, fp.kickAge || 0, ads);
-  const adsX = w.revolver && !w.akimbo ? -0.008 : w.rocket ? 0.12 : w.corn ? 0.1 : 0, adsY = w.revolver && !w.akimbo ? 0.155 : w.rocket ? 0.0 : w.corn ? -0.05 : 0.065; // Lança-Milho: a espiga em cima não pode tapar a mira. Revólver: a alça sobe pro centro.
+    : recoilFlair(w.key, dotSteady ? 0 : fp.kick, fp.kickAge || 0, ads);
+  if (dotSteady) rec = { z: (fp.kick || 0) * RED_DOT.visual, rx: 0, ry: 0, rz: 0 }; // só um tranco pra trás; girar tiraria o ponto do centro
+  let adsX = w.revolver && !w.akimbo ? -0.008 : w.rocket ? 0.12 : w.corn ? 0.1 : 0, adsY = w.revolver && !w.akimbo ? 0.155 : w.rocket ? 0.0 : w.corn ? -0.05 : 0.065; // Lança-Milho: a espiga em cima não pode tapar a mira. Revólver: a alça sobe pro centro.
+  if (dotRig && dotRig.userData.aim) {
+    const aim = dotRig.userData.aim.position, s = fp.root.scale.x || 1;
+    adsX = -s * (dotGun.position.x + dotRig.position.x + aim.x);
+    adsY = -s * (dotGun.position.y + dotRig.position.y + aim.y);
+  }
   const hipX = p.weapon === CROSS ? 0.03 : w.akimbo ? -0.06 : 0, hipY = p.weapon === CROSS ? -0.04 : 0; // besta no quadril: um tico mais baixa/à direita. Akimbo: um pouco à esquerda pra não cobrir a mira.
-  fp.root.position.set(0.2 + hipX + (adsX - 0.2 - hipX) * ads + Math.cos(fp.bob) * 0.012 * bobA * bMul + fp.swayX * 0.45 * swA, -0.2 + hipY * (1 - ads) + ads * adsY + Math.abs(Math.sin(fp.bob)) * 0.015 * bobA * bMul - dip * 0.25 - fp.shellT * 0.1 + fp.swayY * 0.45 * swA, -0.62 + ads * 0.06 + rec.z);
-  fp.root.rotation.set(rec.rx - dip * 0.6 + rl.pitch + fp.climb * (1 - ads * 0.6) + fp.swayY * 0.6 * swA, rl.yaw - fp.swayX * 0.8 * swA + drawYaw + rec.ry, dip * 0.3 + tilt + fp.strafe * swA + drawRoll * 0.7 + rec.rz);
+  const zAds = dotRig ? 0.3 : 0.06; // red dot chega mais perto do olho pra lente ocupar a mira sem a arma tapar o centro
+  fp.root.position.set(0.2 + hipX + (adsX - 0.2 - hipX) * ads + Math.cos(fp.bob) * 0.012 * bobA * bMul + fp.swayX * 0.45 * swA, -0.2 + hipY * (1 - ads) + ads * adsY + Math.abs(Math.sin(fp.bob)) * 0.015 * bobA * bMul - dip * 0.25 - fp.shellT * 0.1 + fp.swayY * 0.45 * swA, -0.62 + ads * zAds + rec.z);
+  fp.root.rotation.set(rec.rx - dip * 0.6 + rl.pitch + fp.climb * (1 - ads * 0.6) * (dotSteady ? 0 : 1) + fp.swayY * 0.6 * swA, rl.yaw - fp.swayX * 0.8 * swA + drawYaw + rec.ry, dip * 0.3 + tilt + fp.strafe * swA + drawRoll * 0.7 + rec.rz);
   if (!plain && !w.shield) applyPersonality(p, w, dt, moving, !!ins && ins !== INS_ZERO && fp.ins && !fp.ins.out ? ins.k : -1);
   if (w.spin) { fp.root.position.y -= 0.03; fp.root.rotation.y += 0.04; } // minigun pesada: mais baixa
   if (w.shield || shatter) { // estilo riot shield: esquerda e baixa. A mira (centro) fica no mundo. Andar sobe um pouco, sem cruzar o meio.
@@ -3546,6 +3618,16 @@ function updateFP(dt) {
     fp.root.position.x += ins.x; fp.root.position.y += ins.y; fp.root.position.z += ins.z;
     fp.root.rotation.x += ins.rx; fp.root.rotation.y += ins.ry; fp.root.rotation.z += ins.rz;
     const bar = ins.spin && fp.guns[p.weapon] && fp.guns[p.weapon].userData.barrels; if (bar) bar.rotation.z += dt * 10 * (1 - ins.k); // minigun: canos rodam
+  }
+  // Red dot: o ponto emissivo fica no centro da tela. A correção corre depois do idle pra ele não escapar.
+  if (dotRig && dotRig.userData.aim && ins === INS_ZERO) {
+    const k = ads * ads * (3 - 2 * ads);
+    if (k > 0.02) {
+      fp.root.rotation.x *= (1 - k); fp.root.rotation.y *= (1 - k); fp.root.rotation.z *= (1 - k);
+      fp.root.updateMatrixWorld(true);
+      const wp = dotRig.userData.aim.getWorldPosition(fp._dotWp || (fp._dotWp = new V3()));
+      fp.root.position.x -= wp.x * k; fp.root.position.y -= wp.y * k;
+    }
   }
   fp.root.visible = !window.__hideFp;
   const revOn = !!w.revolver;
@@ -3800,14 +3882,21 @@ function startButterfly() {
 // ---------------- Mira (botão direito) ----------------
 const hpBar = document.getElementById('hpbar');
 const adsVig = document.getElementById('adsvig'), crossEl = document.getElementById('crosshair');
+function adsSeconds(entering) {
+  const w = player ? gunOf(player, player.weapon) : null;
+  if (entering && w && w.adsIn > 0) return w.adsIn;
+  return ADS_TIME;
+}
 function updateAds(dt, want) {
-  ads = clamp(ads + (want ? 1 : -1) * dt / ADS_TIME, 0, 1);
-  const e = ads * ads * (3 - 2 * ads); // suavizado
-  const target = gunOf(player, player ? player.weapon : 0).adsFov;
+  ads = clamp(ads + (want ? 1 : -1) * dt / adsSeconds(want), 0, 1);
+  const e = ads * ads * (3 - 2 * ads); // suavizado — FOV, vinheta e a arma usam o mesmo relógio
+  const held = gunOf(player, player ? player.weapon : 0);
+  const target = held.adsFov;
   const fov = BASE_FOV + (target - BASE_FOV) * e;
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   const sc = scoped(); const scopeEl = $('scope');
-  scopeEl.classList.toggle('hidden', !sc || emote.on); crossEl.classList.toggle('hidden', !!sc || emote.on);
+  const throughDot = !!(held.redDot && ads >= 0.45);
+  scopeEl.classList.toggle('hidden', !sc || emote.on); crossEl.classList.toggle('hidden', !!sc || emote.on || throughDot);
   scopeEl.classList.remove('torresmo', 'canhao', 'carabina');
   const scopeStyle = player && WEAPONS[player.weapon].scopeStyle;
   if (scopeStyle) scopeEl.classList.add(scopeStyle);
@@ -3815,8 +3904,12 @@ function updateAds(dt, want) {
   crossEl.style.transform = `translate(-50%,-50%) scale(${(1 - 0.45 * e).toFixed(3)})`;
   crossEl.classList.toggle('ads', e > 0.5);
 }
+function scopeGate() {
+  const w = player && WEAPONS[player.weapon];
+  return w && w.scopeAt > 0 ? w.scopeAt : 0.85;
+}
 // sempre booleano: classList.toggle('hidden', undefined) vira toggle simples e a mira piscava a cada quadro (armas sem luneta)
-const scoped = () => !!(player && player.alive && WEAPONS[player.weapon].scope && ads > 0.85 && !(fp.actionT > 0 && WEAPONS[player.weapon].bolt));
+const scoped = () => !!(player && player.alive && WEAPONS[player.weapon].scope && ads >= scopeGate() && !(fp.actionT > 0 && WEAPONS[player.weapon].bolt));
 function resetAds() { $('scope').classList.add('hidden'); crossEl.classList.remove('hidden'); ads = 0; camera.fov = BASE_FOV; camera.updateProjectionMatrix(); adsVig.style.opacity = 0; crossEl.style.transform = ''; crossEl.classList.remove('ads'); }
 
 // ---------------- Jogador ----------------
@@ -4244,6 +4337,7 @@ function updatePlayer(dt) {
   moveEntity(p, dt);
   const bob = p.onGround ? Math.abs(Math.sin(fp.bob)) * 0.05 * stanceScale(p.crouch) : 0;
   stepRecoil(p, dt, gameTime);
+  stepFlinch(dt);
   camera.position.set(p.pos.x, p.pos.y + eyeHeight(p) + bob, p.pos.z); camera.rotation.set(p.pitch, p.yaw, 0);
   if (p.alive && p.stunUntil > gameTime) { camera.rotation.x += rand(-1, 1) * 0.012; camera.rotation.y += rand(-1, 1) * 0.012; } // levou choque: mira tremendo
   if (shake > 0) {
@@ -4324,7 +4418,7 @@ function updatePlayer(dt) {
       } else if (w.disc) launchDisc(p, camera.localToWorld(new V3(0.1 * (1 - ads), -0.12, 0)), dir);
       else if (w.corn) { launchCorn(p, camera.localToWorld(new V3(0.12 * (1 - ads), -0.1, 0)), dir); fp.cornCrankT = 0.2; } // manivela dá uma volta
       else fire(p, camera.position.clone(), dir, p.weapon, spread, muzzle);
-      sfx[w.key](); fp.kick = Math.min(0.14, fp.kick + w.recoil * 2.5); fp.flashT = w.rocket ? 0.08 : 0.04;
+      sfx[w.key](); fp.kick = Math.min(0.14, fp.kick + w.recoil * 2.5 * (w.redDot && ads >= (w.redDotAds ?? RED_DOT.ads) ? RED_DOT.visual : 1)); fp.flashT = w.rocket ? 0.08 : 0.04;
       if (p.weapon === CROSS || p.weapon === BOW) { fp.stringT = 0.14; launchShaft(muzzle, dir, p.weapon === CROSS ? 42 : 28); }
       if (w.pump) { sfx.pump(0.9, 0.3); fp.actionT = fp.actionLen = w.rate; fp.kick = 0.2; shake = Math.max(shake, 0.2); } // Calibre 12: coice e tranco de câmera mais pesados
       if (w.bolt) { playSniperBolt(w, 0.9, 0, 0); fp.actionT = fp.actionLen = w.rate; }
@@ -6247,6 +6341,12 @@ function paintClassSurfaces() {
   if (benchOn) paintBench();
 }
 function buildDeathPrimaries() { paintClassSurfaces(); }
+function opticLook(row, idx, slot) {
+  const key = WEAPONS[idx] && WEAPONS[idx].key;
+  const has = !!(row && row.kits && key && Object.prototype.hasOwnProperty.call(row.kits, key));
+  const k = has ? clampKit(idx, row.kits[key]) : defaultKit(idx);
+  return (k && k[slot]) || '';
+}
 function benchIsOpen() { return benchOn; }
 function openBench(idx) {
   const w = WEAPONS[idx];
@@ -6286,7 +6386,7 @@ function paintBench() {
     rows: classRows(),
     onPick: (i) => {
       const row = classes[clampClassIndex(i)];
-      benchLook = ((row && row.kits && row.kits[w.key]) || {})[benchSlot] || '';
+      benchLook = opticLook(row, benchWeapon, benchSlot);
       armClass(i);
     },
   });
@@ -6313,7 +6413,7 @@ function stampBench() {
   if (!w) return;
   const c = classes[classIndex];
   c.kits[w.key] = clampKit(benchWeapon, { ...(c.kits[w.key] || {}), [benchSlot]: benchLook });
-  if (!Object.values(c.kits[w.key]).some(Boolean)) delete c.kits[w.key];
+  if (kitIsDefault(benchWeapon, c.kits[w.key])) delete c.kits[w.key];
   saveClasses(); mirrorLegacy();
   tone('square', 620, 480, 0.05, 0.08);
   const live = $('benchLive');
@@ -6347,8 +6447,7 @@ function benchKey(e) {
   if (/^Digit[1-5]$/.test(e.code)) {
     const i = Number(e.code.slice(5)) - 1;
     const row = classes[clampClassIndex(i)];
-    const key = WEAPONS[benchWeapon] && WEAPONS[benchWeapon].key;
-    benchLook = ((row && row.kits && key && row.kits[key]) || {})[benchSlot] || '';
+    benchLook = opticLook(row, benchWeapon, benchSlot);
     armClass(i);
     return true;
   }
@@ -6399,7 +6498,7 @@ if ($('benchName')) $('benchName').addEventListener('input', () => {
   classes[classIndex].name = v.trim() ? v : ('Classe ' + (classIndex + 1));
   saveClasses();
   const chipHost = $('benchChips');
-  if (chipHost) fillChips(chipHost, { rows: classRows(), onPick: (i) => { const row = classes[clampClassIndex(i)]; const key = WEAPONS[benchWeapon] && WEAPONS[benchWeapon].key; benchLook = ((row && row.kits && key && row.kits[key]) || {})[benchSlot] || ''; armClass(i); } });
+  if (chipHost) fillChips(chipHost, { rows: classRows(), onPick: (i) => { const row = classes[clampClassIndex(i)]; benchLook = opticLook(row, benchWeapon, benchSlot); armClass(i); } });
 });
 const DOCK_SLOTS = [
   ['primary', 'Primária', PRIMARIES, () => selectedPrimary, (v) => setPrimary(v)],
@@ -6526,7 +6625,7 @@ function requestRespawn() {
   return true;
 }
 $('respawnBtn').onclick = (ev) => { ev.stopPropagation(); requestRespawn(); };
-function onPlayerDeath(opts) { clearHitMarks(); if (player) { player.mgWant = false; player.mgSpin = 0; player.mgFiring = false; } rsSent = false; resetRewards(true); if (!(opts && opts.keepAim) && document.pointerLockElement) { deathUnlock = true; document.exitPointerLock(); } mouseDown = false; rightDown = false; if (player) player.bowDraw = player.eggDraw = 0; }
+function onPlayerDeath(opts) { clearHitMarks(); if (player) { player.flinch = null; player.mgWant = false; player.mgSpin = 0; player.mgFiring = false; } rsSent = false; resetRewards(true); if (!(opts && opts.keepAim) && document.pointerLockElement) { deathUnlock = true; document.exitPointerLock(); } mouseDown = false; rightDown = false; if (player) player.bowDraw = player.eggDraw = 0; }
 let lastRespawnMs = -1e9;
 function onPlayerRespawn() { if (player) resetRecoil(player); clearHitMarks(); rsSent = false; lastRespawnMs = performance.now(); if (gunner) endGunner(false); if (predator) clearPredator(); closeBench(); // nada de mira guiada nem bancada sobrando da vida anterior (travava o andar)
   deathCamState.on = false; deathCamState.killer = null; killcamGuns = false; tuckDeathMenu(); document.body.classList.remove('deadgray', 'dead', 'killcam'); if (!bombPick && !invPick && !pauseClassOpen()) document.body.classList.remove('cls-on'); if (ghost) ghost.model.group.visible = false;
@@ -6853,7 +6952,7 @@ function netEvent(ev) {
   } else if (k === 'h') {
     const [, tid, aid, hp, head] = ev; const t = entOf(tid), a = entOf(aid); if (!t) return;
     const prevHp = t.hp; t.hp = hp; t.flashUntil = gameTime + 0.12; t.lastAttacker = a || null;
-    if (t === player) { hurtFlash(); if (hp > 0 && (ev[5] ?? prevHp - hp) > 0) noteHit(ev.length > 7 ? ev[7] : a && a !== player && !a.fog ? a.pos : null); sfx.oink(0.8, 1.15); } else if (Math.random() < 0.3) sfx.oink(distVol(t.pos) * 0.6, 1.3);
+    if (t === player) { hurtFlash(); const dealt = ev[5] ?? Math.max(0, prevHp - hp); if (hp > 0 && dealt > 0) noteHit(ev.length > 7 ? ev[7] : a && a !== player && !a.fog ? a.pos : null); if (a && a !== player && dealt > 0) noteFlinch(dealt); sfx.oink(0.8, 1.15); } else if (Math.random() < 0.3) sfx.oink(distVol(t.pos) * 0.6, 1.3);
     if (aid === o.myId && t !== player) { if (hp > 0) feedbackHit({ head: !!head, wall: !!((ev[6] || 0) & 1) }); sfx.hit(); if (training()) dmgPopup(t, ev[5] ?? Math.max(0, prevHp - hp), !!head); }
   } else if (k === 'td') { // tampa levou dano: [id, hp, quebrada, dano segurado]
     const e = entOf(ev[1]); if (!e) return;
@@ -6902,7 +7001,7 @@ function netEvent(ev) {
     e.pos.set(pos[0], pos[1], pos[2]); e.vel.set(0, 0, 0); e.crouch = 0; e.hp = 100; e.alive = true; e.invulnUntil = gameTime + INVULN; resetRegen(e);
     if (x1Mode()) { e.x1Side = pos[0] < 0 ? 0 : 1; equipX1Local(e, prim); }
     else { e.primary = prim; e.secondary = e.secondary ?? PISTOL; e.melee = e.melee ?? KNIFE; e.slots = [prim, e.secondary, e.melee]; e.mag = WEAPONS.map((x) => x.mag); e.reserve = WEAPONS.map((x) => x.reserve); resetDrums(e); e.reloadEnd = 0; e.switchEnd = 0; e.nades = NADE.spawnWith; e.smokeNades = clientPower('smoke') ? 1 : 0; e.stunNades = clientPower('stun') ? SHOCK.spawnWith : 0; e.stunUntil = 0; e.mgSpin = 0; e.mgHeat = 0; e.mgHot = false; e.mgWant = false; e.mgFiring = false; e.mgSpinOn = false; resetShield(e); setWeapon(e, prim); }
-    if (e === player) { keys.Space = false; eggSplatUntil = 0; player.sq = sq; player.yaw = yaw + Math.PI; player.pitch = 0; player.respawnAt = Infinity; player.onGround = true; $('stamp').classList.remove('show'); $('teamPick').classList.add('hidden'); if (!x1Mode()) { player.nextPrimary = prim; const handLoad = clampLoadout(prim, selectedSecondary, selectedMelee, activeWeapons()); player.secondary = handLoad.secondary; player.melee = handLoad.melee; player.slots = [prim, player.secondary, player.melee]; player.kit = kitsNow().kits; for (const i of player.slots) player.mag[i] = gunOf(player, i).mag; spawnedClass = classIndex; const hand = pauseSwapWeapon >= 0 && player.slots.includes(pauseSwapWeapon) ? pauseSwapWeapon : spawnHold === 'melee' ? player.melee : spawnHold === 'secondary' ? player.secondary : prim; if (player.slots.includes(hand)) setWeapon(player, hand); } onPlayerRespawn(); if (pauseSwapQuiet()) { flashMsg('Nasceu de novo com o equipamento novo'); pauseSwapWeapon = -1; pauseSwapUntil = performance.now() + 800; if (state === 'paused') resume(); } }
+    if (e === player) { keys.Space = false; eggSplatUntil = 0; player.sq = sq; player.yaw = yaw + Math.PI; player.pitch = 0; player.flinch = null; player.respawnAt = Infinity; player.onGround = true; $('stamp').classList.remove('show'); $('teamPick').classList.add('hidden'); if (!x1Mode()) { player.nextPrimary = prim; const handLoad = clampLoadout(prim, selectedSecondary, selectedMelee, activeWeapons()); player.secondary = handLoad.secondary; player.melee = handLoad.melee; player.slots = [prim, player.secondary, player.melee]; player.kit = kitsNow().kits; for (const i of player.slots) player.mag[i] = gunOf(player, i).mag; spawnedClass = classIndex; const hand = pauseSwapWeapon >= 0 && player.slots.includes(pauseSwapWeapon) ? pauseSwapWeapon : spawnHold === 'melee' ? player.melee : spawnHold === 'secondary' ? player.secondary : prim; if (player.slots.includes(hand)) setWeapon(player, hand); } onPlayerRespawn(); if (pauseSwapQuiet()) { flashMsg('Nasceu de novo com o equipamento novo'); pauseSwapWeapon = -1; pauseSwapUntil = performance.now() + 800; if (state === 'paused') resume(); } }
     else { e.yaw = yaw; e.model.group.visible = true; e.model.group.scale.set(1, 1, 1); e.buf = [{ t: performance.now() / 1000 - INTERP_DELAY, x: pos[0], y: pos[1], z: pos[2], yaw }]; }
   } else if (k === 'pk') { const p = pickups[ev[1]]; if (p) { p.active = !!ev[2]; p.mesh.visible = p.active; } }
   else if (k === 'sk') { const [, pid, oid, op, vel] = ev; const owner = entOf(oid); spawnShock({ net: true, pid, owner, pos: a3v(op), vel: a3v(vel) }); if (oid !== o.myId && owner) sfx.toss(distVol(owner.pos)); } // pau de choque lançado

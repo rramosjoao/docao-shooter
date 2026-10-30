@@ -18,7 +18,7 @@ import { KILL_LIMIT, TIME_LIMIT, normTime, RESPAWN_TIME, INVULN, JUMP, SPEED, BO
 import { normBotDiff, applyBotDiff, profileOf, nextThink, considerTarget, hitscanAim, nadeChoice, nadeWaitFor, nadeCooldown, rollStrafe, wantPanicReload, wantSafeReload, refreshCover, refreshFlank, hearGunshot as noteGunshot, scopeDelay } from '../../shared/bot-difficulty.js';
 import { SHIELD, isShieldW, shieldRaised, resetShield, bulletOnShield, splashOnShield, meleeOnShield, hurtShield, noteBlocked, shieldBashHit, classifyRay, raisedAt, shieldAim, aimOffset, botWantsShield } from '../../shared/shield.js';
 import { normWeapons, normPowers, clampLoadout, botPool, weaponOn, powerOn } from '../../shared/loadout.js';
-import { clampKitMap, resolveWeapon } from '../../shared/attachments.js';
+import { clampKitMap, defaultKit, resolveWeapon } from '../../shared/attachments.js';
 import { DANCE_TIME, danceId } from '../../shared/emote.js';
 import { meleeHit, MELEE_KINDS } from '../../shared/melee.js';
 import { mapSolids, createPhysics, raySphere, HITBOXES, rayHitboxes } from '../../shared/physics.js';
@@ -160,7 +160,8 @@ export class Game {
   resolvedW(e, w) {
     const base = WEAPONS[w];
     if (!base || !e || e.bot) return base;
-    return resolveWeapon(w, e.kit && e.kit[base.key]);
+    const raw = e.kit && Object.prototype.hasOwnProperty.call(e.kit, base.key) ? e.kit[base.key] : undefined;
+    return resolveWeapon(w, raw === undefined ? defaultKit(w) : raw);
   }
   makeEnt({ name, skin, primary, secondary, melee, bot }) {
     const id = this.nextId++;
