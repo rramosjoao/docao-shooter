@@ -209,6 +209,11 @@ ITEMS.push(...KNIFE_MODELS.flatMap((model) => KNIFE_COLORS.map((color, i) => ({
   finish: color.finish,
   line: `${model.line} ${color.line}`,
 }))));
+// Sniper Torresmo (espaço "t"): não entra no código do visual. A equipada troca a pintura da arma.
+export const SNIPER_SKINS = [
+  { id: 't1', name: 'A Docão Lore', emoji: '🐉', price: 2000, sniper: 'lore', line: 'Dourada no jeito da Dragon Lore, com dragão, focinho, orelha e o C! do Docão.' },
+];
+ITEMS.push(...SNIPER_SKINS);
 for (const it of ITEMS) it.slot = it.id[0];
 export const COSTUME_SLOT = 'c', DANCE_SLOT = 'd', KNIFE_SLOT = 'k';
 export const isLookSlot = (k) => SLOTS.some(([x]) => x === k);
@@ -217,6 +222,7 @@ export const itemForDance = (dance) => ITEMS.find((i) => i.dance === dance) || n
 export const itemById = (id) => ITEMS.find((i) => i.id === id) || null;
 export const knifeKind = (id) => { const i = itemById(id); return (i && i.knife) || ''; };
 export const knifeFinish = (id) => { const i = itemById(id); return (i && i.finish) || ''; };
+export const sniperKind = (id) => { const i = itemById(id); return (i && i.sniper) || ''; };
 export const teamItems = (team) => ITEMS.filter((i) => i.team === team).sort((a, b) => (a.teamOrder | 0) - (b.teamOrder | 0) || (a.id < b.id ? -1 : 1));
 export const itemPrice = (id) => { const i = itemById(id); return i ? i.price : 0; };
 // Padrão de graça: não passa pela compra nem precisa de linha na mochila. Preço 0 sozinho também conta, pra não cobrar por engano.

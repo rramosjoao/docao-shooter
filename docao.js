@@ -422,10 +422,10 @@ export function makeDocao(skinOrId, opts = {}) {
     for (const x of [-0.04, 0.04]) mesh(new THREE.BoxGeometry(0.01, 0.014, 0.4), spD, sg, 0.004).position.set(x, 0.09, 0); // coronha dobrada
     mesh(new THREE.BoxGeometry(0.09, 0.05, 0.02), spD, sg, 0.004).position.set(0, 0.075, 0.2);
     // sniper (cano longo + luneta)
-    const sn = new THREE.Group(); sn.position.copy(r.position); g.add(sn);
-    mesh(new THREE.BoxGeometry(0.1, 0.12, 0.75), toon('#5c7a3a'), sn, 0.01).position.z = 0.02;
-    const snb = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.55, 8), toon('#22252c'), sn, 0.008); snb.position.set(0, 0.01, 0.62); snb.rotation.x = Math.PI / 2;
-    const sc = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.34, 12), toon('#2a2d35'), sn, 0.008); sc.position.set(0, 0.12, 0.05); sc.rotation.x = Math.PI / 2;
+    const sn = new THREE.Group(); sn.position.copy(r.position); sn.userData.kind = 'torresmo'; sn.userData.muzzle = 1; g.add(sn);
+    const snBody = mesh(new THREE.BoxGeometry(0.1, 0.12, 0.75), toon('#5c7a3a'), sn, 0.01); snBody.position.z = 0.02; snBody.userData.gunPart = 'body';
+    const snb = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.55, 8), toon('#22252c'), sn, 0.008); snb.position.set(0, 0.01, 0.62); snb.rotation.x = Math.PI / 2; snb.userData.gunPart = 'barrel';
+    const sc = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.34, 12), toon('#2a2d35'), sn, 0.008); sc.position.set(0, 0.12, 0.05); sc.rotation.x = Math.PI / 2; sc.userData.gunPart = 'scope';
     // bazuca no ombro (RPG: tubo longo, traseira alargada, grip) — continua sendo guns[3]
     const bz = new THREE.Group(); bz.position.set(0.55, 1.2, 0.02); bz.scale.setScalar(1.12); g.add(bz);
     const tube = mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.55, 16), toon('#6b7a3a'), bz, 0.012); tube.rotation.x = Math.PI / 2; tube.position.set(0, 0.02, 0.32);

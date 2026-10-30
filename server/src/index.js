@@ -15,8 +15,8 @@ export { TrucoRoom };
 import { Game } from './game.js';
 import { SKINS } from '../../skins.js';
 import { handleAccountRoute, accountFromToken, nickRegistered, saveSkin, recordStats } from './auth.js';
-import { equipKnife } from './shop.js';
-import { knifeKind } from '../../shared/closet.js';
+import { equipKnife, equipSniper } from './shop.js';
+import { knifeKind, sniperKind } from '../../shared/closet.js';
 import { cleanName, NAME_MAX } from '../../shared/names.js';
 
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // sem I/O pra não confundir
@@ -78,7 +78,7 @@ export default {
         const tk = protos.find((x) => x.startsWith('tk.')); if (protos.includes('docao')) h.set('x-docao-proto', 'docao');
         if (tk) {
           const acc = await accountFromToken(env, tk.slice(3));
-          if (acc) h.set('x-docao-acct', JSON.stringify({ id: acc.id, nick: acc.nick, skin: acc.skin || '', knife: acc.knife || '' })); else h.set('x-docao-authfail', '1');
+          if (acc) h.set('x-docao-acct', JSON.stringify({ id: acc.id, nick: acc.nick, skin: acc.skin || '', knife: acc.knife || '', sniper: acc.sniper || '' })); else h.set('x-docao-authfail', '1');
         } else if (await nickRegistered(env, url.searchParams.get('name'))) h.set('x-docao-guestname', guestName(url.searchParams.get('name')));
         return stub.fetch(new Request('https://room/ws' + url.search, { method: 'GET', headers: h }));
       }
@@ -104,7 +104,7 @@ export class Room extends DurableObject {
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment(); if (!a) continue;
       const e = this.game.makeEnt({ name: a.name, skin: a.skin, primary: a.primary, secondary: a.secondary, melee: a.melee, bot: false });
-      this.game.ents.delete(e.id); e.id = a.id; e.token = a.token; if (a.acct) { e.acct = a.acct; e.sk = e.sd = 0; } if (knifeKind(a.knife)) e.knife = a.knife; this.game.ents.set(e.id, e);
+      this.game.ents.delete(e.id); e.id = a.id; e.token = a.token; if (a.acct) { e.acct = a.acct; e.sk = e.sd = 0; } if (knifeKind(a.knife)) e.knife = a.knife; if (sniperKind(a.sniper)) e.sniper = a.sniper; this.game.ents.set(e.id, e);
       this.game.nextId = Math.max(this.game.nextId, a.id + 1);
     }
     this.game.hostId = this.game.ents.has(saved.hostId) ? saved.hostId : (this.game.humans()[0] || {}).id || 0;
@@ -154,14 +154,14 @@ export class Room extends DurableObject {
       const proto = req.headers.get('x-docao-proto') ? { 'Sec-WebSocket-Protocol': 'docao' } : {};
       const fail = (msg) => { server.send(JSON.stringify({ t: 'error', msg })); server.close(4000, msg.slice(0, 60)); return new Response(null, { status: 101, webSocket: client, headers: proto }); };
       if (req.headers.get('x-docao-authfail')) return fail('Sessão expirada. Entre de novo na sua conta (ou jogue como convidado).');
-      let acct = null; try { const raw = req.headers.get('x-docao-acct'); if (raw) { const o = JSON.parse(raw); if (o && o.id > 0 && typeof o.nick === 'string') acct = { id: o.id | 0, nick: o.nick, skin: String(o.skin || ''), knife: String(o.knife || '') }; } } catch (e) { acct = null; }
+      let acct = null; try { const raw = req.headers.get('x-docao-acct'); if (raw) { const o = JSON.parse(raw); if (o && o.id > 0 && typeof o.nick === 'string') acct = { id: o.id | 0, nick: o.nick, skin: String(o.skin || ''), knife: String(o.knife || ''), sniper: String(o.sniper || '') }; } } catch (e) { acct = null; }
       if (!this.game) return fail('Sala não encontrada');
       const q = url.searchParams;
       const r = this.game.join({ acct, name: !acct && req.headers.get('x-docao-guestname') ? req.headers.get('x-docao-guestname') : q.get('name'), skin: q.get('skin'), primary: parseInt(q.get('primary')), secondary: parseInt(q.get('secondary')), melee: parseInt(q.get('melee')), token: q.get('token') });
       if (r.error) return fail(r.error);
       const e = r.ent;
       for (const old of this.ctx.getWebSockets()) { const a = old.deserializeAttachment(); if (old !== server && a && a.id === e.id) { old.serializeAttachment(null); try { old.close(4001, 'Reconectado em outra aba'); } catch (x) { /* já fechado */ } } }
-      server.serializeAttachment({ id: e.id, token: e.token, acct: e.acct ? { ...e.acct, skin: e.skin } : null, name: e.name, skin: e.skin, knife: e.knife || '', primary: e.primary, secondary: e.secondary, melee: e.melee });
+      server.serializeAttachment({ id: e.id, token: e.token, acct: e.acct ? { ...e.acct, skin: e.skin } : null, name: e.name, skin: e.skin, knife: e.knife || '', sniper: e.sniper || '', primary: e.primary, secondary: e.secondary, melee: e.melee });
       await this.ctx.storage.deleteAlarm();
       this.game.welcome(e); this.persist();
       return new Response(null, { status: 101, webSocket: client, headers: proto });
@@ -182,6 +182,17 @@ export class Room extends DurableObject {
       }
       if (only) { this.lastMsg = Date.now(); this.maybeTick(false); return; }
     }
+    if (m && m.t === 'prof' && typeof m.sniper === 'string' && a.acct) {
+      const want = m.sniper; const only = m.name == null && m.skin == null && m.primary == null && m.knife == null;
+      delete m.sniper;
+      const ok = await equipSniper(this.env, a.acct.id, want).catch(() => false);
+      if (ok) {
+        const ent = this.game.ents.get(a.id); const id = sniperKind(want) ? want : '';
+        if (ent) { ent.sniper = id; this.game.events.push(['jsn', ent.id, id]); }
+        a.sniper = id; ws.serializeAttachment(a);
+      }
+      if (only) { this.lastMsg = Date.now(); this.maybeTick(false); return; }
+    }
     if (m && m.t === 'prof') { // conta: skin vira a da conta (salva); convidado não pode tomar o apelido de uma conta
       if (a.acct) { // conta: a skin só muda se o D1 aceitar (da lista, ou visual personalizado com todas as partes na mochila); só grava se mudou
         if (typeof m.skin === 'string' && m.skin !== a.acct.skin && m.skin.length <= 48) {
@@ -194,7 +205,7 @@ export class Room extends DurableObject {
       else if (typeof m.name === 'string' && await nickRegistered(this.env, m.name)) m.name = guestName(m.name);
     }
     this.lastMsg = Date.now(); this.game.onMessage(a.id, m); this.maybeTick(false);
-    if (m.t === 'prof') { const e = this.game.ents.get(a.id); if (e) ws.serializeAttachment({ ...a, acct: a.acct || null, name: e.name, skin: e.skin, knife: e.knife || '', primary: e.nextPrimary, secondary: e.nextSecondary, melee: e.nextMelee }); }
+    if (m.t === 'prof') { const e = this.game.ents.get(a.id); if (e) ws.serializeAttachment({ ...a, acct: a.acct || null, name: e.name, skin: e.skin, knife: e.knife || '', sniper: e.sniper || '', primary: e.nextPrimary, secondary: e.nextSecondary, melee: e.nextMelee }); }
   }
   async webSocketClose(ws) { this.drop(ws); }
   async webSocketError(ws) { this.drop(ws); }

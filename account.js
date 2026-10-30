@@ -70,6 +70,13 @@ export async function equipKnife(id) { // '' volta pra faca de churrasqueiro. O 
   if (!r.ok) return { error: r.data.error || 'Não deu pra equipar' };
   account.knife = r.data.knife || null; emit(); return { ok: true, knife: account.knife };
 }
+export async function equipSniper(id) {
+  if (!token || !account) return { error: 'Entre na sua conta para equipar' };
+  const r = await api('/api/me/sniper', { method: 'PUT', body: { sniper: id || '' }, auth: true });
+  if (r.status === 401) { dropSession(); return { error: 'Sessão expirada. Entre de novo.' }; }
+  if (!r.ok) return { error: r.data.error || 'Não deu pra equipar' };
+  account.sniper = r.data.sniper || null; emit(); return { ok: true, sniper: account.sniper };
+}
 export async function loadRank(mode = 'all', sort = 'kills') {
   const r = await api(`/api/rank?mode=${encodeURIComponent(mode)}&sort=${encodeURIComponent(sort)}&limit=20`);
   return r.ok ? r.data.rows || [] : null;
