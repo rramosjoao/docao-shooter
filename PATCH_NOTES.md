@@ -16,6 +16,8 @@ O ferrolho continua grudado na animação: abre, puxa, solta a cápsula e fecha.
 
 O primeiro passe ainda soava pequeno: o filtro de DC comia tudo abaixo de ~150 Hz, um waveshaper travava o volume e a cauda de sala deixava o tiro numa caixinha. Saiu o eco. Ficou o thump (40–120 Hz), o crack e um ganho mais alto que o fuzil — o Canhão é o mais pesado.
 
+Fora da luneta não é mais um preto chapado: fica um vidro fosco escuro, e o zoom continua nítido dentro do círculo. Vale pras três snipers.
+
 ## Próxima versão — Pausa na chapa, de lado
 
 ⏸ **ESC ABRE A FAIXA.** A pausa saiu do cartão do meio e foi pra coluna da esquerda, no jeito de menu de missão: Continuar em destaque, Trocar classe, Opções e, lá embaixo, Sair pro menu. Setas e Enter andam na lista. Esc fecha.
