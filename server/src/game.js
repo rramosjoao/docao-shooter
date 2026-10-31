@@ -1240,6 +1240,13 @@ export class Game {
       if (d.dead) { this.discs.splice(i, 1); this.events.push(['dx', d.id, arr3(d.pos), 0]); }
     }
   }
+  // Quique perto de quem atirou: o splash leve pega nele e o raio segue. O estouro cheio continua no zumbi e no fim do trajeto.
+  rayNick(pos, owner) {
+    if (!owner || !owner.alive) return;
+    const W = this.resolvedW(owner, RAY) || WEAPONS[RAY];
+    const hits = explosionHits(pos, raySplash(W), [owner], () => true, owner, false, null);
+    for (const h of hits) if (h.dmg > 0) this.damage(owner, h.dmg, owner, RAY, false, false, null, 0, pos);
+  }
   // Ray Gun: só no Survival. O servidor voa e quica (shared/ray.js) e o estouro passa por blast().
   humanRay(e, oA, dA) {
     if (!this.survival) { e.rejectedShots = (e.rejectedShots || 0) + 1; return; }
@@ -1271,7 +1278,7 @@ export class Game {
         this.blast(hit.at, r.owner, { ...raySplash(W), wIdx: RAY, kind: 'y', pid: r.id }, hit.t);
         continue;
       }
-      for (const h of hits) if (!h.dead) this.events.push(['yb', r.id, arr3(h.pos), arr3(r.dir), r.bounces]);
+      for (const h of hits) if (!h.dead) { this.events.push(['yb', r.id, arr3(h.pos), arr3(r.dir), r.bounces]); this.rayNick(h.pos, r.owner); }
       if (r.dead) {
         this.rays.splice(i, 1);
         const W = this.resolvedW(r.owner, RAY) || WEAPONS[RAY];

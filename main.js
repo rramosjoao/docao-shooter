@@ -1176,7 +1176,7 @@ function updateParticles(dt) {
     else if (p.kind === 'spark') { p.vel.y -= 6 * dt; m.position.addScaledVector(p.vel, dt); m.material.opacity = 0.55 * (1 - k); m.scale.setScalar(1 - k * 0.35); }
     else if (p.kind === 'ray') { m.position.addScaledVector(p.vel, dt); const s = (p.flash ? 0.4 + k * 2.4 : p.ring ? 0.4 + k * (RAY_MOVE.radius / 0.2) : (p.s0 || 1) * (1 - k * 0.3)); m.scale.setScalar(s); if (m.material) m.material.opacity = (p.flash ? 0.95 : 0.8) * (1 - k); }
     else if (p.kind === 'raylight') { m.intensity = 12 * (1 - k); }
-    if (k >= 1) { scene.remove(m); if (m.material && m.material.dispose) m.material.dispose(); if (m.geometry && (p.kind === 'flash' || p.kind === 'ring' || p.kind === 'ray')) m.geometry.dispose(); particles.splice(i, 1); }
+    if (k >= 1) { scene.remove(m); if (m.material && m.material.dispose && !m.userData.keepMat) m.material.dispose(); if (m.geometry && !m.userData.keepGeo && (p.kind === 'flash' || p.kind === 'ring' || p.kind === 'ray')) m.geometry.dispose(); particles.splice(i, 1); }
   }
 }
 // pré-visualização da trajetória
@@ -1276,16 +1276,25 @@ function updateDiscs(dt) {
 }
 // ---------------- Ray Gun (shared/ray.js: quica 3 vezes, estouro curto) ----------------
 const rays = [];
-const rayBoltGeo = new THREE.SphereGeometry(0.16, 12, 8);
+const rayBoltGeo = new THREE.SphereGeometry(0.16, 10, 8);
+const rayCoreGeo = new THREE.SphereGeometry(0.09, 8, 6);
+const raySparkGeo = new THREE.SphereGeometry(0.05, 6, 4);
+const rayTrailGeo = new THREE.SphereGeometry(0.07, 6, 4);
+const rayFlashGeo = new THREE.SphereGeometry(0.36, 10, 8);
+const rayRingGeo = new THREE.TorusGeometry(0.22, 0.04, 6, 18);
 function makeRayBolt() {
   const g = new THREE.Group();
   const body = new THREE.Mesh(rayBoltGeo, new THREE.MeshBasicMaterial({ color: 0xb6ff7a, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
-  body.scale.set(1.05, 1.05, 2.6); g.add(body);
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial({ color: 0xf4fff0, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }));
+  body.scale.set(0.85, 0.85, 2.5); g.add(body);
+  const core = new THREE.Mesh(rayCoreGeo, new THREE.MeshBasicMaterial({ color: 0xf4fff0, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }));
   g.add(core);
-  const lamp = new THREE.PointLight(0x39ff6a, 3.2, 8);
+  const lamp = new THREE.PointLight(0x39ff6a, 2.2, 6);
   g.add(lamp); g.userData.lamp = lamp; g.userData.body = body;
   return g;
+}
+function dropRayMesh(mesh) {
+  scene.remove(mesh);
+  mesh.traverse((o) => { if (o.material && o.material.dispose) o.material.dispose(); });
 }
 function spawnRay(d) {
   d.mesh = makeRayBolt(); d.mesh.position.copy(d.pos); scene.add(d.mesh);
@@ -1296,25 +1305,37 @@ function launchRay(e, origin, dir) {
   spawnRay({ owner: e, pos: origin.clone().addScaledVector(dir, 0.45), dir: dir.clone().normalize(), bounces: 0, t: 0, traveled: 0 });
 }
 function clearRays() {
-  for (const r of rays) scene.remove(r.mesh);
+  for (const r of rays) dropRayMesh(r.mesh);
   rays.length = 0;
+}
+function rayMat(color, opacity = 0.9) {
+  return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false });
 }
 function raySpark(p, color, n = 8) {
   for (let i = 0; i < n; i++) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const m = new THREE.Mesh(raySparkGeo, rayMat(color));
+    m.userData.keepGeo = true;
     m.position.copy(p); scene.add(m);
-    particles.push({ mesh: m, vel: new V3(rand(-1, 1), rand(0.2, 1.4), rand(-1, 1)).multiplyScalar(rand(2, 6)), life: rand(0.22, 0.38), t: 0, kind: 'ray', s0: rand(0.8, 1.4) });
+    particles.push({ mesh: m, vel: new V3(rand(-1, 1), rand(0.2, 1.4), rand(-1, 1)).multiplyScalar(rand(2, 5)), life: rand(0.16, 0.28), t: 0, kind: 'ray', s0: rand(0.7, 1.2) });
   }
 }
 function rayBurst(c) {
-  const add = (mesh, vel, life, extra = {}) => { mesh.position.copy(c); scene.add(mesh); particles.push({ mesh, vel, life, t: 0, kind: 'ray', radius: RAY_MOVE.radius, ...extra }); };
-  const flash = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 10), new THREE.MeshBasicMaterial({ color: 0xd8ffb0, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
-  add(flash, new V3(), 0.16, { s0: 1, flash: true });
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 8, 24), new THREE.MeshBasicMaterial({ color: 0x39ff6a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const add = (mesh, vel, life, extra = {}) => { mesh.userData.keepGeo = true; mesh.position.copy(c); scene.add(mesh); particles.push({ mesh, vel, life, t: 0, kind: 'ray', radius: RAY_MOVE.radius, ...extra }); };
+  add(new THREE.Mesh(rayFlashGeo, rayMat(0xd8ffb0, 0.95)), new V3(), 0.16, { s0: 1, flash: true });
+  const ring = new THREE.Mesh(rayRingGeo, rayMat(0x39ff6a, 1));
   ring.lookAt(camera.position); add(ring, new V3(), 0.22, { s0: 1, ring: true });
-  raySpark(c, 0x7dff6a, 10);
-  const light = new THREE.PointLight(0x39ff6a, 12, 5.5); light.position.copy(c); scene.add(light);
-  particles.push({ mesh: light, vel: new V3(), life: 0.16, t: 0, kind: 'raylight' });
+  raySpark(c, 0x7dff6a, 8);
+  const light = new THREE.PointLight(0x39ff6a, 8, 4.5); light.position.copy(c); scene.add(light);
+  particles.push({ mesh: light, vel: new V3(), life: 0.14, t: 0, kind: 'raylight' });
+}
+function rayNick(at, owner) {
+  if (!owner || !owner.alive || state === 'over') return;
+  const w = owner.isPlayer ? gunOf(owner, RAY) : WEAPONS[RAY];
+  const o = { ...raySplash(w), wIdx: RAY };
+  const los = () => true;
+  for (const h of explosionHits(at, o, [owner], los, owner, false, null)) {
+    if (h.dmg > 0) damage(owner, h.dmg, owner, RAY, false, false, 0, at);
+  }
 }
 function rayBlast(c, owner, direct = null) {
   rayBurst(c);
@@ -1341,17 +1362,18 @@ function updateRays(dt) {
     r.mesh.position.copy(r.pos);
     if (r.dir && r.dir.x != null) r.mesh.quaternion.setFromUnitVectors(new V3(0, 0, 1), new V3(r.dir.x, r.dir.y, r.dir.z).normalize());
     const ud = r.mesh.userData;
-    if (ud.body) ud.body.scale.z = 1.45 + Math.sin(gameTime * 28 + i) * 0.25;
+    if (ud.body) ud.body.scale.z = 2.35 + Math.sin(gameTime * 28 + i) * 0.28;
     if (ud.lamp) ud.lamp.intensity = 1.2 + Math.sin(gameTime * 22) * 0.4;
     r.trail = (r.trail || 0) + dt;
     if (r.trail > 0.028) {
       r.trail = 0;
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), new THREE.MeshBasicMaterial({ color: 0x39ff6a, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+      const m = new THREE.Mesh(rayTrailGeo, rayMat(0x39ff6a, 0.55));
+      m.userData.keepGeo = true;
       m.position.copy(from); scene.add(m);
       particles.push({ mesh: m, vel: new V3(), life: 0.14, t: 0, kind: 'ray', s0: 1 });
     }
-    for (const h of hits) if (!h.dead) { const at = new V3(h.pos.x, h.pos.y, h.pos.z); raySpark(at, 0xc6ff8a, 14); sfx.rayBounce(distVol(at)); }
-    if (r.net) { if (r.dead) { scene.remove(r.mesh); rays.splice(i, 1); } continue; }
+    for (const h of hits) if (!h.dead) { const at = new V3(h.pos.x, h.pos.y, h.pos.z); raySpark(at, 0xc6ff8a, 6); sfx.rayBounce(distVol(at)); if (!r.net) rayNick(at, r.owner); }
+    if (r.net) { if (r.dead) { dropRayMesh(r.mesh); rays.splice(i, 1); } continue; }
     const pts = [from, ...hits.map((h) => new V3(h.pos.x, h.pos.y, h.pos.z)), r.pos.clone()];
     let hit = null;
     for (let k = 0; k < pts.length - 1 && !hit; k++) {
@@ -1364,8 +1386,8 @@ function updateRays(dt) {
         if (tt !== null && tt <= L && (!hit || tt < hit.tt)) hit = { t, at: a.clone().addScaledVector(seg, tt) };
       }
     }
-    if (hit) { scene.remove(r.mesh); rays.splice(i, 1); rayBlast(hit.at, r.owner, hit.t); continue; }
-    if (r.dead) { const at = r.pos.clone(); scene.remove(r.mesh); rays.splice(i, 1); rayBlast(at, r.owner, null); }
+    if (hit) { dropRayMesh(r.mesh); rays.splice(i, 1); rayBlast(hit.at, r.owner, hit.t); continue; }
+    if (r.dead) { const at = r.pos.clone(); dropRayMesh(r.mesh); rays.splice(i, 1); rayBlast(at, r.owner, null); }
   }
 }
 // ---------------- Estilingue de Ovo (shared/egg.js: voa em arco e quebra no 1º contato) ----------------
@@ -7296,7 +7318,7 @@ function netEvent(ev) {
     if (oid !== o.myId) sfx.ray(distVol(a3v(pos)));
   } else if (k === 'yb') { const r = rays.find((x) => x.pid === ev[1]); if (r) { r.pos.copy(a3v(ev[2])); r.dir.copy(a3v(ev[3])); r.bounces = ev[4]; } }
   else if (k === 'bm' && ev[2] === 'y') {
-    const i = rays.findIndex((x) => x.pid === ev[1]); if (i >= 0) { scene.remove(rays[i].mesh); rays.splice(i, 1); }
+    const i = rays.findIndex((x) => x.pid === ev[1]); if (i >= 0) { dropRayMesh(rays[i].mesh); rays.splice(i, 1); }
     const at = a3v(ev[3]); rayBurst(at); if (player) sfx.rayHit(clamp(1 - at.distanceTo(player.pos) / 28, 0.2, 1));
   }
   else if (k === 'el') { // ovo de alguém (estilingue é quase mudo: só ouve quem está perto)

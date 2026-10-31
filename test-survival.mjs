@@ -344,6 +344,13 @@ function room(surv) {
   ok(hurtZ && dealt >= 200 && dealt <= 270, `zumbi levou o estouro cheio (${dealt} de dano, vida ${z.hp})`);
   ok(hurtSelf && before - a.hp < 40 && before - a.hp > 0, `auto-dano leve no splash (${(before - a.hp).toFixed(1)})`);
   z.alive = false; z.pos = { x: 999, y, z: 999 };
+  a.hp = 100; a.alive = true; a.mag[RAY] = 20; a.lastCt[RAY] = -9; a.lastShot[RAY] = -9;
+  g.rays.length = 0;
+  g.onEvent(a, ['ry', [a.pos.x, y + 1.45, a.pos.z], [0, -1, 0], g.now()]);
+  let foot = 100;
+  for (let i = 0; i < 12 && g.rays.length; i++) { g.stepRays(0.05); foot = a.hp; }
+  ok(foot < 100 && 100 - foot < 40, `tiro no pé quica e dá auto-dano leve (${(100 - foot).toFixed(1)})`);
+  z.alive = false; z.pos = { x: 999, y, z: 999 };
   a.mag[RAY] = 20; a.lastCt[RAY] = -9; a.lastShot[RAY] = -9; a.alive = true; a.hp = Math.max(a.hp, 40);
   let face = null;
   for (let ang = 0; ang < Math.PI * 2 && !face; ang += 0.15) {
