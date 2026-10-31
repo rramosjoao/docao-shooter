@@ -362,7 +362,7 @@ export function buildWorld(map) {
   if (map.fall && map.fall.haze) {
     const haze = new THREE.Group();
     const hazeMat = (o) => new THREE.MeshBasicMaterial({ color: 0xC9D3DC, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
-    for (const [yy, op, grow] of [[-8, 0.22, 6], [-16, 0.4, 16], [-24, 0.62, 28]]) {
+    for (const [yy, op, grow] of [[-18, 0.22, 14], [-27, 0.45, 30]]) {
       const h = new THREE.Mesh(new THREE.PlaneGeometry(hx * 2 + grow, hz * 2 + grow), hazeMat(op));
       h.rotation.x = -Math.PI / 2; h.position.y = yy; haze.add(h);
     }
@@ -431,16 +431,27 @@ export function buildWorld(map) {
 // pinheiros instanciados: 2 draw calls para o mapa inteiro (Safari)
 function buildPines(list, group) {
   if (!list.length) return;
-  const trunk = new THREE.CylinderGeometry(0.26, 0.42, 3.2, 6); trunk.translate(0, 1.6, 0);
-  const cap = new THREE.ConeGeometry(1.55, 3.4, 7); cap.translate(0, 4.15, 0);
-  const trunks = new THREE.InstancedMesh(trunk, toon('#5C4636'), list.length);
-  const caps = new THREE.InstancedMesh(cap, toon('#E8EDF2'), list.length);
-  const dummy = new THREE.Object3D();
-  list.forEach((p, i) => {
-    dummy.position.set(p.x, p.y || 0, p.z); dummy.rotation.y = (i * 1.7) % 6; dummy.scale.setScalar(p.s || 1);
-    dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix); caps.setMatrixAt(i, dummy.matrix);
-  });
-  trunks.castShadow = caps.castShadow = true; group.add(trunks, caps);
+  const onMap = list.filter((p) => !(p.y < -2));
+  if (onMap.length) {
+    const trunk = new THREE.CylinderGeometry(0.26, 0.42, 3.2, 6); trunk.translate(0, 1.6, 0);
+    const cap = new THREE.ConeGeometry(1.55, 3.4, 7); cap.translate(0, 4.15, 0);
+    const trunks = new THREE.InstancedMesh(trunk, toon('#5C4636'), onMap.length);
+    const caps = new THREE.InstancedMesh(cap, toon('#E8EDF2'), onMap.length);
+    const dummy = new THREE.Object3D();
+    onMap.forEach((p, i) => {
+      dummy.position.set(p.x, p.y || 0, p.z); dummy.rotation.y = (i * 1.7) % 6; dummy.scale.setScalar(p.s || 1);
+      dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix); caps.setMatrixAt(i, dummy.matrix);
+    });
+    trunks.castShadow = caps.castShadow = true; trunks.frustumCulled = caps.frustumCulled = false; group.add(trunks, caps);
+  }
+  // na encosta, árvore própria: o branco da neblina engolia o pinheiro instanciado
+  for (const p of list.filter((q) => q.y < -2)) {
+    const s = p.s || 1, g = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.46, 3.4, 6), toon('#4a3428')); trunk.position.y = 1.7;
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(1.7, 3.6, 7), toon('#2f6b45')); cap.position.y = 4.2;
+    const snow = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.15, 6), toon('#E8EDF2')); snow.position.y = 5.7;
+    g.add(trunk, cap, snow); g.position.set(p.x, p.y, p.z); g.scale.setScalar(s); g.traverse((o) => { o.castShadow = true; }); group.add(g);
+  }
 }
 
 // neve leve: um Points só, vento na horizontal, flocos param em cima dos telhados

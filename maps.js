@@ -1263,21 +1263,30 @@ function flipHotmilkZ(part, cz) {
     boxes.push(B(cx - sx * 0.4, cz - sz * 0.4, cx + sx * 0.4, cz + sz * 0.4, h * 0.2, '#6a7078', h * 0.78));
     boxes.push(B(cx - sx * 0.62, cz - sz * 0.55, cx + sx * 0.62, cz + sz * 0.55, 0.32, SNOW, h * 0.9));
   };
+  // a borda leste é um corredor de ~100 m. Três rochas de 3,2 m cortam a visada e ainda deixam passagem a oeste.
+  for (const z of [-30, -2, 30]) rock(23.4, z, 28.7, z + 3.4, 3.2);
+  boxes.push(B(17.2, 27.4, 20.6, 31.4, 4.2, ROCK));
   rock(-27.2, 13, -16.2, 17, 4.2); rock(-26, -34, -12, -30, 4.2);
   rock(-26, -10, -17, -6, 4.2); rock(-24, 48, -17, 51.5, 3.2); rock(-24, -54, -16.5, -50, 3.2);
   rock(-24, 16, -17.2, 22, 3.4); rock(-11, -14, -3, -8, 3.4);
   rock(14.5, 16.5, 27, 21, 2.4); rock(13.2, -15, 26, -10, 2.4); boxes.push(B(13.2, -15, 26, -10, 1.5, ROCK, -1.5)); rock(12.4, -50, 22, -44, 2.4);
   boxes.push(B(10.2, -23.8, 13.6, -20.2, 3.8, '#6E5438', -1.5)); // contêiner: corta a linha de 78 m no chão, topo a +2,3 m
+  // o pátio sul é o meio de várias visadas de telhado. Dois mastros e um contêiner deixam a linha em ≤60 m e o pátio contornável.
+  boxes.push(B(7.6, -17.2, 16.6, -10.4, 7.2, METAL2, -1.5), B(7.4, -17.4, 16.8, -10.2, 0.4, METAL, 5.4));
+  boxes.push(B(19.6, -17.2, 22.3, -14.6, 5.4, ROCK, -1.5));
+  boxes.push(B(5.8, -17.2, 8.6, -14.2, 3.6, '#6E5438', -1.5));
+  boxes.push(B(16.4, -4.2, 21.6, -0.4, 4.6, ROCK));
+  boxes.push(B(18.4, -42.2, 23.2, -38.2, 3.8, '#6E5438'));
+  boxes.push(B(17.4, -24.2, 22.2, -20.2, 5.4, ROCK, -1.5));
   boxes.push(B(-12.2, -19.6, -7.2, -16.2, 3.8, ROCK, -1.5)); // 2,2 m acima do chão alto, no meio da linha de 61 m
   for (const z of [24, 10, -4, -18]) boxes.push(B(-23.4, z, -21.8, z + 1.5, 1.0, SNOW));
 
-  // lab: x −14…10, z 36…46. No eixo do pesquisador (y = 60 − z) isso é y 14…24, x 12…36.
+  // lab: 15 × 10 m, x −8…7, z 36…46. Pesquisador: x 18…33, y 14…24.
   boxes.push(...building(-8, 36, 7, 46, { col: { ...col, wall: CONC, wall2: '#c8c2b6' }, floors: 1, H: 3.5, parapet: 0.6,
     ops: [{ s: 'n', a: -5, b: -1.6 }, { s: 'n', a: 1.4, b: 4.8 }, { s: 's', a: -2, b: 1.4 }, { s: 'e', a: 38, b: 41 },
       { s: 'n', a: -7.2, b: -4.6, k: 'win', lo: 1.05, hi: 2.15 }, { s: 'w', a: 38, b: 41.2, k: 'win', lo: 1.05, hi: 2.1 }],
     inner: [{ axis: 'x', s0: -7.4, s1: 6.4, line: 41.2, ops: [{ a: -1.4, b: 1.6 }] }] }));
-  // prédios do meio, 12 m ao sul da rodada 2. Corredor de 3,6 m (x −2…1,6).
-  // Oeste: x −16…−2, z 19…31 (14×12 m), 2º piso a +3,4 m. Leste: x 1,6…19,6, z 18…32 (18×14 m).
+  // meio. Corredor de 3,2 m (x −2…1,2). Oeste 14×12 m (x −16…−2, z 19…31), 2º piso a +3,4 m. Leste 13×14 m (x 1,2…14,2, z 18…32).
   boxes.push(...building(-16, 19, -2, 31, { col: { ...col, wall: '#c4bfb4', wall2: CONC }, floors: 2, H, parapet: 1.7,
     ops: [{ s: 'n', a: -10, b: -6.4 }, { s: 's', a: -12, b: -8.4 }, { s: 'e', a: 22, b: 25.6 }, { s: 'w', a: 24, b: 27.4 },
       { s: 'e', a: 26, b: 29.5, f: 1, k: 'win', lo: 0.85, hi: 2.05 }, { s: 'n', a: -10, b: -6, f: 1, k: 'win', lo: 0.85, hi: 2.05 }],
@@ -1293,10 +1302,11 @@ function flipHotmilkZ(part, cz) {
     ops: [{ s: 'n', a: -6.4, b: -3.2 }, { s: 's', a: -6.4, b: -3.2 }, { s: 'e', a: 32.2, b: 34.8 }] }));
   boxes.push(...building(2, 32.2, 12, 35.8, { col: { ...col, wall: '#d4cfc4', wall2: CONC }, floors: 1, H: 3.2, parapet: 0.45,
     ops: [{ s: 'n', a: 4.4, b: 8 }, { s: 's', a: 4.4, b: 8 }] }));
-  boxes.push(B(1.4, 15.85, 12.2, 18.25, 0.45, SNOW, 3.25)); // telhado entre o bloco leste e a Sala Fria
+  // telhado caminhável entre o bloco leste (z 18) e a Sala Fria (z 16): piso a 3,7 m, guarda dos dois lados
+  boxes.push(B(1.2, 15.55, 14.2, 18.45, 0.4, SNOW, 3.3));
+  boxes.push(B(1.15, 15.6, 1.45, 18.4, 1.05, METAL, 3.7), B(13.95, 15.6, 14.25, 18.4, 1.05, METAL, 3.7));
 
-  // SALA FRIA / control room: 22 × 22 m, mezanino a +3,4 m, átrio aberto, 5 portas
-  // Sala Fria: x −2…20, z −6…16 → y do pesquisador 44…66, x 24…46.
+  // SALA FRIA: 28 × 22 m, x −16…12, z −6…16. Pesquisador: x 10…38, y 44…66. Mezanino a +3,4 m.
   boxes.push(...building(-16, -6, 12, 16, { col: { ...col, wall: CONC, wall2: '#c8c2b6', inner: '#C4BFB4' }, floors: 2, H, roof: false,
     ops: [{ s: 'w', a: 2.2, b: 5.8 }, { s: 'e', a: 0.2, b: 3.8 }, { s: 'n', a: -6, b: -2.4 }, { s: 's', a: -8, b: -4.4 }, { s: 's', a: 2, b: 5.6 },
       { s: 's', a: -2, b: 2, k: 'win', lo: 1.0, hi: 2.15 },
@@ -1358,9 +1368,12 @@ function flipHotmilkZ(part, cz) {
   }
   boxes.push(B(-23.2, 39.2, -18.4, 39.45, 1.75, METAL2, 8.15), B(-23.2, 44.35, -21.6, 44.6, 1.75, METAL2, 8.15), B(-19.6, 44.35, -18.4, 44.6, 1.75, METAL2, 8.15));
   boxes.push(B(-23.2, 39.2, -22.95, 44.6, 1.75, METAL2, 8.15), B(-18.65, 39.2, -18.4, 44.6, 1.75, METAL2, 8.15));
-  // painel cego de 1,1 m no flanco leste da rampa (olha para SE). Janela de 2 m no norte, entre x −21,6 e −19,6.
-  boxes.push(B(-19.55, 22, -19.22, 42.2, 1.1, METAL, 0.2));
-  boxes.push(B(-19.55, 24, -19.22, 30, 1.1, METAL, 1.6), B(-19.55, 31.4, -19.22, 38, 1.1, METAL, 4.4), B(-19.55, 38, -19.22, 42.2, 1.1, METAL, 6.6));
+  // um painel contínuo de 1,1 m acompanha a rampa no flanco leste. A única abertura é a janela de 2 m no norte (z 42,2…44,2), voltada para N/NE.
+  const rail = (z0, z1, yBase) => boxes.push(B(-19.55, z0, -19.22, z1, 1.1, METAL, yBase));
+  for (let i = 0; i < 8; i++) { const z0 = 22 + i, z1 = z0 + 1.35, y = Math.max(0, (Math.min(z1, 30) - 22) / 8 * 4.05 - 0.15); rail(z0, Math.min(z1, 30.3), y); }
+  rail(29.4, 32.6, 2.95);
+  for (let i = 0; i < 9; i++) { const z0 = 31.6 + i, z1 = z0 + 1.35, y = 4.05 + (Math.min(z1, 40) - 31.6) / 8.4 * 4.1 - 0.2; rail(z0, Math.min(z1, 40.3), y); }
+  rail(39.0, 42.2, 7.05);
   // bloqueador alto ~30 m ao sul da rampa, no caminho da visada para o sudeste
   boxes.push(B(-10.4, 0.2, -9.9, 4.6, 6.6, METAL2), B(-12.2, 1.4, -10.6, 4.8, 0.18, METAL, 6.15));
   boxes.push(B(-9.2, 2.2, -8.7, 5.4, 6.6, METAL2));
@@ -1384,10 +1397,10 @@ function flipHotmilkZ(part, cz) {
   for (const [x, z, s, h] of [[-17.4, 22, 1.8, 1], [-17.4, 27, 1.6, 0.9], [-17.2, 38, 1.7, 1], [-3.4, 33.4, 1.6, 1],
     [12, 38.5, 1.8, 1], [-18.6, 8, 1.5, 1], [-18.4, -2, 1.6, 0.95], [22.5, -8, 1.5, 1]]) mound(x, z, s, h);
   C(-12.4, 16.2, 1.4, 1.2, METAL); C(-8, -20, 1.5, 1.3, '#6E5438', -1.5); C(14, -20, 1.3, 1.15, METAL2, -1.5); C(-16, -21, 1.6, 1.3, METAL); C(-18.6, 10, 1.2, 1.05, METAL);
-  for (const [x, z, s, h] of [[-6, -14, 1.6, 0.8], [6, -18, 1.6, 0.7], [14, -16, 1.5, 1.2], [16, -22, 1.4, 1.15]]) boxes.push(B(x - s / 2, z - s / 2, x + s / 2, z + s / 2, h, SNOW, -1.5));
+  for (const [x, z, s, h] of [[-6, -14, 1.6, 0.8], [6, -18, 1.6, 0.7], [14, -16, 1.5, 0.9], [16, -22, 1.4, 0.75]]) mound(x, z, s, h, -1.5);
 
   // estalactites de gelo nos beirais (acima da cabeça: y ≥ 2,6)
-  for (const [x, z, y] of [[-14, 46, 3.2], [4, 46, 3.2], [-16, 31, 6.5], [18, 32, 6.5], [-2, 16, 6.5], [18, 16, 6.5], [-10, -30, 3.3], [8, -30, 3.3], [0, -46, 3.3]]) boxes.push(B(x - 0.1, z - 0.1, x + 0.1, z + 0.1, 0.7, ICE, y));
+  for (const [x, z, y] of [[-14, 46.05, 2.7], [4, 46.05, 2.7], [-16.05, 31, 6.1], [14.25, 32, 6.1], [-2, 16.05, 6.15], [12.05, 16, 6.15], [-10, -29.9, 2.9], [8, -29.9, 2.9], [0, -45.95, 2.9]]) boxes.push(B(x - 0.12, z - 0.12, x + 0.12, z + 0.12, 0.95, ICE, y));
 
   const props = [
     { t: 'dome', x: 2, y: 3.55, z: 41, r: 1.7, h: 1.05, c: CONC, cap: SNOW },
@@ -1408,16 +1421,16 @@ function flipHotmilkZ(part, cz) {
     { t: 'pane', x0: -6, z0: 5, x1: -2, z1: 11, y: 6.72, axis: 'y', c: 0xBFDDEB, o: 0.35 },
     { t: 'pane', x0: -2, z0: 5, x1: 2, z1: 11, y: 6.72, axis: 'y', c: 0xBFDDEB, o: 0.35 },
     { t: 'glow', x0: -6, z0: -1, x1: 2, z1: 11, y: 6.55, c: 0xF2D9A0, o: 0.55 },
-    { t: 'cable', x0: -24.2, y0: 5.3, z0: 44.2, x1: -21.2, y1: 12.4, z1: 41.5, c: '#1c2228', r: 0.08 },
-    { t: 'cable', x0: -24.2, y0: 5.3, z0: 45.4, x1: -21.2, y1: 12.4, z1: 42.8, c: '#1c2228', r: 0.08 },
-    { t: 'cable', x0: -21.2, y0: 12.4, z0: 41.5, x1: -38, y1: 20, z1: 28, c: '#1c2228', r: 0.07 },
-    { t: 'cable', x0: -21.2, y0: 12.4, z0: 42.8, x1: -36, y1: 22, z1: 55, c: '#1c2228', r: 0.07 },
+    { t: 'cable', x0: -24.2, y0: 5.3, z0: 44.2, x1: -21.2, y1: 13.2, z1: 41.6, c: '#1c2228', r: 0.14 },
+    { t: 'cable', x0: -24.2, y0: 5.3, z0: 45.6, x1: -21.2, y1: 13.2, z1: 43.0, c: '#1c2228', r: 0.14 },
+    { t: 'cable', x0: -21.2, y0: 13.2, z0: 41.6, x1: -40, y1: 22, z1: 22, c: '#1c2228', r: 0.11 },
+    { t: 'cable', x0: -21.2, y0: 13.2, z0: 43.0, x1: -38, y1: 24, z1: 58, c: '#1c2228', r: 0.11 },
     { t: 'pane', x0: -25.5, z0: 43.3, x1: -25.5, z1: 46.2, y: 3.7, h: 1.3, axis: 'z', c: 0xBFDDEB, o: 0.4 },
     { t: 'grate', x0: -26.5, z0: -8, x1: -22.5, z1: 8, y: 0.04 },
     { t: 'dish', x: -6, y: 4.3, z: -38, r: 1.15 }, { t: 'dish', x: 8, y: 4.4, z: -34, r: 0.9 },
     { t: 'heli', x: -62, y: 14, z: -24, rot: 0.4 },
-    { t: 'pine', x: -31.5, z: -2, y: -2.2, s: 1.7 }, { t: 'pine', x: -30.5, z: 12, y: -2.5, s: 1.5 }, { t: 'pine', x: -30.2, z: -18, y: -2.4, s: 1.6 },
-    { t: 'pine', x: 33, z: 8, y: -2.2, s: 1.6 }, { t: 'pine', x: 34, z: -20, y: -2.6, s: 1.5 }, { t: 'pine', x: 32.5, z: 40, y: -2.2, s: 1.45 },
+    { t: 'pine', x: -32.2, z: 8, y: -4.2, s: 2.05 }, { t: 'pine', x: -31.6, z: -12, y: -4.6, s: 1.9 }, { t: 'pine', x: -32.4, z: 22, y: -5.2, s: 1.75 },
+    { t: 'pine', x: 33.2, z: 10, y: -4.4, s: 2.0 }, { t: 'pine', x: 33.8, z: -14, y: -5.0, s: 1.85 }, { t: 'pine', x: 32.6, z: 28, y: -4.2, s: 1.7 },
     { t: 'decal', x0: -1.3, z0: -25, x1: -0.45, z1: -8, y: -1.46, c: 0x2a3036 },
     { t: 'decal', x0: 1.5, z0: -25, x1: 2.35, z1: -9, y: -1.46, c: 0x2a3036 },
     { t: 'keg', x: -18.5, z: 14 }, { t: 'keg', x: 22, z: 30 }, { t: 'keg', x: 22, z: 14 },
@@ -1430,14 +1443,14 @@ function flipHotmilkZ(part, cz) {
     id: 'posto-nevasca', name: 'Posto Nevasca',
     desc: 'Base no cume: sala fria com mezanino e claraboia, passarela no penhasco e salas estreitas a leste.',
     size: [31, 60], wallH: 0.85, wallColor: [ROCK, ROCK], openMax: 8.5, laneMin: 40,
-    fall: { y: -6, rects: voids, slopes, openWest: true, openEast: true, basins: [[-14, -26, 18, -6, -1.5]], haze: true, pit: '#c5d0d8', floor: -30, slopeColor: '#e7eef3' },
-    thumb: { x: 20, y: 36, z: 28, tx: -2, ty: 5, tz: 5 },
+    fall: { y: -6, rects: voids, slopes, openWest: true, openEast: true, basins: [[-14, -26, 18, -6, -1.5]], haze: true, pit: '#9aa8b2', floor: -30, slopeColor: '#b7c2cb' },
+    thumb: { x: 18, y: 26, z: -4, tx: -10, ty: 4, tz: 28 },
     palette: { sky: '#C9D3DC', fog: ['#C9D3DC', 40, 120], hemi: ['#e7eef3', '#8B98A6', 1.55], sun: ['#f4f7fa', 0.72], ground: SNOW, tiles: null, clouds: true, mountains: true,
       lights: [['#F2D9A0', -4, 2.6, 2, 16, 12], ['#F2D9A0', 2, 2.6, 6, 16, 12], ['#F2D9A0', -2, 5.4, 8, 14, 10], ['#F2D9A0', -6, 5.4, 2, 12, 9], ['#F2D9A0', -8, 2.4, 24, 12, 10], ['#F2D9A0', 6, 2.4, 24, 12, 10], ['#F2D9A0', -1, 2.2, -31, 10, 8], ['#F2D9A0', 6, 2.2, -31, 10, 8]] },
     weather: { kind: 'snow', n: 1400, fall: 6.2, wind: [2.3, 0, 0.55], top: 34, color: 0xF7FBFF, size: 0.15, roofs },
     ...fin(boxes), props,
     spawns: [[-6, 40], [2, 38.5], [18, 44], [-0.2, 17.4], [15, 22], [14, 38], [-8, -52], [0, -56], [8, -50], [-4, -58], [6, -44], [-14, -50]],
-    pickups: [['health', 4, 2], ['health', -4, 40], ['health', 8, -10, -1.5], ['health', 2, 38.5], ['health', -5, 28, H],
+    pickups: [['health', 4, 2], ['health', -4, 40], ['health', -11, -22, -1.5], ['health', 2, 38.5], ['health', -5, 28, H],
       ['ammo', -26.4, -1], ['ammo', 15.2, 6], ['ammo', -9, 27, H], ['ammo', 0, -38, 3.6],
       ['grenade', 8, 24], ['grenade', -2, -12, -1.5], ['grenade', 4, 11, H]],
     showcase: [-2, 0, 4], view: [-16, 1.6, 2, -0.35, -0.04],
@@ -1445,7 +1458,7 @@ function flipHotmilkZ(part, cz) {
   });
 }
 
-// ---------- 9) Morro do Leitão (Favela MW2: vielas, lajes, campinho, manhã) ----------
+// ---------- 9) Morro do Leitão (Favela MW2, rodada 2: rua, campinho marcado, lajes) ----------
 // +Z norte (platô / vala), −Z sul (rua principal). 1 m = 1 unidade. Vielas ≥ 3,2 m (o Docão tem 0,84 m de largura).
 {
   const BR = '#a0503a', BR2 = '#c46a4e', PL = '#e6d7b8', YEL = '#e6c15a', TEAL = '#8fc4b8', PINK = '#e09aab', BLU = '#6a8cbf';
@@ -1473,8 +1486,9 @@ function flipHotmilkZ(part, cz) {
   boxes.push(...building(40, -6, 58, 10, { col: casa('#d7d3cc', TEAL, '#8d8a84'), floors: 3, H: 3, parapet: 1.05, stairs: well(40, -6, 3), ops: [...doorS(40, 58), { s: 'w', a: -1, b: 2.6 }, { s: 'e', a: 2, b: 5.4 }, { s: 's', a: 46, b: 50, f: 2, k: 'win', lo: 0.7, hi: 2.05 }] }));
   boxes.push(...building(16, -24, 36, -8, { col: casa(GRN, '#8fb56a', BR), floors: 3, H: 3, parapet: 1.05, stairs: well(16, -24, 3), ops: [...doorS(16, 36), { s: 'e', a: -18, b: -14.4 }, { s: 's', a: 22, b: 26 }] }));
   boxes.push(...building(38, -24, 54, -12, { col: casa(PL, '#f7f1e4', BR2), floors: 2, H: 3, parapet: 1.05, stairs: well(38, -24, 2), ops: [...doorS(38, 54), { s: 'w', a: -20, b: -16.6 }] }));
-  // rua principal e casa de tijolo ao sul
+  // rua principal e casa de tijolo ao sul. A faixa amarela é só pintura.
   boxes.push(B(-52, -36, 54, -26, 0.06, '#3a3a38'));
+  boxes.push(B(-8, -39.05, 2, -36.4, 0.1, PINK, 2.65), B(16, -39.05, 28, -36.4, 0.1, YEL, 2.65));
   for (const x of [-40, -20, 0, 20, 44]) { C(x, -34.8, 1.3, 1.15, WOOD); C(x, -27.4, 1.3, 1.15, BR); }
   boxes.push(...building(-22, -50, 6, -39, { col: casa(BR, BR2, '#5c4033'), floors: 2, H: 3, parapet: 1.05, stairs: well(-22, -50, 2), ops: [{ s: 's', a: -8, b: -4.4 }, { s: 's', a: -2, b: 2 }, { s: 'n', a: -16, b: -12 }] }));
   // cemitério e sucata: muretas, não prédio fechado
@@ -1489,18 +1503,26 @@ function flipHotmilkZ(part, cz) {
   for (const x of [-42, -32, 16, 28, 42]) C(x, -46, 1.5, 1.2, DIRT);
   // traves do campinho já estão; banco e caixa d'água baixa de cobertura
   C(36, 20, 1.2, 1.0, WOOD); C(44, 18, 1.3, 1.15, BR);
+  const dashes = [];
+  for (let x = -48; x < 50; x += 4) dashes.push({ t: 'decal', x0: x, z0: -31.18, x1: x + 1.7, z1: -30.88, y: 0.08, c: 0xf2c94c });
   const props = [
+    ...dashes,
     { t: 'truck', x: -28, z: -34.2, c: '#c46a4e' }, { t: 'truck', x: 8, z: -28.2, c: '#6a8cbf' }, { t: 'bus', x: 34, z: -34.4, c: '#e6c15a' },
     { t: 'tree', x: -52, z: 8 }, { t: 'tree', x: -48, z: -46 }, { t: 'tree', x: 20, z: 18 }, { t: 'tree', x: 56, z: 16 }, { t: 'tree', x: -30, z: 24 }, { t: 'tree', x: 48, z: -44 },
     { t: 'tank', x: 50, z: 4, y: 9, r: 0.9, h: 1.6, c: '#8d8a84', cap: TEAL, band: BR },
     { t: 'sign', x: 0, y: 3.2, z: -26.7, w: 6, h: 1.2, rot: 0, text: 'RUA', bg: BR, fg: '#fff' },
+    { t: 'decal', x0: 30, z0: 16, x1: 50, z1: 16.16, y: 0.1, c: 0xf7f4ee },
+    { t: 'decal', x0: 30, z0: 31.84, x1: 50, z1: 32, y: 0.1, c: 0xf7f4ee },
+    { t: 'decal', x0: 30, z0: 16, x1: 30.16, z1: 32, y: 0.1, c: 0xf7f4ee },
+    { t: 'decal', x0: 49.84, z0: 16, x1: 50, z1: 32, y: 0.1, c: 0xf7f4ee },
+    { t: 'decal', x0: 39.92, z0: 16, x1: 40.08, z1: 32, y: 0.1, c: 0xf7f4ee },
     { t: 'sign', x: 40, y: 2.4, z: 13.6, w: 4.2, h: 1.1, rot: Math.PI, text: 'CAMPO', bg: GRN, fg: '#fff' },
     { t: 'sign', x: 26.3, y: 3.4, z: 2, w: 3.2, h: 1.1, rot: Math.PI / 2, text: 'BAR', bg: BLU, fg: '#fff' },
     { t: 'keg', x: -48, z: 14 }, { t: 'keg', x: 22, z: -18 }, { t: 'keg', x: -6, z: -16 }, { t: 'keg', x: 34, z: 16 },
   ];
   MAPS.push({
     id: 'morro-leitao', name: 'Morro do Leitão',
-    desc: 'Vielas e lajes de manhã: campinho, rua com carros, casas de 2 e 3 andares e um platô no norte.',
+    desc: 'Vielas e lajes de manhã: campinho marcado, rua com faixa e carros, casas de 2 e 3 andares e um platô no norte.',
     size: [66, 56], wallH: 4, wallColor: ['#3d4a32', '#2c3824'], openMax: 8, laneMin: 40, navSpacing: 2.5,
     fall: { y: -8, margin: 5, pit: '#142016' },
     palette: { sky: '#9ec4ea', fog: ['#c5d4e4', 80, 210], hemi: ['#fff6e4', '#6a7a48', 1.55], sun: ['#fff1d0', 2.35], ground: '#6d6454', tiles: null, clouds: true,
