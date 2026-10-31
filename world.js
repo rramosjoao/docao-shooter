@@ -368,6 +368,23 @@ export function buildWorld(map) {
     }
     group.add(haze); group.userData.haze = haze;
   }
+  if (map.skyline === 'favela') {
+    const hill = new THREE.Mesh(new THREE.ConeGeometry(46, 78, 8), toon('#6d8a48')); hill.position.set(86, 6, 58); group.add(hill);
+    const rock = new THREE.Mesh(new THREE.ConeGeometry(24, 40, 6), toon('#8d7b68')); rock.position.set(74, 22, 52); group.add(rock);
+    const christ = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 9, 0.9), toon('#f4f1ea')); body.position.y = 4.5;
+    const arms = new THREE.Mesh(new THREE.BoxGeometry(8.2, 1.15, 0.75), toon('#f4f1ea')); arms.position.y = 7.1;
+    christ.add(body, arms); christ.position.set(86, 46, 58); group.add(christ);
+    for (const [px, pz, sc] of [[-78, -20, 1.3], [-70, 10, 1.1], [90, -30, 1.2], [60, 70, 1], [-40, 68, 1.15]]) {
+      const palm = new THREE.Group();
+      const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.42, 7, 6), toon('#6b4423')); tr.position.y = 3.5; palm.add(tr);
+      for (let k = 0; k < 6; k++) {
+        const fr = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.12, 0.55), toon('#3e6b32'));
+        fr.position.set(Math.cos(k) * 1.1, 6.7, Math.sin(k) * 1.1); fr.rotation.y = k; fr.rotation.z = 0.5; palm.add(fr);
+      }
+      palm.position.set(px, 0, pz); palm.scale.setScalar(sc); group.add(palm);
+    }
+  }
   if (pal.mountains) {
     const geo = new THREE.ConeGeometry(18, 46, 5); geo.translate(0, 18, 0);
     const peaks = new THREE.InstancedMesh(geo, toon('#e7eef3'), 9);
@@ -384,7 +401,10 @@ export function buildWorld(map) {
   }
   // limites do mapa (visual na altura wallH; colisão bem alta)
   const wh = map.wallH || 4, [wc1, wc2] = map.wallColor || ['#e86a5c', '#d85a4c'];
-  add(-hx - 1, 0, -hz - 1, hx + 1, wh, -hz, wc1, null, WALL_COLLIDE_H); add(-hx - 1, 0, hz, hx + 1, wh, hz + 1, wc1, null, WALL_COLLIDE_H);
+  if (map.fall && map.fall.openSouth) solid(-hx - 1, 0, -hz - 1, hx + 1, WALL_COLLIDE_H, -hz);
+  else add(-hx - 1, 0, -hz - 1, hx + 1, wh, -hz, wc1, null, WALL_COLLIDE_H);
+  if (map.fall && map.fall.openNorth) solid(-hx - 1, 0, hz, hx + 1, WALL_COLLIDE_H, hz + 1);
+  else add(-hx - 1, 0, hz, hx + 1, wh, hz + 1, wc1, null, WALL_COLLIDE_H);
   if (map.fall && map.fall.openWest) solid(-hx - 1, 0, -hz, -hx, WALL_COLLIDE_H, hz);
   else add(-hx - 1, 0, -hz, -hx, wh, hz, wc2, null, WALL_COLLIDE_H);
   if (map.fall && map.fall.openEast) solid(hx, 0, -hz, hx + 1, WALL_COLLIDE_H, hz);
@@ -395,7 +415,11 @@ export function buildWorld(map) {
   const vis = map.boxes.filter((o) => { const [x0, y0, z0, x1, y1, z1] = o.b; return !(x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01); });
   const shown = vis.filter((o) => !o.hide);
   const voff = visualOffsets(shown);
-  for (const o of vis) if (o.hide) { const [x0, y0, z0, x1, y1, z1] = o.b; solid(x0, y0, z0, x1, y1, z1); }
+  for (const o of vis) if (o.hide) {
+    const [x0, y0, z0, x1, y1, z1] = o.b;
+    solids.push({ min: new V3(x0, y0, z0), max: new V3(x1, y1, z1), ramp: o.ramp || null });
+    proxies.push(boxGeo(x0, y0, z0, x1, y1, z1, o.ramp || null));
+  }
   shown.forEach((o, i) => { const [x0, y0, z0, x1, y1, z1] = o.b; add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null, null, voff[i]); });
   for (const p of map.props || []) buildProp(p, { group, solid, add });
   buildPines((map.props || []).filter((p) => p.t === 'pine'), group);

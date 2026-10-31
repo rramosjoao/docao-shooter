@@ -1,3 +1,4 @@
+import { morroLeitao } from './favela-map.js';
 // ============================================================
 //  MAPAS DO DOCÃO SHOOTER: só dados (geometria original).
 //  Cada mapa: id, name (pt-BR), desc, size [meia-largura X, meia-profundidade Z], wallH (muro do limite),
@@ -1458,89 +1459,8 @@ function flipHotmilkZ(part, cz) {
   });
 }
 
-// ---------- 9) Morro do Leitão (Favela MW2, rodada 2: rua, campinho marcado, lajes) ----------
-// +Z norte (platô / vala), −Z sul (rua principal). 1 m = 1 unidade. Vielas ≥ 3,2 m (o Docão tem 0,84 m de largura).
-{
-  const BR = '#a0503a', BR2 = '#c46a4e', PL = '#e6d7b8', YEL = '#e6c15a', TEAL = '#8fc4b8', PINK = '#e09aab', BLU = '#6a8cbf';
-  const GRN = '#6a8f4a', DIRT = '#7c7260', GRASS = '#7a8a45', WOOD = '#8b5a2b', ROOF = '#6b5344';
-  const casa = (wall, wall2, roof = ROOF) => ({ wall, wall2: wall2 || wall, inner: '#f0e2c8', floor: '#d9cbb0', roof, roof2: TEAL, stair: WOOD, trim: TEAL });
-  const boxes = [];
-  const C = (x, z, s = 1.3, h = 1.15, c = WOOD, y0 = 0) => boxes.push(crate(x, z, s, h, c, y0));
-  // platô norte (+4 m): a vala de cima. Rampas sobem do meio da cidade.
-  boxes.push(B(-40, 26, 24, 46, 4, DIRT));
-  boxes.push(R(-12, 17.5, -6, 26.2, 0, 4, 'z', 1, WOOD), R(8, 17.5, 14, 26.2, 0, 4, 'z', 1, WOOD), R(-36, 16, -30, 26.2, 0, 4, 'z', 1, WOOD));
-  // cada lance num z diferente: rampas empilhadas no mesmo xz viram teto umas das outras
-  const well = (x0, z0, floors) => { const stairs = []; for (let f = 0; f < floors; f++) { const zA = z0 + 1.8 + f * 4.6; stairs.push({ f, r: [x0 + 1.8, zA, x0 + 8.2, zA + 3.2], axis: 'x', dir: 1 }); } return stairs; };
-  const doorS = (x0, x1) => [{ s: 'n', a: (x0 + x1) / 2 - 1.5, b: (x0 + x1) / 2 + 1.5 }];
-  // norte, em cima do platô
-  boxes.push(...building(-18, 30, 2, 44, { col: casa(YEL, '#f0d48a', '#c4b49a'), floors: 2, H: 3, y0: 4, parapet: 1.05, stairs: well(-18, 30, 2), ops: [...doorS(-18, 2), { s: 'e', a: 34, b: 37.2 }, { s: 's', a: -8, b: -4, f: 1, k: 'win', lo: 0.8, hi: 2.1 }] }));
-  boxes.push(...building(6, 32, 22, 44, { col: casa(PINK, '#f0c0cc', '#b7b3a8'), floors: 1, H: 3.1, y0: 4, parapet: 0.7, ops: [{ s: 'n', a: 10, b: 13.4 }, { s: 's', a: 12, b: 15.4 }, { s: 'w', a: 36, b: 39 }] }));
-  // meio
-  boxes.push(...building(-34, 2, -16, 20, { col: casa(YEL, '#f2d98a'), floors: 2, H: 3, parapet: 1.05, stairs: well(-34, 2, 2), ops: [...doorS(-34, -16), { s: 'e', a: 8, b: 11.4 }, { s: 'w', a: 10, b: 13.4, k: 'win' }] }));
-  boxes.push(...building(-36, -22, -18, -2, { col: casa(BR, BR2), floors: 2, H: 3, parapet: 1.05, stairs: well(-36, -22, 2), ops: [...doorS(-36, -18), { s: 'e', a: -12, b: -8.4 }, { s: 's', a: -28, b: -24 }] }));
-  boxes.push(...building(-10, -24, 8, -8, { col: casa(TEAL, '#b7e0d6', '#e6d7b8'), floors: 2, H: 3, parapet: 1.05, stairs: well(-10, -24, 2), ops: [...doorS(-10, 8), { s: 's', a: -4, b: 0 }, { s: 'e', a: -16, b: -12.4, f: 1, k: 'win', lo: 0.8, hi: 2.05 }] }));
-  boxes.push(...building(10, -8, 26, 12, { col: casa(BLU, '#8aa6d4', BR), floors: 3, H: 3, parapet: 1.05, stairs: well(10, -8, 3), ops: [...doorS(10, 26), { s: 's', a: 16, b: 20 }, { s: 'e', a: -2, b: 2 }, { s: 'w', a: 2, b: 6, f: 2, k: 'win', lo: 0.7, hi: 2.1 }] }));
-  // leste: campinho, lavanderia, barbeiro, casa verde
-  boxes.push(B(28, 14, 52, 34, 0.08, GRASS));
-  boxes.push(B(28.2, 18, 28.5, 28, 2.3, '#f4f1ea'), B(28.2, 18, 36, 18.25, 0.12, '#f4f1ea', 2.15), B(50, 20, 50.3, 30, 2.3, '#f4f1ea'), B(44, 29.75, 50.2, 30, 0.12, '#f4f1ea', 2.15));
-  boxes.push(...building(40, -6, 58, 10, { col: casa('#d7d3cc', TEAL, '#8d8a84'), floors: 3, H: 3, parapet: 1.05, stairs: well(40, -6, 3), ops: [...doorS(40, 58), { s: 'w', a: -1, b: 2.6 }, { s: 'e', a: 2, b: 5.4 }, { s: 's', a: 46, b: 50, f: 2, k: 'win', lo: 0.7, hi: 2.05 }] }));
-  boxes.push(...building(16, -24, 36, -8, { col: casa(GRN, '#8fb56a', BR), floors: 3, H: 3, parapet: 1.05, stairs: well(16, -24, 3), ops: [...doorS(16, 36), { s: 'e', a: -18, b: -14.4 }, { s: 's', a: 22, b: 26 }] }));
-  boxes.push(...building(38, -24, 54, -12, { col: casa(PL, '#f7f1e4', BR2), floors: 2, H: 3, parapet: 1.05, stairs: well(38, -24, 2), ops: [...doorS(38, 54), { s: 'w', a: -20, b: -16.6 }] }));
-  // rua principal e casa de tijolo ao sul. A faixa amarela é só pintura.
-  boxes.push(B(-52, -36, 54, -26, 0.06, '#3a3a38'));
-  boxes.push(B(-8, -39.05, 2, -36.4, 0.1, PINK, 2.65), B(16, -39.05, 28, -36.4, 0.1, YEL, 2.65));
-  for (const x of [-40, -20, 0, 20, 44]) { C(x, -34.8, 1.3, 1.15, WOOD); C(x, -27.4, 1.3, 1.15, BR); }
-  boxes.push(...building(-22, -50, 6, -39, { col: casa(BR, BR2, '#5c4033'), floors: 2, H: 3, parapet: 1.05, stairs: well(-22, -50, 2), ops: [{ s: 's', a: -8, b: -4.4 }, { s: 's', a: -2, b: 2 }, { s: 'n', a: -16, b: -12 }] }));
-  // cemitério e sucata: muretas, não prédio fechado
-  boxes.push(B(46, -42, 58, -41.4, 1.3, '#cfc8b8'), B(46, -42, 46.5, -30, 1.3, '#cfc8b8'), B(57.5, -42, 58, -30, 1.2, '#cfc8b8'));
-  for (const [x, z] of [[49, -38], [52, -36], [55, -39], [50, -33], [54, -32]]) boxes.push(B(x, z, x + 0.8, z + 1.6, 0.9, '#d9d3c4'));
-  for (const [x, z, s, h, c] of [[-54, 10, 1.6, 1.2, BR], [-52, 16, 1.4, 1.4, YEL], [-56, 20, 1.8, 1.0, WOOD], [-50, 24, 1.3, 1.1, TEAL], [-46, -44, 2, 0.8, DIRT], [-54, -40, 1.6, 0.7, GRASS], [-24, 34, 1.4, 1.0, WOOD], [30, 22, 1.6, 1.1, WOOD], [40, 24, 1.4, 1.2, BR2], [18, 4, 1.5, 1.0, WOOD], [-4, 8, 1.4, 1.1, YEL]]) C(x, z, s, h, c);
-  for (const [x, z] of [[-36, 32], [-30, 40], [-36, 42], [-26, 30], [-38, 36]]) C(x, z, 1.5, 1.2, WOOD, 4);
-  for (const z of [-32, -20, -8, 4, 16, 28, 38]) { C(-55, z, 1.5, 1.15, BR); if (z < 26) C(-46, z, 1.4, 1.15, WOOD); }
-  C(36, 40, 1.5, 1.2, WOOD); C(46, 38, 1.4, 1.15, BR2); C(-54, -40, 1.6, 1.1, DIRT); C(-48, 36, 1.4, 1.15, WOOD);
-  C(14, -44, 1.5, 1.15, BR); C(24, -48, 1.4, 1.1, WOOD); C(8, -46, 1.4, 1.15, DIRT); C(32, -44, 1.5, 1.2, BR2);
-  C(54, 42, 1.6, 1.2, BR); C(48, 46, 1.4, 1.15, WOOD); C(54, -46, 1.5, 1.2, DIRT); C(-54, 44, 1.5, 1.15, BR);
-  for (const x of [-42, -32, 16, 28, 42]) C(x, -46, 1.5, 1.2, DIRT);
-  // traves do campinho já estão; banco e caixa d'água baixa de cobertura
-  C(36, 20, 1.2, 1.0, WOOD); C(44, 18, 1.3, 1.15, BR);
-  const dashes = [];
-  for (let x = -48; x < 50; x += 4) dashes.push({ t: 'decal', x0: x, z0: -31.18, x1: x + 1.7, z1: -30.88, y: 0.08, c: 0xf2c94c });
-  const props = [
-    ...dashes,
-    { t: 'truck', x: -28, z: -34.2, c: '#c46a4e' }, { t: 'truck', x: 8, z: -28.2, c: '#6a8cbf' }, { t: 'bus', x: 34, z: -34.4, c: '#e6c15a' },
-    { t: 'tree', x: -52, z: 8 }, { t: 'tree', x: -48, z: -46 }, { t: 'tree', x: 20, z: 18 }, { t: 'tree', x: 56, z: 16 }, { t: 'tree', x: -30, z: 24 }, { t: 'tree', x: 48, z: -44 },
-    { t: 'tank', x: 50, z: 4, y: 9, r: 0.9, h: 1.6, c: '#8d8a84', cap: TEAL, band: BR },
-    { t: 'sign', x: 0, y: 3.2, z: -26.7, w: 6, h: 1.2, rot: 0, text: 'RUA', bg: BR, fg: '#fff' },
-    { t: 'decal', x0: 30, z0: 16, x1: 50, z1: 16.16, y: 0.1, c: 0xf7f4ee },
-    { t: 'decal', x0: 30, z0: 31.84, x1: 50, z1: 32, y: 0.1, c: 0xf7f4ee },
-    { t: 'decal', x0: 30, z0: 16, x1: 30.16, z1: 32, y: 0.1, c: 0xf7f4ee },
-    { t: 'decal', x0: 49.84, z0: 16, x1: 50, z1: 32, y: 0.1, c: 0xf7f4ee },
-    { t: 'decal', x0: 39.92, z0: 16, x1: 40.08, z1: 32, y: 0.1, c: 0xf7f4ee },
-    { t: 'sign', x: 40, y: 2.4, z: 13.6, w: 4.2, h: 1.1, rot: Math.PI, text: 'CAMPO', bg: GRN, fg: '#fff' },
-    { t: 'sign', x: 26.3, y: 3.4, z: 2, w: 3.2, h: 1.1, rot: Math.PI / 2, text: 'BAR', bg: BLU, fg: '#fff' },
-    { t: 'keg', x: -48, z: 14 }, { t: 'keg', x: 22, z: -18 }, { t: 'keg', x: -6, z: -16 }, { t: 'keg', x: 34, z: 16 },
-  ];
-  MAPS.push({
-    id: 'morro-leitao', name: 'Morro do Leitão',
-    desc: 'Vielas e lajes de manhã: campinho marcado, rua com faixa e carros, casas de 2 e 3 andares e um platô no norte.',
-    size: [66, 56], wallH: 4, wallColor: ['#3d4a32', '#2c3824'], openMax: 8, laneMin: 40, navSpacing: 2.5,
-    fall: { y: -8, margin: 5, pit: '#142016' },
-    palette: { sky: '#9ec4ea', fog: ['#c5d4e4', 80, 210], hemi: ['#fff6e4', '#6a7a48', 1.55], sun: ['#fff1d0', 2.35], ground: '#6d6454', tiles: null, clouds: true,
-      lights: [] },
-    ...fin(boxes), props,
-    spawns: [[-38, -31], [-16, -31], [4, -31], [22, -31], [48, -31], [-52, -44], [-36, 40, 4], [-24, 34, 4], [-8, 28, 4], [16, 30, 4], [20, 40, 4], [-32, 30, 4]],
-    pickups: [['health', 0, -31], ['health', 40, 22], ['health', -24, 38, 4], ['health', 20, 6, 3],
-      ['ammo', -22, 14, 3], ['ammo', 52, 6, 6], ['ammo', -8, -31], ['ammo', -4, 42, 7],
-      ['grenade', 24, -16], ['grenade', -40, 12], ['grenade', 8, 8, 3], ['grenade', -2, -46, 3]],
-    showcase: [0, 0, -33], view: [-8, 1.6, -20, 0.4, -0.05],
-    test: {
-      stairs: { from: [-31.6, 0, 5.4], to: [-22.4, 3, 5.4], level: 3 },
-      roof: { from: [-31.6, 3, 10], to: [-22.4, 6, 10], level: 6 },
-      under: { from: [-24, 0, 16], to: [-18, 0, 16], ceil: 2.7 },
-    },
-  });
-}
-
+// ---------- 9) Morro do Leitão: gerado em favela-map.js (rodada 3) ----------
+MAPS.push(morroLeitao());
 
 export const getMap = (id) => MAPS.find((m) => m.id === id) || MAPS[0];
 // mapas jogáveis nas listas/rodízio (o Estande só abre no modo Treino; os currais do X1 só abrem no X1)
