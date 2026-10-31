@@ -8,15 +8,15 @@ Jogue em **https://docao.mvalentim.dev**
 
 🔭 **CADA LUNETA TEM A PRÓPRIA VOZ.** O estalo das três snipers estava ruim e parecido. Agora cada uma dispara do jeito do próprio ferrolho. Síntese nova, feita no projeto (`tools/synth-sniper-audio.py`) — sem sample de jogo e sem áudio de terceiros.
 
-- **Carabina da Granja:** seca e rápida. Estalo agudo, quase sem grave, cauda curta e ferrolho miúdo. Na recarga ainda escapa um assobio baixinho da granja.
-- **Sniper Torresmo:** crack crocante (o torresmo mesmo) em cima de um boom de sniper média, com eco de terreiro que decai.
-- **Canhão do Barril:** anti-material. Boom enorme, freio de boca e cauda longa. De longe vira trovão, mais grave e mais eco.
+- **Carabina da Granja:** seca e rápida. Estalo agudo, grave mais curto e ferrolho miúdo. Na recarga ainda escapa um assobio baixinho da granja.
+- **Sniper Torresmo:** crack crocante (o torresmo mesmo) em cima de um boom de sniper média. O corpo decai e acaba — sem eco.
+- **Canhão do Barril:** anti-material. Boom enorme e grave, o mais pesado dos três. De longe fica abafado, sem cauda de sala.
 
 O ferrolho continua grudado na animação: abre, puxa, solta a cápsula e fecha. Cada tiro muda um fio de tom e de volume pra não virar metrônomo. Quem está longe ouve mais grave e mais abafado, sem eco. As outras armas não mudaram de som.
 
 O primeiro passe ainda soava pequeno: o filtro de DC comia tudo abaixo de ~150 Hz, um waveshaper travava o volume e a cauda de sala deixava o tiro numa caixinha. Saiu o eco. Ficou o thump (40–120 Hz), o crack e um ganho mais alto que o fuzil — o Canhão é o mais pesado.
 
-Fora da luneta não é mais um preto chapado: fica um vidro fosco escuro, e o zoom continua nítido dentro do círculo. Vale pras três snipers.
+Fora da luneta não é mais um preto chapado: fica um vidro fosco escuro, e o zoom continua nítido dentro do círculo. Vale pras três snipers e pro modo zumbi.
 
 ## Próxima versão — Pausa na chapa, de lado
 
@@ -24,7 +24,7 @@ Fora da luneta não é mais um preto chapado: fica um vidro fosco escuro, e o zo
 
 As vozes da granada, as animações, o chat e a dança ficam no papel de Opções, do lado. À direita, a partida: modo, mapa, objetivo, tempo, K/D e placar. O jogo atrás fica escuro e desfocado.
 
-As **5 classes** ficam na faixa, sem botão no meio. Clicou numa, o centro mostra a arma grande, os acessórios e as barras, e a direita vira o arsenal em abas. Continua valendo na próxima vida, sem derrubar. 1–5 escolhe a classe. Esc volta pra partida e, de novo, fecha a pausa.
+As **5 classes** ficam na faixa, sem botão no meio. Clicou numa, o centro mostra a arma grande, os acessórios e as barras, e a direita vira o arsenal em abas. Continua valendo na próxima vida, sem derrubar. 1–5 escolhe a classe. Esc volta pra partida e, de novo, fecha a pausa. Em tela larga o cartão da partida encosta na direita, e a ficha da classe ocupa o resto da chapa.
 
 ## Próxima versão — Luneta da Carabina
 

@@ -1700,9 +1700,11 @@ body:has(#pause:not(.hidden)) #game{filter:blur(7px) brightness(.58) saturate(.9
 #pause .pause-act:focus,#pause .pause-act:focus-visible{outline:none}
 #pause button:focus-visible,#pause input:focus-visible{outline:3px solid #e7b15a;outline-offset:2px}
 @media (min-width:1600px){
-  #pause .panel.small{grid-template-columns:380px minmax(360px,480px) minmax(320px,520px);padding-right:64px;gap:32px}
+  #pause .panel.small{grid-template-columns:400px minmax(440px,1fr) minmax(400px,1fr);padding-right:40px;gap:28px}
   #pause .pause-side{padding-left:48px}
   #pause .pause-act{font-size:24px}
+  #pause .pause-options{max-width:560px}
+  #pause .pause-brief{width:min(480px,100%)}
 }
 @media(max-width:520px){
   #pauseGuns .wgrid,#pauseGuns .wgrid.small{grid-template-columns:1fr}
