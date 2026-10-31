@@ -19,7 +19,7 @@
 //  Sem exclusive, cada mapa da Invasão ganha posições de TESTE (stationsFor).
 //  doors não é simulado aqui: fica no layout pra quem implementa a porta.
 // ============================================================
-import { INV_AMMO } from './invasion.js';
+import { INV_AMMO, waveSpec } from './invasion.js';
 import { WEAPONS, PISTOL, KNIFE, UZI, P90, NAIL, SEMI, BOW, CORN_W, TAMPA, PRIMARIES, SECONDARIES } from './rules.js';
 
 export const PAPADA_NAME = 'Papada';
@@ -35,8 +35,8 @@ export const SURV = {
   boxSpin: 2.2,
   boxHold: 8,
   reach: 2.6,
-  use: 'KeyE',
-  useLabel: 'E',
+  use: 'KeyF',
+  useLabel: 'F',
   hold: 0.45,
   boxPrice: 1250,
 };
@@ -341,6 +341,83 @@ export function survRefill(e, weapons = WEAPONS) {
     got = true;
   }
   return got;
+}
+
+// ---------- curva de dificuldade (só Survival) ----------
+// O Padrão continua em waveSpec (shared/invasion.js). Aqui é a curva própria do Survival:
+// wave 1 perto de 57% da velocidade de hoje, subida suave até a velocidade normal na wave 10,
+// e daí pra frente os mesmos números do Padrão. Mexer nesta tabela recalibra o modo inteiro.
+// A quantidade cai pouco no começo: a Papada 1 continua na wave 3, a 2 na 7 e a 3 na 12.
+// O alívio é a velocidade, o lote de um em um e o intervalo maior entre os spawns.
+//
+// Frações em cima do waveSpec da mesma wave (1 = igual ao Padrão).
+//   speed  velocidade (walker, corredor, barrigão, cuspidor e chefão usam a mesma fração)
+//   count  quantidade da wave
+//   hp     vida (e a vida do chefão)
+//   dmg    dano da mordida, do cuspe e da explosão do barrigão
+//   spawn  intervalo entre lotes (>1 = nascem mais devagar)
+//   batch  tamanho do lote, em fração do lote do Padrão
+//   alive  teto de zumbis vivos ao mesmo tempo, em fração do teto do Padrão
+//   gap    pausa em segundos depois de limpar a wave
+//   lead   espera, em segundos, até o primeiro zumbi da wave
+// Entre as âncoras a fração anda com smoothstep (sem degrau). A variação de cada zumbi
+// (±8% em volta da velocidade da wave) continua no spawn, igual nos dois modos.
+const SURVIVAL_PREP = 16; // segundos antes da wave 1 (o Padrão usa INV.PREP = 12)
+const SURVIVAL_WAVE_KEYS = [
+  { w: 1, speed: 0.57, count: 0.90, hp: 0.86, dmg: 0.80, spawn: 1.50, batch: 0.50, alive: 0.23, gap: 20, lead: 1.4 },
+  { w: 3, speed: 0.68, count: 0.94, hp: 0.92, dmg: 0.88, spawn: 1.35, batch: 0.55, alive: 0.22, gap: 18, lead: 1.2 },
+  { w: 5, speed: 0.82, count: 0.98, hp: 0.97, dmg: 0.94, spawn: 1.15, batch: 0.70, alive: 0.35, gap: 16, lead: 1.0 },
+  { w: 8, speed: 0.97, count: 1, hp: 1, dmg: 1, spawn: 1.04, batch: 1, alive: 1, gap: 15, lead: 0.8 },
+  { w: 10, speed: 1, count: 1, hp: 1, dmg: 1, spawn: 1, batch: 1, alive: 1, gap: 15, lead: 0.8 },
+];
+function smoothstep01(t) {
+  const x = t < 0 ? 0 : t > 1 ? 1 : t;
+  return x * x * (3 - 2 * x);
+}
+function sampleWaveKey(w, name) {
+  const keys = SURVIVAL_WAVE_KEYS;
+  if (w <= keys[0].w) return keys[0][name];
+  const last = keys[keys.length - 1];
+  if (w >= last.w) return last[name];
+  let i = 0;
+  while (keys[i + 1].w < w) i++;
+  const a = keys[i], b = keys[i + 1];
+  return a[name] + (b[name] - a[name]) * smoothstep01((w - a.w) / (b.w - a.w));
+}
+// Um spec no mesmo formato de waveSpec, mais gap (pausa), lead (primeiro spawn) e prep.
+export function getSurvivalWaveTuning(wave, n = 1) {
+  const w = Math.max(1, wave | 0);
+  const base = waveSpec(w, n);
+  const speed = sampleWaveKey(w, 'speed');
+  const count = sampleWaveKey(w, 'count');
+  const hp = sampleWaveKey(w, 'hp');
+  const dmg = sampleWaveKey(w, 'dmg');
+  const spawn = sampleWaveKey(w, 'spawn');
+  const batch = sampleWaveKey(w, 'batch');
+  const alive = sampleWaveKey(w, 'alive');
+  return easeEarlyRunners({
+    ...base,
+    spdMul: speed === 1 ? base.spdMul : base.spdMul * speed,
+    total: count === 1 ? base.total : Math.max(8, Math.round(base.total * count)),
+    hpMul: hp === 1 ? base.hpMul : base.hpMul * hp,
+    dmgMul: dmg === 1 ? base.dmgMul : base.dmgMul * dmg,
+    bossHp: hp === 1 ? base.bossHp : base.bossHp * hp,
+    spawnEvery: spawn === 1 ? base.spawnEvery : base.spawnEvery * spawn,
+    batch: batch === 1 ? base.batch : Math.max(1, Math.round(base.batch * batch)),
+    maxAlive: alive === 1 ? base.maxAlive : Math.min(base.maxAlive, Math.max(4, Math.round(base.maxAlive * alive))),
+    gap: Math.round(sampleWaveKey(w, 'gap')),
+    lead: sampleWaveKey(w, 'lead'),
+    prep: SURVIVAL_PREP,
+    speedScale: speed,
+  }, w);
+}
+// O corredor do Padrão entra na wave 2 quase na velocidade do jogador. No Survival
+// a pistola ainda é a arma: wave 2 é só podre, o corredor volta na 3 e a mistura
+// inteira na 5. A velocidade dele, quando entra, segue a mesma fração da wave.
+function easeEarlyRunners(spec, w) {
+  if (w >= 5 || !(spec.mix && spec.mix.runner)) return spec;
+  const k = w <= 2 ? 0 : w === 3 ? 0.55 : 0.85;
+  return { ...spec, mix: { ...spec.mix, runner: spec.mix.runner * k } };
 }
 
 // ---------- layouts por mapa ----------
