@@ -274,6 +274,10 @@ export function morroLeitao() {
     const x0 = X(rx), x1 = X(rx + w), z0 = Z(ry + d), z1 = Z(ry);
     const col = matOf(rx, ry, floors);
     for (let f = 0; f < floors; f++) boxes.push(B(x0, z0, x1, z1, 2.7, f === floors - 1 ? col.roof : col.wall, y0 + f * 2.8));
+    const yWin = y0 + 1.1;
+    boxes.push(B(x0 + 0.8, z1 - 0.08, x0 + 1.7, z1 + 0.02, 0.9, '#243044', yWin));
+    boxes.push(B(x1 - 0.08, z0 + 1.2, x1 + 0.02, z0 + 2.2, 0.9, '#243044', yWin));
+    if ((Math.abs(rx) + Math.abs(ry)) % 2 === 0) props.push({ t: 'tank', x: (x0 + x1) / 2, z: (z0 + z1) / 2, y: y0 + floors * 2.8, r: 0.55, h: 1.1, c: '#d8d2c8', cap: '#e7e2d8' });
   };
   for (let i = 0; i < 18; i++) {
     const rx = -28 + (i % 9) * 18;
@@ -329,6 +333,7 @@ export function morroLeitao() {
     desc: 'Favela de manhã: Main Street no sul, becos, campinho e lajes em vários andares.',
     size: [93, 73], wallH: 0.4, wallColor: [DIRT, DIRT], openMax: 14, laneMin: 40, navSpacing: 2,
     skyline: 'favela',
+    thumb: { x: 28, y: 62, z: -48, tx: -6, ty: 6, tz: -18 },
     fall: { openWest: true, openEast: true, openNorth: true, openSouth: true },
     palette: { sky: '#9ec4ea', fog: ['#d5e0ea', 80, 240], hemi: ['#fff6e4', '#6a7a48', 1.45], sun: ['#fff1d0', 2.15], ground: DIRT, tiles: null, clouds: true, mountains: false, lights: [] },
     boxes: boxes.filter((o) => o.b),
