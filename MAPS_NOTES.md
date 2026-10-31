@@ -60,6 +60,24 @@ Spawns: 6 no norte (z 38…52) e 6 no sul (z −58…−44), distância mínima 
 
 Linha longa medida na auditoria: cerca de 100 m (a passarela ainda está reta demais; a meta do dossiê é 40–60 m). Visão quebrada: ~22% dos pares a ≥ 10 m se enxergam (teto do teste: 30%). Ponto mais aberto: 7,2 m.
 
+## Posto Nevasca — rodada 3
+
+Coordenadas atuais, no motor (x oeste negativo, z norte positivo) e na convenção do pesquisador (x_p = x + 26, y_p = 60 − z):
+
+| Volume | motor | pesquisador |
+|---|---|---|
+| Lab | x −14…10, z 36…46 | x 12…36, y 14…24 |
+| Bloco oeste (prédio do meio) | x −16…−2, z 19…31, 2º piso +3,4 m | x 10…24, y 29…41 |
+| Bloco leste | x 1,6…19,6, z 18…32 | x 27,6…45,6, y 28…42 |
+| Sala Fria | x −2…20, z −6…16 | x 24…46, y 44…66 |
+| Corredor entre os blocos | x −2…1,6 (3,6 m) | — |
+
+Na rodada 2 o lab estava em z 48…58 (y 2…12) e a Sala Fria em z 6…28 (y 32…54), cerca de 12 m mais ao norte do que a leitura do pesquisador. Os dois, mais os prédios do meio, desceram 12 m. Alas de um andar colam o lab nos prédios do meio, e um telhado liga o bloco leste à Sala Fria, para o miolo ler como um conjunto e não como caixas soltas.
+
+Visada da rampa da torre para o sudeste: **nenhuma linha livre** (origem na rampa, y > 1, x −24…−17, z 20…46; alvo com x > 5 e z < −5). O painel de 1,1 m fecha o flanco leste; a janela de 2 m ficou no norte, entre x −21,6 e −19,6. A do corredor oeste no chão é **36 m**. A amostra do auditor (a mesma que media ~112 m na rodada 1) ainda acha uma linha de **78 m** cruzando o mapa; não é mais a reta do penhasco nem a rampa.
+
+Penhasco: o muro oeste do limite do mapa não é desenhado. Aparecem a borda de rocha de 1,15 m, o mastro com a placa e a encosta até −30 m, com pinheiros. O colisor de 4 m continua invisível, com abertura no pico da curva. Morte em y < −6.
+
 ## Posto Nevasca — rodada 2
 
 Coordenadas do pesquisador: x 0 oeste → 52 leste, y 0 lab → 120 galpão. No motor, x = x_pesquisa − 26 e z = 60 − y_pesquisa. O vão entre o lab e a Sala Fria, lido no print como y 32–48, no motor é z ≈ 30–46 (o lab está em z 48–58, y de pesquisa 2–12, não 12–28).

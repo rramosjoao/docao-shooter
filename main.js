@@ -673,7 +673,19 @@ function updateHud(dt) {
   $('slot1').classList.toggle('active', p.weapon === p.slots[0]); $('slot2').classList.toggle('active', p.weapon === p.slots[1]);
   $('deathpick').classList.toggle('hidden', p.alive || gameTime - p.deathAt < DEATHCAM_HOLD); crossEl.style.visibility = p.alive ? '' : 'hidden';
   $('reloadmsg').textContent = p.reloadEnd > gameTime ? (w.shellReload ? 'Recarregando... (atire para interromper)' : 'Recarregando...') : (p.mag[p.weapon] === 0 ? (p.reserve[p.weapon] ? 'Aperte R' : 'Sem munição! Pegue uma caixa') : '');
-  const left = Math.max(0, (teamMode() ? DOM.TIME_LIMIT_DOM : TIME_LIMIT) - gameTime); $('timer').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+  const left = Math.max(0, (teamMode() ? DOM.TIME_LIMIT_DOM : TIME_LIMIT) - gameTime);
+  const clockLabel = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+  $('timer').textContent = clockLabel;
+  const clocks = worldGroup && worldGroup.userData.clocks;
+  if (clocks) for (const m of clocks) {
+    if (m.userData.last === clockLabel) continue;
+    const { ctx, canvas, tex } = m.userData.clock;
+    ctx.fillStyle = '#1c242c'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#8E2F2A'; ctx.lineWidth = 8; ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
+    ctx.fillStyle = '#F2D9A0'; ctx.font = '900 36px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(clockLabel, canvas.width / 2, canvas.height / 2);
+    tex.needsUpdate = true; m.userData.last = clockLabel;
+  }
   $('score').textContent = `Abates: ${p.kills} · Mortes: ${p.deaths} · K/D: ${(p.kills / Math.max(1, p.deaths)).toFixed(2)}`;
   const lead = entities.reduce((a, b) => (b.kills > a.kills ? b : a));
   $('leader').textContent = teamMode() ? `Dominação · primeiro time a ${DOM.WIN_CAPS} zonas vence` : lead.kills ? `Líder: ${lead.name} (${lead.kills}/${KILL_LIMIT})` : `Primeiro a ${KILL_LIMIT} abates vence`;

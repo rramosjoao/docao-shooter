@@ -53,6 +53,18 @@ function buildProp(p, ctx) {
       });
       m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot || 0; group.add(m); break;
     }
+    case 'clock': { // relógio da partida: o canvas é redesenhado no loop
+      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 64;
+      const tex = new THREE.CanvasTexture(canvas);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.h), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+      mesh.position.set(p.x, p.y, p.z); mesh.rotation.y = p.rot || 0;
+      mesh.userData.clock = { canvas, tex, ctx: canvas.getContext('2d') };
+      (group.userData.clocks = group.userData.clocks || []).push(mesh); group.add(mesh); break;
+    }
+    case 'decal': {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(p.x1 - p.x0), Math.abs(p.z1 - p.z0)), new THREE.MeshBasicMaterial({ color: p.c || 0x4a5258 }));
+      m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, p.y || 0.02, (p.z0 + p.z1) / 2); group.add(m); break;
+    }
     case 'sign': {
       const m = textPlane(p.w, p.h, (x, w, h) => {
         x.fillStyle = p.bg; x.fillRect(0, 0, w, h); x.lineWidth = 10; x.strokeStyle = '#2a1410'; x.strokeRect(5, 5, w - 10, h - 10);
@@ -268,12 +280,19 @@ export function buildWorld(map) {
     const pit = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.4, x1 - x0), Math.max(0.4, z1 - z0)), toon(map.fall.pit || '#1a2228'));
     pit.rotation.x = -Math.PI / 2; pit.position.set((x0 + x1) / 2, (map.fall.floor ?? -30), (z0 + z1) / 2); pit.receiveShadow = true; group.add(pit);
   }
+  if (map.fall && map.fall.slopes) {
+    const geos = map.fall.slopes.map((s) => boxGeo(s.x0, s.y0, s.z0, s.x1, s.y1, s.z1, { axis: s.axis, dir: s.dir }));
+    const slope = new THREE.Mesh(mergeGeometries(geos, false), toon(map.fall.slopeColor || '#e4ebf1'));
+    slope.receiveShadow = true; group.add(slope); meshes.push(slope);
+  }
   if (map.fall && map.fall.haze) {
+    const haze = new THREE.Group();
     const hazeMat = (o) => new THREE.MeshBasicMaterial({ color: 0xC9D3DC, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
-    for (const [yy, op, grow] of [[-10, 0.45, 8], [-18, 0.62, 18], [-26, 0.8, 30]]) {
+    for (const [yy, op, grow] of [[-8, 0.22, 6], [-16, 0.4, 16], [-24, 0.62, 28]]) {
       const h = new THREE.Mesh(new THREE.PlaneGeometry(hx * 2 + grow, hz * 2 + grow), hazeMat(op));
-      h.rotation.x = -Math.PI / 2; h.position.y = yy; group.add(h);
+      h.rotation.x = -Math.PI / 2; h.position.y = yy; haze.add(h);
     }
+    group.add(haze); group.userData.haze = haze;
   }
   if (pal.mountains) {
     const geo = new THREE.ConeGeometry(18, 46, 5); geo.translate(0, 18, 0);
@@ -292,7 +311,9 @@ export function buildWorld(map) {
   // limites do mapa (visual na altura wallH; colisão bem alta)
   const wh = map.wallH || 4, [wc1, wc2] = map.wallColor || ['#e86a5c', '#d85a4c'];
   add(-hx - 1, 0, -hz - 1, hx + 1, wh, -hz, wc1, null, WALL_COLLIDE_H); add(-hx - 1, 0, hz, hx + 1, wh, hz + 1, wc1, null, WALL_COLLIDE_H);
-  add(-hx - 1, 0, -hz, -hx, wh, hz, wc2, null, WALL_COLLIDE_H); add(hx, 0, -hz, hx + 1, wh, hz, wc2, null, WALL_COLLIDE_H);
+  if (map.fall && map.fall.openWest) solid(-hx - 1, 0, -hz, -hx, WALL_COLLIDE_H, hz); // colisor da borda oeste, sem muro visível
+  else add(-hx - 1, 0, -hz, -hx, wh, hz, wc2, null, WALL_COLLIDE_H);
+  add(hx, 0, -hz, hx + 1, wh, hz, wc2, null, WALL_COLLIDE_H);
   // caixas e rampas do mapa
   for (const o of map.boxes) {
     const [x0, y0, z0, x1, y1, z1] = o.b; if (x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01) continue;
@@ -400,9 +421,11 @@ export function renderThumb(map, w = 320, h = 180) {
   if (!thumbRenderer) { thumbRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); }
   thumbRenderer.setSize(w, h, false);
   const scene = new THREE.Scene(); const hemi = new THREE.HemisphereLight(); const sun = new THREE.DirectionalLight(); scene.add(hemi, sun, sun.target);
-  applyPalette(scene, hemi, sun, map); scene.fog = null;
+  applyPalette(scene, hemi, sun, map); scene.fog = null; sun.intensity = Math.max(sun.intensity, 1.15);
   if (map.palette.stars) hemi.intensity = map.palette.hemi[2] * 2.2; // noturno: um pouco mais claro na miniatura
   const { group } = buildWorld(map); scene.add(group);
+  if (group.userData.weather) group.remove(group.userData.weather.pts);
+  if (group.userData.haze) group.remove(group.userData.haze);
   const [hx, hz] = map.size, long = Math.max(hx, hz);
   const cam = new THREE.PerspectiveCamera(36, w / h, 1, 600);
   const d = long * 1.55 + 8;
