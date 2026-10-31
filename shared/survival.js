@@ -363,9 +363,9 @@ export function survRefill(e, weapons = WEAPONS) {
 // (±8% em volta da velocidade da wave) continua no spawn, igual nos dois modos.
 const SURVIVAL_PREP = 16; // segundos antes da wave 1 (o Padrão usa INV.PREP = 12)
 const SURVIVAL_WAVE_KEYS = [
-  { w: 1, speed: 0.57, count: 0.90, hp: 0.86, dmg: 0.80, spawn: 1.80, batch: 0.50, alive: 0.32, gap: 20, lead: 2.2 },
-  { w: 3, speed: 0.68, count: 0.94, hp: 0.92, dmg: 0.88, spawn: 1.45, batch: 0.55, alive: 0.48, gap: 18, lead: 1.6 },
-  { w: 5, speed: 0.82, count: 0.98, hp: 0.97, dmg: 0.94, spawn: 1.20, batch: 0.70, alive: 0.70, gap: 16, lead: 1.1 },
+  { w: 1, speed: 0.57, count: 0.90, hp: 0.86, dmg: 0.80, spawn: 1.50, batch: 0.50, alive: 0.23, gap: 20, lead: 1.4 },
+  { w: 3, speed: 0.68, count: 0.94, hp: 0.92, dmg: 0.88, spawn: 1.35, batch: 0.55, alive: 0.22, gap: 18, lead: 1.2 },
+  { w: 5, speed: 0.82, count: 0.98, hp: 0.97, dmg: 0.94, spawn: 1.15, batch: 0.70, alive: 0.35, gap: 16, lead: 1.0 },
   { w: 8, speed: 0.97, count: 1, hp: 1, dmg: 1, spawn: 1.04, batch: 1, alive: 1, gap: 15, lead: 0.8 },
   { w: 10, speed: 1, count: 1, hp: 1, dmg: 1, spawn: 1, batch: 1, alive: 1, gap: 15, lead: 0.8 },
 ];
@@ -394,7 +394,7 @@ export function getSurvivalWaveTuning(wave, n = 1) {
   const spawn = sampleWaveKey(w, 'spawn');
   const batch = sampleWaveKey(w, 'batch');
   const alive = sampleWaveKey(w, 'alive');
-  return {
+  return easeEarlyRunners({
     ...base,
     spdMul: speed === 1 ? base.spdMul : base.spdMul * speed,
     total: count === 1 ? base.total : Math.max(8, Math.round(base.total * count)),
@@ -408,7 +408,15 @@ export function getSurvivalWaveTuning(wave, n = 1) {
     lead: sampleWaveKey(w, 'lead'),
     prep: SURVIVAL_PREP,
     speedScale: speed,
-  };
+  }, w);
+}
+// O corredor do Padrão entra na wave 2 quase na velocidade do jogador. No Survival
+// a pistola ainda é a arma: wave 2 é só podre, o corredor volta na 3 e a mistura
+// inteira na 5. A velocidade dele, quando entra, segue a mesma fração da wave.
+function easeEarlyRunners(spec, w) {
+  if (w >= 5 || !(spec.mix && spec.mix.runner)) return spec;
+  const k = w <= 2 ? 0 : w === 3 ? 0.55 : 0.85;
+  return { ...spec, mix: { ...spec.mix, runner: spec.mix.runner * k } };
 }
 
 // ---------- layouts por mapa ----------
