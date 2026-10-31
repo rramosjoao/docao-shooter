@@ -57,6 +57,29 @@ function buildProp(p, ctx) {
       });
       m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot || 0; group.add(m); break;
     }
+    case 'clock': { // relógio da partida: o canvas é redesenhado no loop
+      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 64;
+      const tex = new THREE.CanvasTexture(canvas);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.h), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+      mesh.position.set(p.x, p.y, p.z); mesh.rotation.y = p.rot || 0;
+      mesh.userData.clock = { canvas, tex, ctx: canvas.getContext('2d') };
+      (group.userData.clocks = group.userData.clocks || []).push(mesh); group.add(mesh); break;
+    }
+    case 'cable': {
+      const dx = p.x1 - p.x0, dy = p.y1 - p.y0, dz = p.z1 - p.z0, len = Math.hypot(dx, dy, dz) || 0.01;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(p.r || 0.07, p.r || 0.07, len, 5), toon(p.c || '#2c3338'));
+      m.position.set((p.x0 + p.x1) / 2, (p.y0 + p.y1) / 2, (p.z0 + p.z1) / 2);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / len, dy / len, dz / len));
+      group.add(m); break;
+    }
+    case 'glow': {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(p.x1 - p.x0), Math.abs(p.z1 - p.z0)), new THREE.MeshBasicMaterial({ color: p.c || 0xF2D9A0, transparent: true, opacity: p.o || 0.85, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, p.y, (p.z0 + p.z1) / 2); group.add(m); break;
+    }
+    case 'decal': {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(p.x1 - p.x0), Math.abs(p.z1 - p.z0)), new THREE.MeshBasicMaterial({ color: p.c || 0x4a5258 }));
+      m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, p.y || 0.02, (p.z0 + p.z1) / 2); group.add(m); break;
+    }
     case 'sign': {
       const m = textPlane(p.w, p.h, (x, w, h) => {
         x.fillStyle = p.bg; x.fillRect(0, 0, w, h); x.lineWidth = 10; x.strokeStyle = '#2a1410'; x.strokeRect(5, 5, w - 10, h - 10);
@@ -231,8 +254,77 @@ function buildProp(p, ctx) {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(p.w || 1.6, p.h || 1.1), new THREE.MeshBasicMaterial({ color: p.c || '#9eb6e4', transparent: true, opacity: 0.72, side: THREE.DoubleSide, toneMapped: false, depthWrite: false }));
       m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot || 0; group.add(m); break;
     }
+    case 'pine': { // pinheiro nevado: só o tronco colide; o visual é instanciado no fim
+      if (p.y == null || p.y > -2) solid(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
+    }
+    case 'grate': { // grade da passarela: só visual
+      const w = p.x1 - p.x0, d = p.z1 - p.z0;
+      const tex = canvasTex(64, 64, (x) => { x.fillStyle = '#5c656c'; x.fillRect(0, 0, 64, 64); x.fillStyle = '#1c2428'; for (let i = 0; i < 8; i++) { x.fillRect(i * 8, 0, 2, 64); x.fillRect(0, i * 8, 64, 2); } });
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(Math.max(1, w / 2), Math.max(1, d / 2));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), toon(0xffffff, { map: tex }));
+      m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, p.y || 0.03, (p.z0 + p.z1) / 2); group.add(m); break;
+    }
+    case 'dish': { // parabólica, sem colisão
+      const r = p.r || 1.1;
+      const d = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), toon(p.c || '#d5dbe0'));
+      d.rotation.x = -0.9; d.position.set(p.x, p.y, p.z); group.add(d);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.4, 6), toon('#6E7378')); mast.position.set(p.x, p.y - 0.4, p.z); group.add(mast); break;
+    }
+    case 'heli': { // silhueta na neblina, sem colisão
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(7, 2.2, 2.4), toon('#2a3138')); body.position.y = 1.2; g.add(body);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.7, 0.7), toon('#2a3138')); tail.position.set(-5.2, 1.6, 0); g.add(tail);
+      const rotor = new THREE.Mesh(new THREE.BoxGeometry(11, 0.12, 0.35), toon('#1c2228')); rotor.position.y = 2.5; g.add(rotor);
+      g.position.set(p.x, p.y, p.z); g.rotation.y = p.rot || 0; group.add(g); break;
+    }
+    case 'dome': { // domo / tanque esférico (radar)
+      const r = p.r || 2.2, h = p.h || 1.3;
+      const g = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.04, h, 16), toon(p.c || '#9C9A94')); base.position.y = h / 2; outline(base, 0.03); g.add(base);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(r * 0.94, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), toon(p.cap || '#E8EDF2')); cap.position.y = h; outline(cap, 0.03); g.add(cap);
+      g.position.set(p.x, y, p.z); g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+      solid(p.x - r, y, p.z - r, p.x + r, y + h + r * 0.55, p.z + r); break;
+    }
+    case 'tank': { // tanque vertical (propano / combustível)
+      const r = p.r || 1.15, h = p.h || 2.5;
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), toon(p.c || '#8A8D8F')); body.position.y = h / 2; outline(body, 0.03); g.add(body);
+      const top = new THREE.Mesh(new THREE.SphereGeometry(r * 0.98, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), toon(p.cap || '#E8EDF2')); top.position.y = h; g.add(top);
+      if (p.band) { const band = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.04, r + 0.04, 0.18, 16), toon(p.band)); band.position.y = h * 0.62; g.add(band); }
+      g.position.set(p.x, y, p.z); g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+      solid(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break;
+    }
+    case 'pane': { // vidro sem colisão (claraboia / janela): tiro e gente passam
+      const ww = Math.abs((p.x1 ?? p.x) - (p.x0 ?? p.x)) || 0.04, dd = Math.abs((p.z1 ?? p.z) - (p.z0 ?? p.z)) || 0.04;
+      const horiz = (p.axis || (ww >= dd ? 'x' : 'z')) === 'y';
+      const geo = horiz ? new THREE.PlaneGeometry(Math.max(ww, 0.4), Math.max(dd, 0.4)) : new THREE.PlaneGeometry(Math.max(ww, dd), p.h || 2.2);
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: p.c || 0xBFDDEB, transparent: true, opacity: p.o ?? 0.28, side: THREE.DoubleSide, depthWrite: false }));
+      if (horiz) m.rotation.x = -Math.PI / 2;
+      else if ((p.axis || (ww >= dd ? 'x' : 'z')) === 'z') m.rotation.y = Math.PI / 2;
+      const cx = ((p.x0 ?? p.x) + (p.x1 ?? p.x)) / 2, cz = ((p.z0 ?? p.z) + (p.z1 ?? p.z)) / 2;
+      m.position.set(cx, p.y, cz); group.add(m); break;
+    }
     default: console.warn('prop desconhecido', p.t);
   }
+}
+
+function punchRect(rects, hole) {
+  const [hx0, hz0, hx1, hz1] = hole, next = [];
+  for (const [a0, b0, a1, b1] of rects) {
+    if (hx1 <= a0 || hx0 >= a1 || hz1 <= b0 || hz0 >= b1) { next.push([a0, b0, a1, b1]); continue; }
+    const cx0 = Math.max(a0, hx0), cx1 = Math.min(a1, hx1);
+    if (hz0 > b0) next.push([a0, b0, a1, hz0]);
+    if (hz1 < b1) next.push([a0, hz1, a1, b1]);
+    if (cx0 > a0) next.push([a0, Math.max(b0, hz0), cx0, Math.min(b1, hz1)]);
+    if (cx1 < a1) next.push([cx1, Math.max(b0, hz0), a1, Math.min(b1, hz1)]);
+  }
+  return next;
+}
+function fallRectsOf(map) {
+  const f = map.fall; if (!f) return [];
+  const [hx, hz] = map.size, r = (f.rects || []).map((q) => q.slice());
+  if (f.margin) { const m = f.margin; r.push([-hx, hz - m, hx, hz], [-hx, -hz, hx, -hz + m], [-hx, -hz + m, -hx + m, hz - m], [hx - m, -hz + m, hx, hz - m]); }
+  return r;
 }
 
 // ---------- mundo ----------
@@ -251,9 +343,43 @@ export function buildWorld(map) {
   };
   const solid = (x0, y0, z0, x1, y1, z1) => { solids.push({ min: new V3(x0, y0, z0), max: new V3(x1, y1, z1), ramp: null }); proxies.push(boxGeo(x0, y0, z0, x1, y1, z1)); };
 
-  // chão
+  // chão. Com map.fall, a faixa do abismo vira um plano escuro lá embaixo (o corpo morre antes de chegar).
   const ext = Math.max(hx, hz);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(ext * 2 + 260, ext * 2 + 260), toon(pal.ground)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; group.add(ground); meshes.push(ground);
+  const R = ext + 130;
+  let groundRects = [[-R, -R, R, R]];
+  const voids = fallRectsOf(map);
+  for (const v of voids) groundRects = punchRect(groundRects, v);
+  for (const [x0, z0, x1, z1] of groundRects) {
+    if (x1 - x0 < 0.2 || z1 - z0 < 0.2) continue;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), toon(pal.ground));
+    ground.rotation.x = -Math.PI / 2; ground.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2); ground.receiveShadow = true; group.add(ground); meshes.push(ground);
+  }
+  if (map.fall) for (const [x0, z0, x1, z1] of voids) {
+    const pit = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.4, x1 - x0), Math.max(0.4, z1 - z0)), toon(map.fall.pit || '#1a2228'));
+    pit.rotation.x = -Math.PI / 2; pit.position.set((x0 + x1) / 2, (map.fall.floor ?? -30), (z0 + z1) / 2); pit.receiveShadow = true; group.add(pit);
+  }
+  if (map.fall && map.fall.slopes) {
+    const geos = map.fall.slopes.map((s) => boxGeo(s.x0, s.y0, s.z0, s.x1, s.y1, s.z1, { axis: s.axis, dir: s.dir }));
+    const slope = new THREE.Mesh(mergeGeometries(geos, false), toon(map.fall.slopeColor || '#e4ebf1'));
+    slope.receiveShadow = true; group.add(slope); meshes.push(slope);
+  }
+  if (map.fall && map.fall.haze) {
+    const haze = new THREE.Group();
+    const hazeMat = (o) => new THREE.MeshBasicMaterial({ color: 0xC9D3DC, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
+    for (const [yy, op, grow] of [[-18, 0.22, 14], [-27, 0.45, 30]]) {
+      const h = new THREE.Mesh(new THREE.PlaneGeometry(hx * 2 + grow, hz * 2 + grow), hazeMat(op));
+      h.rotation.x = -Math.PI / 2; h.position.y = yy; haze.add(h);
+    }
+    group.add(haze); group.userData.haze = haze;
+  }
+  if (pal.mountains) {
+    const geo = new THREE.ConeGeometry(18, 46, 5); geo.translate(0, 18, 0);
+    const peaks = new THREE.InstancedMesh(geo, toon('#e7eef3'), 9);
+    const dummy = new THREE.Object3D();
+    const ring = [[-90, -40], [-70, 50], [-20, -100], [40, -90], [100, -30], [80, 60], [10, 100], [-100, 10], [0, -70]];
+    ring.forEach(([x, z], i) => { dummy.position.set(x, -8, z); dummy.scale.set(1, 0.7 + (i % 3) * 0.25, 1); dummy.updateMatrix(); peaks.setMatrixAt(i, dummy.matrix); });
+    group.add(peaks);
+  }
   if (pal.tiles) {
     const [c1, c2, size, count] = pal.tiles, cell = size / count;
     const tex = canvasTex(64, 64, (x) => { x.fillStyle = c1; x.fillRect(0, 0, 64, 64); x.fillStyle = c2; x.fillRect(0, 0, 32, 32); x.fillRect(32, 32, 32, 32); });
@@ -263,14 +389,21 @@ export function buildWorld(map) {
   // limites do mapa (visual na altura wallH; colisão bem alta)
   const wh = map.wallH || 4, [wc1, wc2] = map.wallColor || ['#e86a5c', '#d85a4c'];
   add(-hx - 1, 0, -hz - 1, hx + 1, wh, -hz, wc1, null, WALL_COLLIDE_H); add(-hx - 1, 0, hz, hx + 1, wh, hz + 1, wc1, null, WALL_COLLIDE_H);
-  add(-hx - 1, 0, -hz, -hx, wh, hz, wc2, null, WALL_COLLIDE_H); add(hx, 0, -hz, hx + 1, wh, hz, wc2, null, WALL_COLLIDE_H);
+  if (map.fall && map.fall.openWest) solid(-hx - 1, 0, -hz, -hx, WALL_COLLIDE_H, hz);
+  else add(-hx - 1, 0, -hz, -hx, wh, hz, wc2, null, WALL_COLLIDE_H);
+  if (map.fall && map.fall.openEast) solid(hx, 0, -hz, hx + 1, WALL_COLLIDE_H, hz);
+  else add(hx, 0, -hz, hx + 1, wh, hz, wc2, null, WALL_COLLIDE_H);
   // caixas e rampas do mapa
-  // caixas e rampas do mapa. Pisos, telhados e paredes que dividem o mesmo plano (laje por cima da parede, faixa no piso…)
-  // piscavam (z-fighting): cada face em conflito sai uns milímetros pra fora só na malha.
+  // caixas e rampas do mapa. Pisos e paredes no mesmo plano saem uns milímetros pra fora só na malha.
+  // hide: colisor do penhasco, sem malha.
   const vis = map.boxes.filter((o) => { const [x0, y0, z0, x1, y1, z1] = o.b; return !(x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01); });
-  const voff = visualOffsets(vis);
-  vis.forEach((o, i) => { const [x0, y0, z0, x1, y1, z1] = o.b; add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null, null, voff[i]); });
+  const shown = vis.filter((o) => !o.hide);
+  const voff = visualOffsets(shown);
+  for (const o of vis) if (o.hide) { const [x0, y0, z0, x1, y1, z1] = o.b; solid(x0, y0, z0, x1, y1, z1); }
+  shown.forEach((o, i) => { const [x0, y0, z0, x1, y1, z1] = o.b; add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null, null, voff[i]); });
   for (const p of map.props || []) buildProp(p, { group, solid, add });
+  buildPines((map.props || []).filter((p) => p.t === 'pine'), group);
+  if (map.weather) { const w = makeWeather(map); group.userData.weather = w; group.add(w.pts); }
   // mescla: uma malha por cor
   for (const [k, list] of byColor) {
     const geo = mergeGeometries(list, false); list.forEach((g) => g.dispose());
@@ -327,6 +460,63 @@ export function buildWorld(map) {
   return { group, solids, meshes, doors, nightLights };
 }
 
+// pinheiros instanciados: 2 draw calls para o mapa inteiro (Safari)
+function buildPines(list, group) {
+  if (!list.length) return;
+  const onMap = list.filter((p) => !(p.y < -2));
+  if (onMap.length) {
+    const trunk = new THREE.CylinderGeometry(0.26, 0.42, 3.2, 6); trunk.translate(0, 1.6, 0);
+    const cap = new THREE.ConeGeometry(1.55, 3.4, 7); cap.translate(0, 4.15, 0);
+    const trunks = new THREE.InstancedMesh(trunk, toon('#5C4636'), onMap.length);
+    const caps = new THREE.InstancedMesh(cap, toon('#E8EDF2'), onMap.length);
+    const dummy = new THREE.Object3D();
+    onMap.forEach((p, i) => {
+      dummy.position.set(p.x, p.y || 0, p.z); dummy.rotation.y = (i * 1.7) % 6; dummy.scale.setScalar(p.s || 1);
+      dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix); caps.setMatrixAt(i, dummy.matrix);
+    });
+    trunks.castShadow = caps.castShadow = true; trunks.frustumCulled = caps.frustumCulled = false; group.add(trunks, caps);
+  }
+  // na encosta, árvore própria: o branco da neblina engolia o pinheiro instanciado
+  for (const p of list.filter((q) => q.y < -2)) {
+    const s = p.s || 1, g = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.46, 3.4, 6), toon('#4a3428')); trunk.position.y = 1.7;
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(1.7, 3.6, 7), toon('#2f6b45')); cap.position.y = 4.2;
+    const snow = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.15, 6), toon('#E8EDF2')); snow.position.y = 5.7;
+    g.add(trunk, cap, snow); g.position.set(p.x, p.y, p.z); g.scale.setScalar(s); g.traverse((o) => { o.castShadow = true; }); group.add(g);
+  }
+}
+
+// neve leve: um Points só, vento na horizontal, flocos param em cima dos telhados
+function makeWeather(map) {
+  const w = map.weather, n = w.n || 1400, [hx, hz] = map.size;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() * 2 - 1) * hx; pos[i * 3 + 1] = Math.random() * (w.top || 28); pos[i * 3 + 2] = (Math.random() * 2 - 1) * hz; }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: w.color || 0xF4F7FA, size: w.size || 0.16, transparent: true, opacity: 0.85, depthWrite: false, fog: true }));
+  pts.frustumCulled = false; pts.userData.skipOutline = true;
+  return { pts, geo, n, fall: w.fall || 6.5, wind: w.wind || [2, 0, 0.4], top: w.top || 28, hx, hz, roofs: w.roofs || [], t: 0 };
+}
+
+export function updateWeather(group, dt) {
+  const w = group && group.userData.weather; if (!w || dt <= 0) return;
+  if (!w.pts.parent) group.add(w.pts);
+  w.t += dt; const gust = 1 + 0.28 * Math.sin(w.t * 0.55);
+  const a = w.geo.attributes.position.array, wx = w.wind[0] * gust * dt, wz = w.wind[2] * gust * dt, fy = w.fall * dt;
+  for (let i = 0; i < a.length; i += 3) {
+    let roofY = -1;
+    for (let r = 0; r < w.roofs.length; r++) {
+      const R = w.roofs[r];
+      if (a[i] > R[0] && a[i] < R[2] && a[i + 2] > R[1] && a[i + 2] < R[3]) { roofY = R[4]; break; }
+    }
+    if (roofY >= 0 && a[i + 1] <= roofY + 0.35) { a[i] += wx * 0.35; a[i + 2] += wz * 0.35; a[i + 1] = roofY + ((i * 17) % 10) * 0.03; }
+    else { a[i] += wx; a[i + 1] -= fy; a[i + 2] += wz; }
+    if (a[i + 1] < 0 || a[i] > w.hx || a[i] < -w.hx || a[i + 2] > w.hz || a[i + 2] < -w.hz) {
+      a[i] = (Math.random() * 2 - 1) * w.hx; a[i + 1] = w.top * (0.65 + Math.random() * 0.35); a[i + 2] = (Math.random() * 2 - 1) * w.hz;
+    }
+  }
+  w.geo.attributes.position.needsUpdate = true;
+}
+
 export function disposeWorld(group) {
   group.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -353,14 +543,17 @@ export function renderThumb(map, w = 320, h = 180) {
   if (!thumbRenderer) { thumbRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); }
   thumbRenderer.setSize(w, h, false);
   const scene = new THREE.Scene(); const hemi = new THREE.HemisphereLight(); const sun = new THREE.DirectionalLight(); scene.add(hemi, sun, sun.target);
-  applyPalette(scene, hemi, sun, map); scene.fog = null;
+  applyPalette(scene, hemi, sun, map); scene.fog = null; sun.intensity = Math.max(sun.intensity, 1.15);
   if (map.palette.stars) hemi.intensity = map.palette.hemi[2] * 2.2; // noturno: um pouco mais claro na miniatura
   const { group } = buildWorld(map); scene.add(group);
+  if (group.userData.weather) group.remove(group.userData.weather.pts);
+  if (group.userData.haze) group.remove(group.userData.haze);
   const [hx, hz] = map.size, long = Math.max(hx, hz);
   const cam = new THREE.PerspectiveCamera(36, w / h, 1, 600);
   const d = long * 1.55 + 8;
-  if (hz > hx * 1.2) cam.position.set(d * 0.78, d * 0.72, 0); else cam.position.set(0, d * 0.72, d * 0.78);
-  cam.lookAt(0, 0, 0);
+  if (map.thumb) { cam.position.set(map.thumb.x, map.thumb.y, map.thumb.z); cam.lookAt(map.thumb.tx, map.thumb.ty, map.thumb.tz); }
+  else if (hz > hx * 1.2) { cam.position.set(d * 0.78, d * 0.72, 0); cam.lookAt(0, 0, 0); }
+  else { cam.position.set(0, d * 0.72, d * 0.78); cam.lookAt(0, 0, 0); }
   thumbRenderer.render(scene, cam);
   const url = thumbRenderer.domElement.toDataURL('image/jpeg', 0.85);
   disposeWorld(group);

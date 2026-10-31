@@ -175,7 +175,7 @@ export const REV2 = 24; // Dois Capatazes (akimbo)
 export const TAMPA = 25; // Tampa do Tacho (escudo). 23 e 24 são os revólveres.
 export const isSaber = (i) => !!(WEAPONS[i] && WEAPONS[i].saber); // Sabre (8) ou Sabre Duplo (17)
 export const isAssault = (i) => !!(WEAPONS[i] && WEAPONS[i].cat === 'ar');
-export const PRIMARIES = [0, COMMANDO, UZI, P90, FAMAS, 1, 2, 5, 6, 3, SEMI, DISC_W, CORN_W, LMG, TAMPA], PISTOL = 4, KNIFE = 7, SABER = 8, W_NADE = -1;
+export const PRIMARIES = [0, COMMANDO, UZI, P90, FAMAS, 1, 2, 5, 6, 3, SEMI, DISC_W, CORN_W, LMG, TAMPA], PISTOL = 4, KNIFE = 7, SABER = 8, W_NADE = -1, W_FALL = -3;
 export const SECONDARIES = [PISTOL, NAIL, CROSS, BOW, EGG_W, REV, REV2];
 export const MELEES = [KNIFE, SABER, SABER2];
 export const BOT_PRIMARIES = [0, COMMANDO, LMG, UZI, P90, FAMAS, 1, SEMI, 2, 5, 6, 3, CORN_W];
@@ -206,7 +206,6 @@ export const SABER_COLORS = [
   { id: 'amarelo', hex: '#ffe14a' },
   { id: 'branco', hex: '#f4fbff' },
 ];
-
 // Copo Bomba (granada)
 export const NADE = { max: 3, spawnWith: 1, fuse: 2.5, charge: 1.2, step: 1 / 120, radius: 6, maxDmg: 130, selfMul: 0.4, grav: -20, r: 0.14, pickupRespawn: 20, knock: 14, lift: 7 };
 // Pokébola (código "pokebola" no chat): joga no Q no lugar do copo; ao abrir engole todo inimigo no raio (com linha livre).
@@ -214,7 +213,7 @@ export const POKE = { fuse: 1.4, radius: 5.5, max: 3 };
 export const isPokeCode = (text) => /pok[eé]\s*bola/i.test(String(text || ''));
 // Minigun (código "minigun" no chat): troca a primária pela minigun até morrer
 export const isMiniCode = (text) => /\bmini\s*-?\s*gun\b/i.test(String(text || ''));
-export const WEAPON_SHORT = (i) => (i === W_NADE ? 'Copo Bomba' : WEAPONS[i] ? WEAPONS[i].short : '?');
+export const WEAPON_SHORT = (i) => (i === W_NADE ? 'Copo Bomba' : i === W_FALL ? 'Penhasco' : WEAPONS[i] ? WEAPONS[i].short : '?');
 export const BOT_DEFS = [
   { name: 'Farofa' }, { name: 'Pipoca' }, { name: 'Trufa' }, { name: 'Bolota' }, { name: 'Torresmo' }, { name: 'Paçoca' }, { name: 'Linguiça' }, { name: 'Quindim' }, { name: 'Coxinha' }, { name: 'Pururuca' },
 ];

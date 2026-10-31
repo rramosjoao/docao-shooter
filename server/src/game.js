@@ -17,14 +17,14 @@ import { SKINS, skinOk } from '../../skins.js';
 import { EARN, knifeKind, sniperKind, parseGuns } from '../../shared/closet.js';
 import { CHAL_MODES } from '../../shared/challenges.js';
 import { cleanName, uniqueName, NAME_MAX } from '../../shared/names.js';
-import { KILL_LIMIT, TIME_LIMIT, normTime, RESPAWN_TIME, INVULN, JUMP, SPEED, BOT_SPEED, EYE, WEAPONS, PRIMARIES, SECONDARIES, MELEES, PISTOL, KNIFE, SABER, SABER2, isSaber, POKE, isPokeCode, MINIGUN, isMiniCode, UZI, P90, DISC_W, CORN_W, EGG_W, NAIL, SEMI, MELEE, W_NADE, NADE, BACON_ITEM, noteHurt, resetRegen, regenStep, BOT_DEFS, BOT_RANGE, TAG_COLORS, TAMPA, RAY } from '../../shared/rules.js';
+import { KILL_LIMIT, TIME_LIMIT, normTime, RESPAWN_TIME, INVULN, JUMP, SPEED, BOT_SPEED, EYE, WEAPONS, PRIMARIES, SECONDARIES, MELEES, PISTOL, KNIFE, SABER, SABER2, isSaber, POKE, isPokeCode, MINIGUN, isMiniCode, UZI, P90, DISC_W, CORN_W, EGG_W, NAIL, SEMI, MELEE, W_NADE, W_FALL, NADE, BACON_ITEM, noteHurt, resetRegen, regenStep, BOT_DEFS, BOT_RANGE, TAG_COLORS, TAMPA, RAY } from '../../shared/rules.js';
 import { normBotDiff, applyBotDiff, profileOf, nextThink, considerTarget, hitscanAim, nadeChoice, nadeWaitFor, nadeCooldown, rollStrafe, wantPanicReload, wantSafeReload, refreshCover, refreshFlank, hearGunshot as noteGunshot, scopeDelay } from '../../shared/bot-difficulty.js';
 import { SHIELD, isShieldW, shieldRaised, resetShield, bulletOnShield, splashOnShield, meleeOnShield, hurtShield, noteBlocked, shieldBashHit, classifyRay, raisedAt, shieldAim, aimOffset, botWantsShield } from '../../shared/shield.js';
 import { normWeapons, normPowers, clampLoadout, botPool, weaponOn, powerOn } from '../../shared/loadout.js';
 import { clampKitMap, defaultKit, resolveWeapon } from '../../shared/attachments.js';
 import { DANCE_TIME, danceId } from '../../shared/emote.js';
 import { meleeHit, MELEE_KINDS } from '../../shared/melee.js';
-import { mapSolids, createPhysics, raySphere, HITBOXES, rayHitboxes } from '../../shared/physics.js';
+import { mapSolids, createPhysics, raySphere, HITBOXES, rayHitboxes, fellOff, FALL_FLOOR } from '../../shared/physics.js';
 import { stanceScale, stanceHeight, stepCrouch } from '../../shared/stance.js';
 import { traceShot } from '../../shared/penetration.js';
 import { DISC, stepDisc } from '../../shared/disc.js';
@@ -244,7 +244,8 @@ export class Game {
     if (this.invasion) for (const b of [...this.ents.values()]) if (b.bot) { this.ents.delete(b.id); } // começa sem zumbi velho/bot
     const map = getMap(id); this.mapId = id; this.map = map;
     this.surv = this.survival ? createMatchSurvival(map) : null;
-    const solids = mapSolids(map).concat(this.surv ? closedDoorSolids(map, this.surv.open) : []); this.P = createPhysics(solids, map.size);
+    this.fall = map.fall || null;
+    const solids = mapSolids(map).concat(this.surv ? closedDoorSolids(map, this.surv.open) : []); this.P = createPhysics(solids, map.size, map.fall || null);
     const spawnSrc = this.survival && map.survival ? map.survival.playerSpawns : map.spawns;
     this.spawns = spawnSrc.map(([x, z, y = 0]) => ({ x, y: this.P.groundAt(x, z, y + 0.3), z }));
     const navSeeds = map.spawns.map(([x, z, y = 0]) => [x, this.P.groundAt(x, z, y + 0.3), z]);
@@ -490,11 +491,11 @@ startMsg() {
         // Sabre não reduz o teto: a punição de movimento saiu. A folga extra só existe enquanto a investida autorizada está no ar.
         const maxH = (SPEED * 1.35 * (e.ghostUntil > this.T ? 1.4 : 1) + (knocked ? 22 : 0)) * dt + 0.6 + dashExtra;
         const [hx, hz] = this.map.size;
-        const inside = Math.abs(p.x) <= hx && Math.abs(p.z) <= hz && p.y >= -0.5 && p.y < 45;
+        const inside = Math.abs(p.x) <= hx && Math.abs(p.z) <= hz && p.y >= (this.fall ? FALL_FLOOR : -0.5) && p.y < 45;
         if (this.test && m.tp) { e.pos = p; e.lastKnock = this.T; }
         else if (horiz > maxH || !inside || this.P.overlapping(p.x, p.y, p.z, 0.03, stanceHeight(e)) || (p.y - e.pos.y > (knocked ? 12 : 3.2) * Math.max(dt, 0.25) + 1)) {
           e.badMoves = (e.badMoves || 0) + 1; this.toMe(e, ['pos', arr3(e.pos)]); // anti-cheat: devolve pra última posição válida
-        } else { e.pos = p; if (v) e.vel = { x: clamp(v.x, -40, 40), y: clamp(v.y, -60, 40), z: clamp(v.z, -40, 40) }; }
+        } else { e.pos = p; if (v) e.vel = { x: clamp(v.x, -40, 40), y: clamp(v.y, -60, 40), z: clamp(v.z, -40, 40) }; if (e.alive && fellOff(this.fall, e.pos.y)) this.kill(e, null, W_FALL, false); }
         e.lastUpd = t;
       }
       if (Number.isFinite(m.y)) e.yaw = m.y + Math.PI; // câmera → modelo
@@ -1607,7 +1608,7 @@ startMsg() {
   rebuildDoors() {
     if (!this.map || !this.surv) return;
     const solids = mapSolids(this.map).concat(closedDoorSolids(this.map, this.surv.open));
-    this.P = createPhysics(solids, this.map.size);
+    this.P = createPhysics(solids, this.map.size, this.map.fall || null);
     const seeds = this.map.spawns.map(([x, z, y = 0]) => [x, this.P.groundAt(x, z, y + 0.3), z]);
     this.nav = buildNav({ hx: this.map.size[0], hz: this.map.size[1], spacing: this.map.navSpacing || 2, collides: this.P.collides, groundAt: this.P.groundAt, solids, topAt: this.P.topAt, seeds, extra: this.map.waypoints || [] });
     if (this.inv) { this.inv.A.P = this.P; this.inv.A.nav = this.nav; this.inv.rev = null; for (const z of this.inv.zombies) z.node = null; }
@@ -1771,6 +1772,7 @@ startMsg() {
     else if (dashing) { const rate = (b.saber.dashDist || 0) / Math.max(0.05, b.saber.dashDur || 0.16); b.vel.x = b.saber.dashDir.x * rate; b.vel.z = b.saber.dashDir.z * rate; }
     else { const acc = b.onGround ? 10 : 3; b.vel.x += (mx - b.vel.x) * Math.min(1, acc * dt); b.vel.z += (mz - b.vel.z) * Math.min(1, acc * dt); }
     const blocked = this.P.moveEntity(b, dt);
+    if (b.alive && fellOff(this.fall, b.pos.y)) { this.kill(b, null, W_FALL, false); return; }
     if (blocked) { b.stuck += dt; if (b.onGround) b.vel.y = JUMP; if (b.stuck > 1.2) { b.wp = this.randomWaypoint(); b.path = null; b.lastSeenAt = -99; b.strafeDir *= -1; b.stuck = 0; b.stuckCount = (b.stuckCount || 0) + 1; } }
     else b.stuck = Math.max(0, b.stuck - dt);
     let d = desiredYaw - b.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); b.yaw += d * Math.min(1, dt * mind.turn);

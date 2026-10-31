@@ -34,7 +34,7 @@ import { createNightAmbience } from './night-ambience.js';
 import { createInvMusic } from './invasion-music.js';
 import { makeZombie, animateZombie, dieZombie, applyHalloweenPalette, buildHalloween, makeFogWall, makeDropMesh, tickDrop, makeSpitMesh, makePowerPumpkin, makeRing, tickRing, makeLanternCone, setGhostLook } from './invasion-gfx.js';
 import { TRAIN, isTraining, dummyX } from './shared/training.js';
-import { buildWorld, disposeWorld, applyPalette, renderThumb } from './world.js';
+import { buildWorld, disposeWorld, applyPalette, renderThumb, updateWeather } from './world.js';
 import { buildNav } from './nav.js';
 import { initBacon, spawnBacon, updateBacon, clearBacon, popModel, baconStats, activeBacons, edibleBacons, eatBacon, BACON } from './bacon.js';
 import { Net, createRoom, roomInfo } from './net.js';
@@ -48,7 +48,8 @@ import { explosionHits, rayCapsule, ROCKET_PAD, sniperSpread, shotKnock } from '
 import { meleeHit, MELEE_KINDS } from './shared/melee.js';
 import { SABER_KIT, profileOf as saberProfile, moveScale, ensureSaber, stepStamina, guardOpen, inFront, payGuard, payProjectile, bladeTouch, peekSwing, commitSwing, applySwing, tryDash, trySpecial, spinDue, catchBlade, botSkill, botPlan, targetsInArc, aimForward } from './shared/saber.js';
 import { DOM, TEAM_NAMES, TEAM_COLORS, TEAM_HEX, TEAM_DARK, pickZone, newZoneState, zoneCounts, stepZone, inZone, smallerTeam } from './shared/domination.js';
-import { BACON_ITEM, noteHurt, resetRegen, regenStep } from './shared/rules.js';
+import { BACON_ITEM, noteHurt, resetRegen, regenStep, W_FALL } from './shared/rules.js';
+import { fellOff } from './shared/physics.js';
 import { BOMB, W_BOMB, SIDE_NAMES, SITE_NAMES, attackTeam, sideOf, bombLayout, newBombState, startRound, stepBomb, blastVictims, unpackBomb, spawnList, botObjective, bombFrozen, bombCanUse, plantNow, siteAt } from './shared/bomb.js';
 import { makeBotijao, makeSiteMark } from './bomb-gfx.js';
 import { KS_KILL_NAME, heliPos, GUNNER, heliOrbit, AC130 } from './shared/killstreaks.js';
@@ -93,6 +94,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.autoClear = false;
 
 const scene = new THREE.Scene();
@@ -166,7 +168,7 @@ function placeNameTags() {
 let solids = [], worldMeshes = [], SPAWNS = [], nav = null, currentMap = null, worldGroup = null, mapBounds = [36, 36];
 // Física/colisão: a MESMA implementação do servidor (shared/physics.js) — a predição online bate com o servidor.
 let PHYS = createPhysics([], mapBounds);
-function indexSolids() { PHYS = createPhysics(solids, mapBounds); } // broadphase em grade 4 m + movimento compartilhado
+function indexSolids(map = currentMap) { PHYS = createPhysics(solids, mapBounds, map && map.fall); } // broadphase em grade 4 m + movimento compartilhado
 const solidsAt = (x, z) => PHYS.solidsAt(x, z);
 const topAt = (s, x, z) => PHYS.topAt(s, x, z);
 // AABB completo: só bloqueia se o corpo (pés..cabeça) cruza a caixa; dá pra andar debaixo de lajes e 2º andar
@@ -174,6 +176,11 @@ const collides = (x, y, z) => PHYS.collides(x, y, z);
 const groundAt = (x, z, y) => PHYS.groundAt(x, z, y);
 const ceilingAt = (x, z, headY) => PHYS.ceilingAt(x, z, headY);
 const moveEntity = (e, dt) => PHYS.moveEntity(e, dt);
+function checkFall(e) {
+  if (!e.alive || !currentMap || !fellOff(currentMap.fall, e.pos.y)) return;
+  if (online && e.isPlayer) return; // online quem mata é o servidor, pra não contar duas vezes
+  kill(e, null, W_FALL, false);
+}
 
 const raycaster = new THREE.Raycaster();
 function wallDistance(o, d, far) {
@@ -3028,6 +3035,7 @@ const SELF_PHRASES = [(t) => `${t} se pururucou`, (t) => `${t} virou bacon sozin
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
 function showStamp(wIdx) { const s = $('stamp'); s.textContent = isKnife(wIdx) ? 'MOGGADO!' : wIdx === TAMPA ? 'AMASSADO!' : wIdx === W_BOMB ? 'EXPLODIDO!' : wIdx === EGG_W ? 'OMELETADO!' : 'PURURUCADO!'; s.classList.remove('show'); void s.offsetWidth; s.classList.add('show'); }
 function addKillFeed(a, t, wIdx, head, back = false, label = null, fx = 0) {
+  if (wIdx === W_FALL) { addFeedLine(`${escapeHtml(t.name)} despencou do penhasco`, `${t.name} despencou`); return; }
   if (wIdx === W_BOMB) { const n = `<b class="${t.isPlayer ? 'me' : ''}">${escapeHtml(t.name)}</b>`; addFeedLine(pick(BOOM_PHRASES)(n), `${t.name} explodiu com o botijão`); return; }
   const div = document.createElement('div'); div.className = 'kf' + (isKnife(wIdx) ? ' knife' : '');
   const nm = (e) => `<b class="${e.isPlayer ? 'me' : ''}">${escapeHtml(e.name)}</b>`;
@@ -3119,6 +3127,8 @@ function updateHud(dt) {
   paintSaberHud(p, w);
   const left = Math.max(0, matchLimit() - gameTime); $('timer').textContent = armsMode() ? WEAPONS[p.primary].short : exploreMode() ? '∞' : x1Mode() && !Number.isFinite(matchLimit()) ? 'até 10' : Number.isFinite(left) ? `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}` : 'Treino ∞';
   if ($('pauseTime') && !$('pause').classList.contains('hidden')) $('pauseTime').textContent = $('timer').textContent;
+  { const clockLabel = $('timer').textContent; const clocks = worldGroup && worldGroup.userData.clocks;
+    if (clocks) for (const m of clocks) { if (m.userData.last === clockLabel) continue; const { ctx, canvas, tex } = m.userData.clock; ctx.fillStyle = '#1c242c'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.strokeStyle = '#8E2F2A'; ctx.lineWidth = 8; ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12); ctx.fillStyle = '#F2D9A0'; ctx.font = '900 36px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(clockLabel, canvas.width / 2, canvas.height / 2); tex.needsUpdate = true; m.userData.last = clockLabel; } }
   $('score').textContent = exploreMode() ? `Exploração · ${currentMap ? currentMap.name : ''}` : `Abates: ${p.kills} · Mortes: ${p.deaths} · K/D: ${(p.kills / Math.max(1, p.deaths)).toFixed(2)} · Pontos: ${feedbackPoints()}`;
   const lead = entities.filter((e) => !e.zt).reduce((a, b) => (b.kills > a.kills ? b : a));
   const killGoal = x1Mode() ? X1.KILLS : KILL_LIMIT;
@@ -4586,7 +4596,7 @@ function updatePlayer(dt) {
   p.vel.x += (wish.x - p.vel.x) * Math.min(1, acc * dt); p.vel.z += (wish.z - p.vel.z) * Math.min(1, acc * dt);
   if (!guiding && jumpPressed && p.onGround && !bombLock(p)) { p.vel.y = JUMP; p.onGround = false; sfx.jump(); }
   saberPreMove(p, dt);
-  moveEntity(p, dt);
+  moveEntity(p, dt); checkFall(p); if (!p.alive) return;
   const bob = p.onGround ? Math.abs(Math.sin(fp.bob)) * 0.05 * stanceScale(p.crouch) : 0;
   stepRecoil(p, dt, gameTime);
   stepFlinch(dt);
@@ -4789,7 +4799,7 @@ function updateBot(b, dt) {
   if (b.shieldDashUntil > gameTime) { b.vel.x = Math.sin(b.yaw) * SHIELD.charge.speed; b.vel.z = Math.cos(b.yaw) * SHIELD.charge.speed; }
   else if (botDash) { const rate = b.saber.dashDist / Math.max(0.05, b.saber.dashDur || 0.16); b.vel.x = b.saber.dashDir.x * rate; b.vel.z = b.saber.dashDir.z * rate; }
   else { const acc = b.onGround ? 10 : 3; b.vel.x += (move.x - b.vel.x) * Math.min(1, acc * dt); b.vel.z += (move.z - b.vel.z) * Math.min(1, acc * dt); }
-  const blocked = moveEntity(b, dt);
+  const blocked = moveEntity(b, dt); checkFall(b); if (!b.alive) return;
   if (blocked) { b.stuck += dt; if (b.onGround) b.vel.y = JUMP; if (b.stuck > 1.2) { b.wp = randomWaypoint(); b.path = null; b.lastSeenAt = -99; b.strafeDir *= -1; b.stuck = 0; b.stuckCount = (b.stuckCount || 0) + 1; } }
   else b.stuck = Math.max(0, b.stuck - dt);
   let d = desiredYaw - b.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); b.yaw += d * Math.min(1, dt * mind.turn);
@@ -5725,7 +5735,7 @@ function loadMap(id, inv = false) { // inv: Invasão tem mais caixas de muniçã
   const w = buildWorld(map); worldGroup = w.group; scene.add(worldGroup);
   doorGroups = new Map(); for (const g of w.doors || []) doorGroups.set(g.userData.doorId, g);
   nightLights = w.nightLights || []; nightAmb.stop();
-  solids = w.solids; worldMeshes = w.meshes; mapBounds = map.size; indexSolids();
+  solids = w.solids; worldMeshes = w.meshes; mapBounds = map.size; indexSolids(map);
   applyPalette(scene, hemi, sun, map); fpHemi.intensity = map.palette.stars ? 1.25 : 1.8;
   SPAWNS = map.spawns.map(([x, z, y = 0]) => new V3(x, groundAt(x, z, y + 0.3), z));
   for (const [t, x, z, y] of inv && map.invPickups ? [...map.pickups, ...map.invPickups] : map.pickups) makePickup(t, x, z, y || 0);
@@ -6331,6 +6341,7 @@ function loop() {
       frameVictoryCam();
     }
   }
+  if (worldGroup) updateWeather(worldGroup, dt);
   renderer.clear();
   const camO = window.__cam; // testes/screenshots: câmera livre { p: [x, y, z], t: [x, y, z], fov }
   if (camO) { camera.position.set(...camO.p); camera.lookAt(...camO.t); if (camO.fov && camera.fov !== camO.fov) { camera.fov = camO.fov; camera.updateProjectionMatrix(); } }
