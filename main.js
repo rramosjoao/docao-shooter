@@ -28,7 +28,7 @@ import { SKINS, getSkin, DEFAULT_SKIN, skinOk } from './skins.js';
 import './costumes.js';
 import { MAPS, PLAY_MAPS, INV_MAPS, BOMB_MAPS, X1_MAPS, getMap, BOMB_MAP } from './maps.js';
 import { INV, INV_AMMO, DROP_KEYS, invRefillAmmo, isInvasion, ZOMBIES, POWERS, POWER_KEYS, KEYS, SPIT_GRAV, InvasionCore, parseState, coreView, scaleHit } from './shared/invasion.js';
-import { SURV, PAPADA_NAME, BOX_NAME, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, bindStations, exclusiveSurvivalMap, papTierOf, survRefill, cornPopDmg, statLine, fmtPts, papRefuse } from './shared/survival.js';
+import { SURV, PAPADA_NAME, BOX_NAME, isSurvival, normSurv, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall, applySurvivalLoadout, grantHit, grantKill, bindStations, exclusiveSurvivalMap, papTierOf, survRefill, cornPopDmg, statLine, fmtPts, papRefuse, needsAmmo } from './shared/survival.js';
 import { makePapada, makeMysteryBox, makeWallGun, makeOfferGun, tickStation } from './survival-gfx.js';
 import { createInvMusic } from './invasion-music.js';
 import { makeZombie, animateZombie, dieZombie, applyHalloweenPalette, buildHalloween, makeFogWall, makeDropMesh, tickDrop, makeSpitMesh, makePowerPumpkin, makeRing, tickRing, makeLanternCone, setGhostLook } from './invasion-gfx.js';
@@ -7786,6 +7786,41 @@ function survBuild(layout) {
   const walls = layout.walls.map((w) => { const m = put(makeWallGun(WEAPONS[w.w] ? WEAPONS[w.w].short : 'Arma', fmtPts(w.price)), w, w.yaw); m.userData.wall = w; return m; });
   survGfx = { layout, meshes, pap, box, walls, offer: null };
 }
+// Marcadores fora da tela caem no mesmo canto e cobrem o placar. Sobe um por vez até sair da HUD e um do outro.
+function unstickSurvMarks() {
+  const ids = ['papMark', 'boxMark'];
+  const blocks = [];
+  for (const id of ['score', 'tl', 'invhud', 'bottomleft', 'ammo', 'wname', 'slots', 'sPrompt', 'papCard']) {
+    const e = $(id);
+    if (!e || e.classList.contains('hidden')) continue;
+    const st = getComputedStyle(e);
+    if (st.display === 'none' || st.visibility === 'hidden') continue;
+    const r = e.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    blocks.push(r);
+  }
+  const placed = [];
+  const hit = (a, b) => !(a.right < b.left + 2 || a.left > b.right - 2 || a.bottom < b.top + 2 || a.top > b.bottom - 2);
+  for (const id of ids) {
+    const el = $(id);
+    if (!el || el.classList.contains('hidden')) continue;
+    const w = el.offsetWidth || 96, h = el.offsetHeight || 40;
+    let x = parseFloat(el.style.left) || innerWidth / 2;
+    let y = parseFloat(el.style.top) || innerHeight / 2;
+    const box = (px, py) => ({ left: px - w / 2, right: px + w / 2, top: py - h / 2, bottom: py + h / 2 });
+    for (let n = 0; n < 14; n++) {
+      const a = box(x, y);
+      if (!blocks.some((b) => hit(a, b)) && !placed.some((b) => hit(a, b))) break;
+      y -= h + 8;
+      if (y - h / 2 < 8) { y = innerHeight - h / 2 - 8 - (n % 3) * (h + 8); x += w + 12; }
+    }
+    x = Math.max(w / 2 + 4, Math.min(innerWidth - w / 2 - 4, x));
+    y = Math.max(h / 2 + 4, Math.min(innerHeight - h / 2 - 4, y));
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    placed.push(box(x, y));
+  }
+}
 function survNearest() {
   if (!survGfx || !player) return null;
   const spots = [{ kind: 'pap', p: survGfx.layout.papada, mesh: survGfx.pap }, { kind: 'box', p: survGfx.layout.box, mesh: survGfx.box }, ...survGfx.walls.map((m, i) => ({ kind: 'wall', p: survGfx.layout.walls[i], mesh: m, i }))];
@@ -7898,9 +7933,10 @@ function survPrompt(hit) {
     const wall = hit.p, name = WEAPONS[wall.w] ? WEAPONS[wall.w].name : 'Arma';
     const on = player.slotOn || [1, 1, 1];
     const owns = player.slots && ((on[0] && player.slots[0] === wall.w) || (on[1] && player.slots[1] === wall.w));
+    const need = owns && needsAmmo(player, wall.w);
     const cost = owns ? wall.ammo : wall.price;
-    p1 = `${name} · ${fmtPts(cost)} pts`;
-    p2 = (player.pts | 0) < cost ? `falta ${fmtPts(cost - (player.pts | 0))}` : (owns ? `munição · ${segure}` : segure);
+    p1 = owns && !need ? name : `${name} · ${fmtPts(cost)} pts`;
+    p2 = !owns ? ((player.pts | 0) < cost ? `falta ${fmtPts(cost - (player.pts | 0))}` : segure) : need ? ((player.pts | 0) < cost ? `munição · falta ${fmtPts(cost - (player.pts | 0))}` : `munição · ${segure}`) : 'munição cheia';
   }
   el.classList.remove('hidden'); el.querySelector('.bp1').innerHTML = p1; el.querySelector('.bp2').innerHTML = p2;
 }
@@ -7934,6 +7970,7 @@ function survTick(dt) {
     };
     pin('papMark', survGfx.layout.papada, '#ff7a18');
     pin('boxMark', survGfx.layout.box, '#ffd24a');
+    unstickSurvMarks();
   }
   survPaintHeld();
   if (player && player.papUntil && gameTime >= player.papUntil && player.papGun === player.weapon) { player.papUntil = 0; survPaintHeld(); }

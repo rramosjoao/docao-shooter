@@ -8,15 +8,15 @@ Jogue em **https://docao.mvalentim.dev**
 
 🎃 **SÓ NO SURVIVAL.** No menu da Invasão entrou o seletor **Padrão / Survival**. Padrão continua o de sempre (loadout, sem loja). Survival vale pra sala inteira, inclusive respawn e reinício: todo mundo nasce de **pistola e faca**.
 
-🔥 **PAPADA.** Máquina de upgrade, 3 tiers na mesma arma: **10.000**, **25.000** e **50.000** pontos da partida. Segura a arma, aperta **F**, ela fica ~2,6 s na brasa e volta mais forte, com pente e reserva maiores, munição cheia, nome novo (na Brasa / Defumado / Pururuca) e camuflagem. O prompt mostra dano antes → depois, pente, reserva, cadência e recarga, e avisa se falta ponto. Faca, sabre, tampa e minigun não entram. Tier 3 não sobe de novo.
+🔥 **PAPADA.** Máquina de upgrade, 3 tiers na mesma arma: **10.000**, **25.000** e **50.000** pontos da partida. Segura a arma, segura **E**, ela fica ~2,6 s na brasa e volta mais forte, com pente e reserva maiores, munição cheia, nome novo (na Brasa / Defumado / Pururuca) e camuflagem. O prompt mostra dano antes → depois, pente, reserva, cadência e recarga, e avisa se falta ponto. Faca, sabre, tampa e minigun não entram. Tier 3 não sobe de novo.
 
 🎪 **BARRACA DA SORTE.** **1.250** pontos, gira uma arma e dá pra pegar ou deixar. Com duas armas, troca a que está na mão.
 
-🪵 **ARMAS NA PAREDE.** Pistolinha (500 / munição 250), MP5K (1.100 / 450), Furadeira (900 / 350), Arco (1.000 / 400), Semi (1.300 / 500) e P90 (1.500 / 550). Quem já tem a arma compra só a munição.
+🪵 **ARMAS NA PAREDE.** Pistolinha (500 / munição 250), MP5K (1.100 / 450), Furadeira (900 / 350), Arco (1.000 / 400), Semi (1.300 / 500) e P90 (1.500 / 550). Quem já tem a arma compra só a munição. Pente cheio: o prompt diz "munição cheia" e não cobra de novo.
 
 🪙 **PONTOS DA PARTIDA.** Não é Docoin. Acerto em zumbi +10 (teto 36 por zumbi), abate 120/90/140/240/700 (podre, corredor, cuspidor, barrigão, chefão) e +50 no focinho. Solo, na pistola, a Papada 1 chega na wave 3, a 2 na 7 e a 3 na 12. Morreu: volta pistola e faca, mas o tier e os pontos ficam. O servidor debita. Fora do Survival, nada disso existe.
 
-🗺️ **MAPA.** A Papada e a Barraca ficam no chão livre, perto de um spawn, com facho de luz. As armas encostam numa parede de verdade, na altura do peito, com giz, plaquinha e o preço. Um marcador na tela aponta a Papada e a Barraca. Perto, o prompt é **Segure E**. Pra registrar o mapa único (Hotmilk à noite): `registerSurvivalMap('hotmilk-noite', { exclusive: true, papada, box, walls, doors })`. Sem `exclusive`, o jogo calcula as paredes pela geometria do mapa escolhido.
+🗺️ **MAPA.** A Papada e a Barraca ficam no chão livre, perto de um spawn, com facho de luz. As armas encostam numa parede de verdade, na altura do peito, com giz, plaquinha e o preço. Um marcador na tela aponta a Papada e a Barraca, sem cair em cima do placar. Perto, o prompt é **Segure E**. Pra registrar o mapa único (Hotmilk à noite): `registerSurvivalMap('hotmilk-noite', { exclusive: true, papada, box, walls, doors })`. Sem `exclusive`, o jogo calcula as paredes pela geometria do mapa escolhido.
 
 🔊 Arma upada ganha um zap por cima do som original (oscilador descendo, ring mod e ressonador), mais forte a cada tier.
 
