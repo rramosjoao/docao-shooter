@@ -7886,7 +7886,7 @@ function invApplyLook(on) {
   if (on) { applyHalloweenPalette(scene, hemi, sun, currentMap); fpHemi.intensity = 1.2; invGfx.hal = buildHalloween(currentMap, nav, groundAt); scene.add(invGfx.hal); }
   else { applyPalette(scene, hemi, sun, currentMap); fpHemi.intensity = currentMap.palette.stars ? 1.25 : 1.8; }
   document.body.classList.toggle('invmode', !!on); invMusicOn(!!on);
-  ['invhud', 'invPowers'].forEach((id) => $(id).classList.toggle('hidden', !on)); if (!on) document.body.classList.remove('invout', 'ghostfx'); if (!on) { $('invBoss').classList.add('hidden'); $('invOut').classList.add('hidden'); $('invBanner').classList.add('hidden'); invBannerT = 0; $('fogVeil').style.opacity = '0'; invClosePick(); const sp = $('sPrompt'); if (sp) sp.classList.add('hidden'); for (const id of ['papMark', 'boxMark', 'papCard']) { const m = $(id); if (m) m.classList.add('hidden'); } }
+  ['invhud', 'invPowers'].forEach((id) => $(id).classList.toggle('hidden', !on)); if (!on) document.body.classList.remove('invout', 'ghostfx'); if (!on) { $('invBoss').classList.add('hidden'); $('invOut').classList.add('hidden'); $('invBanner').classList.add('hidden'); invBannerT = 0; $('fogVeil').style.opacity = '0'; invClosePick(); const sp = $('sPrompt'); if (sp) sp.classList.add('hidden'); for (const id of ['papMark', 'boxMark', 'papCard']) { const m = $(id); if (m) m.classList.add('hidden'); } $('invWaveN').textContent = 'WAVE 1/20'; $('invWaveSub').textContent = ''; const msg = $('centermsg'); if (msg) msg.style.top = ''; }
   invGfx.inv = []; invGfx.sel = 0; invRenderSlots();
 }
 // ---------- por quadro ----------
@@ -8172,18 +8172,18 @@ function survBuild(layout) {
 function unstickSurvMarks() {
   const ids = ['papMark', 'boxMark'];
   const blocks = [];
-  for (const id of ['score', 'tl', 'invhud', 'bottomleft', 'ammo', 'wname', 'slots', 'sPrompt', 'papCard', 'leader']) {
+  for (const id of ['score', 'tl', 'invhud', 'bottomleft', 'ammo', 'wname', 'slots', 'sPrompt', 'papCard', 'leader', 'invPowers']) {
     const e = $(id);
     if (!e || e.classList.contains('hidden')) continue;
     const st = getComputedStyle(e);
     if (st.display === 'none' || st.visibility === 'hidden') continue;
     const r = e.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) continue;
-    blocks.push(r);
+    blocks.push({ left: r.left - 18, right: r.right + 18, top: r.top - 22, bottom: r.bottom + 14 });
   }
-  // A munição e os slots ficam grudados no canto. O marcador da loja não pode sentar em cima.
-  blocks.push({ left: innerWidth - 500, right: innerWidth, top: innerHeight - 200, bottom: innerHeight });
-  blocks.push({ left: 0, right: 300, top: innerHeight - 240, bottom: innerHeight });
+  // Munição à direita e poderes da Invasão à esquerda. O marcador não pode sentar em cima.
+  blocks.push({ left: innerWidth - 500, right: innerWidth, top: innerHeight - 220, bottom: innerHeight });
+  blocks.push({ left: 0, right: 380, top: innerHeight - 340, bottom: innerHeight });
   const placed = [];
   const hit = (a, b) => !(a.right < b.left + 2 || a.left > b.right - 2 || a.bottom < b.top + 2 || a.top > b.bottom - 2);
   for (const id of ids) {
@@ -8298,9 +8298,13 @@ function survNet(ev) {
     if (ev[1] === 'idle' && survGfx && survGfx.offer) { scene.remove(survGfx.offer); survGfx.offer = null; }
   }
 }
+function parkSurvFlash(open) {
+  const msg = $('centermsg');
+  if (msg) msg.style.top = open ? '42%' : '';
+}
 function survPrompt(hit) {
   const el = $('sPrompt'); if (!el) return;
-  if (!hit || state !== 'playing') { el.classList.add('hidden'); return; }
+  if (!hit || state !== 'playing' || !player || !player.alive) { el.classList.add('hidden'); parkSurvFlash(false); return; }
   const segure = `Segure ${SURV.useLabel}`;
   let p1 = '', p2 = '';
   if (hit.kind === 'pap') {
@@ -8324,6 +8328,7 @@ function survPrompt(hit) {
     p2 = !owns ? ((player.pts | 0) < cost ? `falta ${fmtPts(cost - (player.pts | 0))}` : segure) : need ? ((player.pts | 0) < cost ? `munição · falta ${fmtPts(cost - (player.pts | 0))}` : `munição · ${segure}`) : 'munição cheia';
   }
   el.classList.remove('hidden'); el.querySelector('.bp1').innerHTML = p1; el.querySelector('.bp2').innerHTML = p2;
+  parkSurvFlash(true);
 }
 function survTick(dt) {
   if (!survOn()) { if ($('sPrompt')) $('sPrompt').classList.add('hidden'); if ($('survPts')) $('survPts').classList.add('hidden'); return; }
@@ -8351,7 +8356,7 @@ function survTick(dt) {
     if (!player.survHoldAt) player.survHoldAt = gameTime;
     if (gameTime - player.survHoldAt >= SURV.hold && !player.survFired) { player.survFired = true; survUse(); }
   } else if (player) { player.survHoldAt = 0; player.survFired = false; }
-  if (survGfx && player) {
+  if (survGfx && player && player.alive) {
     const pin = (id, p, color) => {
       const el = $(id); if (!el) return;
       const d = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
@@ -8361,6 +8366,8 @@ function survTick(dt) {
     pin('papMark', survGfx.layout.papada, '#ff7a18');
     pin('boxMark', survGfx.layout.box, '#ffd24a');
     unstickSurvMarks();
+  } else {
+    for (const id of ['papMark', 'boxMark']) { const m = $(id); if (m) m.classList.add('hidden'); }
   }
   survPaintHeld();
   if (player && player.papUntil && gameTime >= player.papUntil && player.papGun === player.weapon) { player.papUntil = 0; survPaintHeld(); }
