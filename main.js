@@ -177,9 +177,93 @@ const groundAt = (x, z, y) => PHYS.groundAt(x, z, y);
 const ceilingAt = (x, z, headY) => PHYS.ceilingAt(x, z, headY);
 const moveEntity = (e, dt) => PHYS.moveEntity(e, dt);
 function checkFall(e) {
+  if (noclipOn && e === player) return; // exploração: voando, penhasco e queda não matam
   if (!e.alive || !currentMap || !fellOff(currentMap.fall, e.pos.y)) return;
   if (online && e.isPlayer) return; // online quem mata é o servidor, pra não contar duas vezes
   kill(e, null, W_FALL, false);
+}
+// Noclip só na Exploração offline. V continua sendo a faca rápida.
+let noclipOn = false, noclipSpeed = 22, spaceHold = false;
+const NOCLIP_MIN = 6, NOCLIP_MAX = 80, NOCLIP_SHIFT = 6;
+function noclipLive() { return noclipOn && exploreMode() && !online && state === 'playing' && player && player.alive; }
+function paintNoclip() {
+  const el = $('noclipHud'); if (!el) return;
+  el.classList.toggle('hidden', !noclipLive());
+}
+function noclipInsideMap(x, z) {
+  if (!currentMap) return false;
+  const [hx, hz] = currentMap.size;
+  return Math.abs(x) <= hx - RADIUS - 0.35 && Math.abs(z) <= hz - RADIUS - 0.35;
+}
+function noclipFloor(x, z, y) {
+  if (!noclipInsideMap(x, z)) return null;
+  const g = groundAt(x, z, Math.max(y, 0) + 6);
+  const fallY = currentMap.fall && currentMap.fall.y;
+  if (fallY != null && g < fallY + 0.8) return null;
+  if (collides(x, g, z)) return null;
+  return g;
+}
+function nearestNoclipFloor(from) {
+  let best = null, bd = 1e9;
+  const consider = (x, z) => {
+    const g = noclipFloor(x, z, from.y);
+    if (g == null) return;
+    const d = Math.hypot(x - from.x, z - from.z) + Math.abs(g - from.y) * 0.04;
+    if (d < bd) { bd = d; best = { x, y: g, z }; }
+  };
+  consider(from.x, from.z);
+  for (let r = 1; r <= 42; r += 1.4) {
+    const n = Math.max(8, Math.round(r * 3));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      consider(from.x + Math.cos(a) * r, from.z + Math.sin(a) * r);
+    }
+    if (best && bd <= r + 1.5) break;
+  }
+  if (!best && currentMap && currentMap.spawns && currentMap.spawns.length) {
+    const s = currentMap.spawns[0];
+    const x = s[0], z = s[1];
+    const g = groundAt(x, z, (s[2] || 0) + 4);
+    best = { x, y: g, z };
+  }
+  return best;
+}
+function releaseNoclip() {
+  noclipOn = false;
+  const p = player;
+  if (!p) { paintNoclip(); return; }
+  p.vel.set(0, 0, 0);
+  const floor = noclipFloor(p.pos.x, p.pos.z, p.pos.y);
+  const free = !collides(p.pos.x, p.pos.y, p.pos.z);
+  if (free && floor != null && Math.abs(p.pos.y - floor) < 0.45) { p.pos.y = floor; p.onGround = true; }
+  else if (free && floor != null && p.pos.y > floor) p.onGround = false; // ar livre: a gravidade desce até esse chão
+  else {
+    const spot = nearestNoclipFloor(p.pos);
+    if (spot) { p.pos.set(spot.x, spot.y, spot.z); p.onGround = true; }
+  }
+  paintNoclip();
+}
+function toggleNoclip() {
+  if (!exploreMode() || online || state !== 'playing' || !player || !player.alive) return;
+  if (noclipOn) { releaseNoclip(); flashMsg('Noclip desligado'); return; }
+  noclipOn = true; player.vel.set(0, 0, 0); player.onGround = false; player.crouch = 0;
+  paintNoclip();
+  flashMsg('Noclip · WASD na mira · Espaço sobe · Ctrl ou C desce · Shift acelera · rodinha a velocidade');
+}
+function flyNoclip(p, dt) {
+  const look = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
+  const side = new V3(1, 0, 0).applyQuaternion(camera.quaternion);
+  const wish = new V3();
+  if (keys.KeyW || keys.ArrowUp) wish.add(look);
+  if (keys.KeyS || keys.ArrowDown) wish.sub(look);
+  if (keys.KeyD || keys.ArrowRight) wish.add(side);
+  if (keys.KeyA || keys.ArrowLeft) wish.sub(side);
+  if (spaceHold) wish.y += 1;
+  if (keys.ControlLeft || keys.ControlRight || keys.KeyC) wish.y -= 1;
+  if (wish.lengthSq() > 1e-8) wish.normalize();
+  const fast = !!(keys.ShiftLeft || keys.ShiftRight);
+  p.pos.addScaledVector(wish, noclipSpeed * (fast ? NOCLIP_SHIFT : 1) * dt);
+  p.vel.set(0, 0, 0); p.onGround = false; p.crouch = 0;
 }
 
 const raycaster = new THREE.Raycaster();
@@ -3130,10 +3214,11 @@ function updateHud(dt) {
   { const clockLabel = $('timer').textContent; const clocks = worldGroup && worldGroup.userData.clocks;
     if (clocks) for (const m of clocks) { if (m.userData.last === clockLabel) continue; const { ctx, canvas, tex } = m.userData.clock; ctx.fillStyle = '#1c242c'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.strokeStyle = '#8E2F2A'; ctx.lineWidth = 8; ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12); ctx.fillStyle = '#F2D9A0'; ctx.font = '900 36px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(clockLabel, canvas.width / 2, canvas.height / 2); tex.needsUpdate = true; m.userData.last = clockLabel; } }
   $('score').textContent = exploreMode() ? `Exploração · ${currentMap ? currentMap.name : ''}` : `Abates: ${p.kills} · Mortes: ${p.deaths} · K/D: ${(p.kills / Math.max(1, p.deaths)).toFixed(2)} · Pontos: ${feedbackPoints()}`;
+  paintNoclip();
   const lead = entities.filter((e) => !e.zt).reduce((a, b) => (b.kills > a.kills ? b : a));
   const killGoal = x1Mode() ? X1.KILLS : KILL_LIMIT;
   const x1Name = x1Mode() && WEAPONS[x1Gun] ? ` · ${WEAPONS[x1Gun].short}` : '';
-  $('leader').textContent = armsMode() ? `Corrida Armada · Etapa ${p.armsStage + 1}/${ARMS_STAGES.length} · ${p.primary === GOLD_KNIFE ? '1 abate para vencer' : `${p.armsKills}/2 abates`}` : invMode() ? '' : exploreMode() ? 'Mapa vazio · , . ou [ ] trocam a primária' : mode === 'bomb' ? `Bomba (protótipo) · primeiro time a ${BOMB.WIN} rodadas vence` : training() ? 'Estande do Docão · B/N/M trocam a arma · munição infinita' : x1Mode() ? (lead.kills ? `X1 · ${lead.name} ${lead.kills}/${killGoal}${x1Name}` : `X1 · primeiro a ${killGoal}${x1Name}`) : teamMode() ? `Dominação · primeiro time a ${DOM.WIN_CAPS} zonas vence` : lead.kills ? `Líder: ${lead.name} (${lead.kills}/${KILL_LIMIT})` : `Primeiro a ${KILL_LIMIT} abates vence`;
+  $('leader').textContent = armsMode() ? `Corrida Armada · Etapa ${p.armsStage + 1}/${ARMS_STAGES.length} · ${p.primary === GOLD_KNIFE ? '1 abate para vencer' : `${p.armsKills}/2 abates`}` : invMode() ? '' : exploreMode() ? 'Mapa vazio · N noclip · , . ou [ ] trocam a primária' : mode === 'bomb' ? `Bomba (protótipo) · primeiro time a ${BOMB.WIN} rodadas vence` : training() ? 'Estande do Docão · B/N/M trocam a arma · munição infinita' : x1Mode() ? (lead.kills ? `X1 · ${lead.name} ${lead.kills}/${killGoal}${x1Name}` : `X1 · primeiro a ${killGoal}${x1Name}`) : teamMode() ? `Dominação · primeiro time a ${DOM.WIN_CAPS} zonas vence` : lead.kills ? `Líder: ${lead.name} (${lead.kills}/${KILL_LIMIT})` : `Primeiro a ${KILL_LIMIT} abates vence`;
   updateLeaderboard(dt); tickFeedback(dt);
   hurtLevel = Math.max(0, hurtLevel - dt * 2.5);
   { const left = p.alive ? eggSplatUntil - gameTime : 0, el = $('eggsplat'); if (el) { el.style.opacity = left > 0 ? Math.min(1, left / 0.5).toFixed(2) : '0'; if (left > 0) drawEggSplat(); } } // sujeira de ovo na tela: 2 s escorrendo, some no último meio segundo
@@ -4552,6 +4637,14 @@ function updatePlayer(dt) {
   if (p && p.demoBlock) rightDown = true;
   // Consome o toque mesmo no ar: segurar Espaço não rearma o pulo ao aterrissar.
   const jumpPressed = !!keys.Space; keys.Space = false;
+  if (noclipLive()) {
+    flyNoclip(p, dt);
+    stepRecoil(p, dt, gameTime);
+    stepFlinch(dt);
+    camera.position.set(p.pos.x, p.pos.y + eyeHeight(p), p.pos.z); camera.rotation.set(p.pitch, p.yaw, 0);
+    if (shake > 0) shake = Math.max(0, shake - dt * 1.8);
+    return;
+  }
   if (!p.alive) {
     if (ac130) endAc130(false); // o corpo no chão morreu: solta a mira da Grelha e mostra a câmera da morte (o avião continua no ar)
     if (gunner) endGunner(false); // garantia: mira do Chopper nunca sobrevive à morte (resetRewards já solta; "guiando" trava o WASD)
@@ -5922,6 +6015,7 @@ function startGame(mapId) {
   const picked = $('modeSel').value;
   saveBotDiff($('botDiff').value);
   mode = MODE_OK(picked); matchVariant = isSurvivalMode(picked) ? 'survival' : ''; survLive = matchVariant === 'survival'; armsWinner = null; teamScore = [0, 0]; zone = null; window.__capLog = []; offlineMinutes = normTime($('timeSel').value);
+  noclipOn = false; noclipSpeed = 22; paintNoclip();
   matchLimits = { weapons: null, powers: null }; rulesLive = true; // solo: arsenal inteiro. O limite de armas é regra da sala, escolhida ao criar.
   player = makeEntity(name, true, selectedSkin, '#ffd27a'); entities.push(player); fp.setSkin(selectedSkin);
   const legal = clampLoadout(selectedPrimary, selectedSecondary, selectedMelee, matchLimits.weapons);
@@ -5947,7 +6041,7 @@ function startGame(mapId) {
   $('killfeed').innerHTML = '';
   const diffWord = botDiffMeta(botDiff).label;
   if (survOn()) survBuild(bindStations(currentMap, PHYS, player.pos));
-  flashMsg(armsMode() ? `Corrida Armada · time ${TEAM_NAMES[player.team]} · 2 abates por etapa · V rouba etapa` : mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : survOn() ? `Survival · ${currentMap.name} · pistola e faca · ${SURV.useLabel} usa a loja · E abre porta` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : `Mapa: ${currentMap.name} · bots ${diffWord}`); refreshModeHud();
+  flashMsg(armsMode() ? `Corrida Armada · time ${TEAM_NAMES[player.team]} · 2 abates por etapa · V rouba etapa` : mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : survOn() ? `Survival · ${currentMap.name} · pistola e faca · ${SURV.useLabel} usa a loja · E abre porta` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · N noclip · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : `Mapa: ${currentMap.name} · bots ${diffWord}`); refreshModeHud();
   for (const ev of bombEv) onBombEvent(ev);
   $('menu').classList.add('hidden'); $('gameover').classList.add('hidden'); $('pause').classList.add('hidden'); $('hud').classList.remove('hidden'); $('socialHud').classList.remove('hidden'); $('voiceHud').classList.add('hidden'); chatSetRoom(true); // offline: o chat fica (pros códigos), sem voz $('overChat').classList.add('hidden');
   applyHeldKnife(getAccount() && getAccount().knife);
@@ -6076,7 +6170,7 @@ function fillPauseBrief() {
   else if (mode === 'dom') obj = 'Segure a zona. O tempo do time decide.';
   else if (mode === 'bomb') obj = 'Plante o botijão ou desarme.';
   else if (training()) obj = 'Treino no estande. Sem placar.';
-  else if (exploreMode()) obj = 'Passeio na fazenda. Sem abate.';
+  else if (exploreMode()) obj = 'Passeio no mapa. N liga o noclip.';
   set('pauseObjective', obj);
   let score = p ? `${p.kills} abates` : '—';
   if (mode === 'dom' && $('ts0')) score = `Vermelho ${$('ts0').textContent} × Azul ${$('ts1').textContent}`;
@@ -6094,7 +6188,7 @@ function toMenu() {
   if (online) leaveOnline();
   endVictory(); stopEmote(); document.body.classList.remove('deadgray');
   zone = null; mode = 'dm'; document.body.classList.remove('armsmode'); endBomb(); $('domhud').classList.add('hidden'); $('zoneMark').classList.add('hidden'); $('teamPick').classList.add('hidden');
-  state = 'menu'; rulesLive = false; survLive = false; matchVariant = ''; surv = null; survClear(); nightAmb.stop(); clearBots(); inv = null; invNet = null; if (selectedMap !== 'random') loadMap(selectedMap); invApplyLook(false); showcase.visible = true; pickups.forEach((p) => (p.mesh.visible = false)); camera.clearViewOffset(); refreshSurvPts();
+  state = 'menu'; rulesLive = false; survLive = false; matchVariant = ''; surv = null; survClear(); nightAmb.stop(); clearBots(); inv = null; invNet = null; noclipOn = false; paintNoclip(); if (selectedMap !== 'random') loadMap(selectedMap); invApplyLook(false); showcase.visible = true; pickups.forEach((p) => (p.mesh.visible = false)); camera.clearViewOffset(); refreshSurvPts();
   closePauseClass(); ['pause', 'pauseClass', 'gameover', 'hud'].forEach((id) => { const el = $(id); if (el) el.classList.add('hidden'); }); document.body.classList.remove('cls-on', 'dead', 'killcam'); $('menu').classList.remove('hidden');
   if (document.pointerLockElement) document.exitPointerLock();
 }
@@ -6201,12 +6295,17 @@ function touchUp(e) {
 }
 canvas.addEventListener('pointerup', touchUp);
 canvas.addEventListener('pointercancel', touchUp);
-document.addEventListener('wheel', (e) => { // rodinha: primária → pistola → faca (e volta). Na Grelha, troca Espeto / Panela / Caldeirão.
+document.addEventListener('wheel', (e) => { // rodinha: primária → pistola → faca (e volta). Na Grelha, troca Espeto / Panela / Caldeirão. No noclip, muda a velocidade.
   if (state !== 'playing' || !player || !player.alive) return;
+  if (noclipLive()) {
+    e.preventDefault();
+    if (e.deltaY) noclipSpeed = Math.min(NOCLIP_MAX, Math.max(NOCLIP_MIN, noclipSpeed * (e.deltaY > 0 ? 1 / 1.18 : 1.18)));
+    return;
+  }
   if (ac130) { const i = AC130_ORDER.indexOf(ac130.mode); setAc130Mode(AC130_ORDER[(i + (e.deltaY > 0 ? 1 : AC130_ORDER.length - 1)) % AC130_ORDER.length]); e.preventDefault(); return; }
   if (bombPick || invPick) { armClass((classIndex + (e.deltaY < 0 ? classes.length - 1 : 1)) % classes.length); return; } // painel de classe: rodinha troca a classe
   const S = player.slots, i = Math.max(0, S.indexOf(player.weapon)), n = S.length; switchWeapon(player, S[(i + (e.deltaY < 0 ? n - 1 : 1)) % n]);
-});
+}, { passive: false });
 function tryOpenChat(e) {
   if (e.repeat || !chatShown() || !chatRoomOn() || state !== 'playing') return false;
   if (e.code === 'KeyT') { chatUseAll(); return openChat('all'); }
@@ -6233,6 +6332,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
   if (e.code !== 'Space' || !e.repeat) keys[e.code] = true;
+  if (e.code === 'Space') spaceHold = true;
   if (state === 'playing' && survivalMode() && e.code === 'KeyE' && !e.repeat && player && player.alive) { e.preventDefault(); tryBuyDoor(); return; }
   if (state === 'playing' && player && invKey(e)) { e.preventDefault(); return; } // Invasão: G poder · X troca · B painel de armas na pausa
   if (state === 'playing' && player && gunner) { // no Chopper: 1/2 trocam a arma dele, F sai
@@ -6262,7 +6362,8 @@ document.addEventListener('keydown', (e) => {
       if (!emote.on && e.code === 'Digit2') { if (!(survOn() && player.slotOn && player.slotOn[1] === 0)) switchWeapon(player, player.slots[1]); }
       if (!emote.on && e.code === 'Digit3') switchWeapon(player, player.slots[2]);
       if (!emote.on && e.code === 'KeyV' && !e.repeat) quickKnife(player);
-      if (!emote.on && e.code === 'KeyC' && player.alive && !e.repeat) saberDash(player);
+      if (exploreMode() && !online && e.code === 'KeyN' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && player.alive) { e.preventDefault(); toggleNoclip(); }
+      if (!emote.on && e.code === 'KeyC' && player.alive && !e.repeat && !noclipOn) saberDash(player);
       if (!emote.on && e.code === 'KeyZ' && player.alive && !e.repeat) saberSpecial(player);
       if (!emote.on && e.code === 'KeyI' && player.alive && !e.repeat) startInspect(player);
       if (!emote.on && e.code === 'Digit4' && player.alive && !e.repeat) throwTactical();
@@ -6284,8 +6385,8 @@ document.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); if ($('pause').classList.contains('loadout-on')) showPauseLoadout(false); else resume(); }
   } else if (state === 'paused' && (e.code === 'KeyP')) resume();
 });
-document.addEventListener('keyup', (e) => { if (e.code === 'KeyK') voicePtt(false); keys[e.code] = false; if (e.code === 'KeyQ' && state === 'playing') releaseCharge(); if (e.code === 'Tab') $('tabboard').classList.add('hidden'); });
-addEventListener('blur', () => { voicePtt(false); for (const k in keys) keys[k] = false; mouseDown = false; rightDown = false; if (player) { player.charging = false; player.bowDraw = 0; player.eggDraw = 0; arcLine.visible = arcMark.visible = false; } });
+document.addEventListener('keyup', (e) => { if (e.code === 'KeyK') voicePtt(false); if (e.code === 'Space') spaceHold = false; keys[e.code] = false; if (e.code === 'KeyQ' && state === 'playing') releaseCharge(); if (e.code === 'Tab') $('tabboard').classList.add('hidden'); });
+addEventListener('blur', () => { voicePtt(false); spaceHold = false; for (const k in keys) keys[k] = false; mouseDown = false; rightDown = false; if (player) { player.charging = false; player.bowDraw = 0; player.eggDraw = 0; arcLine.visible = arcMark.visible = false; } });
 
 // ---------------- Loop ----------------
 const clock = new THREE.Clock(); let menuT = 0, danceT = 0;
@@ -6516,7 +6617,7 @@ const MENU_RULES = {
   bomb: `💣 COMO JOGAR · Bomba (protótipo, estilo Valorant)\n🔥 Ataque: leve o Botijão até o site A ou B e segure ${BOMB.KEY_LABEL} por ${BOMB.PLANT} s pra plantar. Ele explode em ${BOMB.FUSE} s.\n🛡️ Defesa: impeça a plantação ou segure ${BOMB.KEY_LABEL} por ${BOMB.DEFUSE} s perto do Botijão pra desarmar.\n🔁 ${BOMB.PREP} s de preparação por rodada (dá pra trocar de arma com 1–9) · renascimento normal · primeiro a ${BOMB.WIN} rodadas · troca de lado depois da ${BOMB.HALF}ª.`,
   inv: 'Invasão 🎃 · co-op contra 20 waves de Docões zumbis. 2 vidas cada, poderes caem dos zumbis (G usa, X troca) e a Névoa Assombrada fecha o mapa.',
   survival: 'Survival · só na HOTMILK à Noite. Nasce de pistola e faca. F usa a loja (parede, Barraca da Sorte e Papada). E compra a porta. A Ray Gun só sai na barraca.',
-  explore: 'Mapa vazio, só você. Ande e teste as armas. Vírgula, ponto ou [ ] trocam a primária. Munição não acaba e a partida não termina.',
+  explore: 'Mapa vazio, só você. Ande e teste as armas. Vírgula, ponto ou [ ] trocam a primária. N liga o noclip: voa na direção da mira, atravessa parede, Espaço sobe, Ctrl ou C desce, Shift acelera, a rodinha muda a velocidade. Munição não acaba e a partida não termina.',
   x1: 'X1 · duelo. Mapa pequeno sorteado, cada um nasce de um lado. Primeiro a 10 abates. Só munição no chão, sem vida. A arma é a mesma pros dois e troca quando alguém cai.',
 };
 function readLimitStore() {
@@ -7100,7 +7201,7 @@ function requestRespawn() {
   return true;
 }
 $('respawnBtn').onclick = (ev) => { ev.stopPropagation(); requestRespawn(); };
-function onPlayerDeath(opts) { clearHitMarks(); if (player) { player.flinch = null; player.mgWant = false; player.mgSpin = 0; player.mgFiring = false; } rsSent = false; resetRewards(true); if (!(opts && opts.keepAim) && document.pointerLockElement) { deathUnlock = true; document.exitPointerLock(); } mouseDown = false; rightDown = false; if (player) player.bowDraw = player.eggDraw = 0; }
+function onPlayerDeath(opts) { clearHitMarks(); noclipOn = false; paintNoclip(); if (player) { player.flinch = null; player.mgWant = false; player.mgSpin = 0; player.mgFiring = false; } rsSent = false; resetRewards(true); if (!(opts && opts.keepAim) && document.pointerLockElement) { deathUnlock = true; document.exitPointerLock(); } mouseDown = false; rightDown = false; if (player) player.bowDraw = player.eggDraw = 0; }
 let lastRespawnMs = -1e9;
 function onPlayerRespawn() { if (player) resetRecoil(player); clearHitMarks(); rsSent = false; lastRespawnMs = performance.now(); if (gunner) endGunner(false); if (predator) clearPredator(); closeBench(); // nada de mira guiada nem bancada sobrando da vida anterior (travava o andar)
   deathCamState.on = false; deathCamState.killer = null; killcamGuns = false; tuckDeathMenu(); document.body.classList.remove('deadgray', 'dead', 'killcam'); if (!bombPick && !invPick && !pauseClassOpen()) document.body.classList.remove('cls-on'); if (ghost) ghost.model.group.visible = false;
@@ -8376,7 +8477,7 @@ function invEndText() {
 
 // ganchos para testes automatizados
 window.__docao = { get state() { return state; }, toMenu: () => toMenu(), benchOpen: () => benchOn, victoryFit: () => { const m = victory.model; if (!m) return null; m.group.updateMatrixWorld(true); const box = new THREE.Box3(), c = []; m.group.traverseVisible((o) => { if (o.isMesh && o.geometry) { o.geometry.computeBoundingBox(); box.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld)); } }); const _u = 0, v = new V3(); for (let i = 0; i < 8; i++) { v.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(camera); c.push([v.x, v.y]); } return { minX: Math.min(...c.map((q) => q[0])), maxX: Math.max(...c.map((q) => q[0])), minY: Math.min(...c.map((q) => q[1])), maxY: Math.max(...c.map((q) => q[1])), h: box.max.y - box.min.y, fov: camera.fov, dist: camera.position.distanceTo(m.group.position) }; }, get ending() { return matchEnding; }, get entities() { return entities; }, get player() { return player; }, get camera() { return camera; }, TAMPA, get shield() { const p = player; return p ? { hp: p.shieldHp || 0, broken: !!p.shieldBroken, blocked: Math.round(p.shieldBlocked || 0), raised: shieldRaised(p), stage: shieldStage(p.shieldHp) } : null; }, shieldAttack: (kind = 0) => player && shieldStrike(player, kind, camera.position.clone(), new V3(0, 0, -1).applyQuaternion(camera.quaternion)), startGame, endGame, pause, visible: (e) => losClear(center(player, EYE), center(e, 1.2)),
-  set time(v) { gameTime = v; }, get time() { return gameTime; }, get grenades() { return grenades; }, get grenadeAim() { return { origin: throwOrigin().toArray(), velocity: throwVelocity(throwPower()).toArray(), points: Array.from(arcGeo.attributes.position.array.slice(0, arcGeo.drawRange.count * 3)), marker: arcMark.position.toArray(), visible: arcLine.visible, cupVisible: fp.cup.visible, handVisible: fp.cupHand.visible }; }, get explosions() { return explosions; }, get pickups() { return pickups; }, get ads() { return ads; }, get fov() { return camera.fov; }, get rockets() { return rockets; }, get lastKnock() { return lastKnock; }, WEAPONS, setPrimary, tuneClass, armClass, get classes() { return classes; }, get classIndex() { return classIndex; }, get held() { return player ? gunOf(player, player.weapon) : null; }, get scoped() { return scoped(); },
+  set time(v) { gameTime = v; }, get time() { return gameTime; }, get grenades() { return grenades; }, get grenadeAim() { return { origin: throwOrigin().toArray(), velocity: throwVelocity(throwPower()).toArray(), points: Array.from(arcGeo.attributes.position.array.slice(0, arcGeo.drawRange.count * 3)), marker: arcMark.position.toArray(), visible: arcLine.visible, cupVisible: fp.cup.visible, handVisible: fp.cupHand.visible }; }, get explosions() { return explosions; }, get pickups() { return pickups; }, get ads() { return ads; }, get noclip() { return noclipLive(); }, get noclipSpeed() { return noclipSpeed; }, get fov() { return camera.fov; }, get rockets() { return rockets; }, get lastKnock() { return lastKnock; }, WEAPONS, setPrimary, tuneClass, armClass, get classes() { return classes; }, get classIndex() { return classIndex; }, get held() { return player ? gunOf(player, player.weapon) : null; }, get scoped() { return scoped(); },
   MAPS, loadMap, selectMap, get map() { return currentMap; }, get nav() { return nav; }, get navMs() { return navMs; }, get spawns() { return SPAWNS; }, groundAt, collides, get solids() { return solids; },
   get online() { return online; }, joinRoom, leaveOnline, netEv,
   get mode() { return mode; }, get botDiff() { return botDiff; }, get zone() { return zone; }, set zone(v) { zone = v; }, get teamScore() { return teamScore; }, get spawnHold() { return spawnHold; }, get selectedPrimary() { return selectedPrimary; },
