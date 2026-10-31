@@ -1,0 +1,84 @@
+/* Mesa de truco. O tiro continua com o visual de sempre. */
+#gameSwitch { display: flex; gap: 8px; margin: 0 0 12px; }
+#gameSwitch button {
+  flex: 1; border: 2px solid var(--ink, #34402e); background: var(--paper, #f6e4bd); color: var(--ink, #34402e);
+  font: 800 14px/1 "Trebuchet MS", Arial, sans-serif; padding: 8px 10px; cursor: pointer; border-radius: 4px;
+}
+#gameSwitch button.on { background: #a52e26; color: #fff0cc; }
+#trucoPanel .truco-cover { width: 100%; height: auto; border-radius: 6px; display: block; margin-bottom: 10px; border: 3px solid #34402e; }
+#trucoPanel .truco-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+#trucoPanel .truco-actions button, #trucoJoin {
+  border: 2px solid #34402e; background: #a52e26; color: #fff0cc; font: 800 13px/1 "Trebuchet MS", Arial, sans-serif;
+  padding: 10px 12px; cursor: pointer; border-radius: 4px;
+}
+#trucoPanel .truco-actions button.alt, #trucoJoin { background: #536044; }
+#trucoJoinRow { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+#trucoCode {
+  display: block; width: 100%; box-sizing: border-box; margin: 0; min-height: 44px;
+  border: 2px solid #34402e; background: #fff0cc; color: #263d32; padding: 10px 12px;
+  font: 800 18px/1 "Trebuchet MS", Arial, sans-serif; letter-spacing: 0.18em; text-transform: uppercase; border-radius: 4px;
+}
+#trucoJoin { width: 100%; margin: 0; }
+#trucoMenuErr { min-height: 1.2em; color: #a52e26; font: 700 13px/1.3 "Trebuchet MS", Arial, sans-serif; }
+body.truco-menu .mappick, body.truco-menu .match-options, body.truco-menu #menuRules, body.truco-menu .playrow,
+body.truco-menu #loadoutDock, body.truco-menu #danceDock, body.truco-menu #menuTrain, body.truco-menu #menuTeam { display: none !important; }
+
+#trucoApp { display: none; position: fixed; inset: 0; z-index: 40; background: #e7c48a; }
+#trucoApp.on { display: block; }
+#trucoApp canvas { width: 100%; height: 100%; display: block; }
+#trucoHud { position: absolute; inset: 0; pointer-events: none; }
+#trucoHud button, #trucoHud input, #trucoHud label, #trucoHud .box, #trucoLog, #trucoSay, #trucoVoice, #trucoEmotes { pointer-events: auto; }
+#trucoScore {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 18px; align-items: stretch;
+  background: #f6e4bd; border: 3px solid #34402e; border-radius: 8px; padding: 8px 16px; box-shadow: 3px 3px 0 #291e18;
+}
+#trucoScore b { display: block; font: 900 28px/1 "Trebuchet MS", Arial, sans-serif; color: #a52e26; }
+#trucoScore span { font: 800 12px/1.2 "Trebuchet MS", Arial, sans-serif; color: #674029; letter-spacing: 0.04em; }
+#trucoScore .stake { align-self: center; font: 800 14px/1.25 "Trebuchet MS", Arial, sans-serif; color: #203e35; max-width: 240px; text-align: center; }
+#trucoBanner {
+  position: absolute; top: 92px; left: 50%; transform: translateX(-50%);
+  font: 900 28px/1 "Trebuchet MS", Arial, sans-serif; color: #fff0cc; text-shadow: 0 2px 0 #54271b; min-height: 1em;
+}
+#trucoActs { position: absolute; right: 16px; top: 38%; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+#trucoActs button, #trucoTop button, #trucoEmotes button, #trucoOver button, #trucoLobby button {
+  border: 2px solid #291e18; background: #a52e26; color: #fff0cc; font: 800 15px/1 "Trebuchet MS", Arial, sans-serif;
+  padding: 10px 14px; border-radius: 6px; cursor: pointer;
+}
+#trucoActs button.alt, #trucoTop button, #trucoEmotes button { background: #536044; }
+#trucoTop { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; }
+#trucoChat {
+  position: absolute; left: 16px; bottom: 16px; width: min(320px, 34vw);
+  display: flex; flex-direction: column-reverse; gap: 6px; align-items: stretch;
+  pointer-events: none;
+}
+#trucoLog {
+  position: relative; width: 100%; max-height: 180px; overflow: auto; box-sizing: border-box;
+  background: #203e35e6; color: #fff0cc; border-radius: 8px; padding: 8px; font: 600 13px/1.35 "Trebuchet MS", Arial, sans-serif;
+}
+#trucoLog:empty { display: none; }
+#trucoSay { position: relative; width: 100%; margin: 0; display: flex; }
+#trucoSay input {
+  width: 100%; box-sizing: border-box; margin: 0;
+  border: 2px solid #34402e; border-radius: 4px; padding: 6px 8px; font: 700 14px "Trebuchet MS", Arial, sans-serif;
+}
+#trucoVoice { position: absolute; right: 16px; bottom: 16px; display: flex; gap: 6px; flex-wrap: wrap; width: 220px; justify-content: flex-end; }
+#trucoVoice button.on { outline: 3px solid #fff0cc; }
+#trucoEmotes {
+  position: absolute; right: 16px; bottom: 150px; display: none; grid-template-columns: 1fr 1fr; gap: 6px; width: 220px;
+  max-width: calc(100vw - 32px); box-sizing: border-box;
+  background: #f6e4bdf2; border: 3px solid #34402e; border-radius: 8px; padding: 8px;
+}
+#trucoEmotes button { width: 100%; padding: 8px 6px; font-size: 13px; }
+#trucoEmotes.on { display: grid; }
+#trucoLobby, #trucoOver {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, 92vw);
+  background: #f6e4bd; border: 4px solid #34402e; border-radius: 10px; padding: 16px; box-shadow: 4px 4px 0 #291e18;
+}
+#trucoLobby h2, #trucoOver h2 { margin: 0 0 8px; font: 900 22px/1.1 "Trebuchet MS", Arial, sans-serif; color: #a52e26; }
+#trucoSeats { display: grid; gap: 6px; margin: 10px 0; }
+#trucoSeats button { text-align: left; background: #fff0cc; color: #203e35; }
+#trucoSeats button.me { outline: 3px solid #a52e26; }
+#trucoHint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); color: #fff0cc; background: #291e18cc; padding: 4px 10px; border-radius: 6px; font: 700 14px/1.3 "Trebuchet MS", Arial, sans-serif; max-width: 70vw; text-align: center; }
+#trucoToast { position: absolute; top: 132px; left: 50%; transform: translateX(-50%); background: #291e18; color: #fff0cc; padding: 8px 12px; border-radius: 6px; font: 700 14px "Trebuchet MS", Arial, sans-serif; }
+#trucoClock { position: absolute; top: 78px; left: 50%; width: 180px; transform: translateX(-50%); height: 6px; background: #674029; border-radius: 3px; overflow: hidden; }
+#trucoClock i { display: block; height: 100%; width: 100%; background: #fff0cc; transform-origin: left center; }
