@@ -92,17 +92,17 @@ export function slab(x0, z0, x1, z1, y, th, c, holes = []) {
 //  roof: true = laje no topo (y = floors·H) com mureta; roofHoles/roofGaps: vãos na laje/mureta (escada pro telhado)
 //  inner: paredes internas [{ axis: 'x'|'z', s0, s1, line, f, ops: [{ a, b, k }] }]
 export function building(x0, z0, x1, z1, o) {
-  const { col, floors = 2, H = 3.5, t = 0.5, ops = [], stairs = [], roof = true, parapet = 1.0, roofGaps = [], inner = [], noWall = [], floorHoles = {} } = o, out = [];
+  const { col, floors = 2, H = 3.5, t = 0.5, ops = [], stairs = [], roof = true, parapet = 1.0, roofGaps = [], inner = [], noWall = [], floorHoles = {}, y0 = 0 } = o, out = [];
   const opening = (op, f) => {
     if (op.k === 'win') return win(op.a, op.b, op.lo ?? 1.0, op.hi ?? 2.2);
     if (op.k === 'wide') return { a: op.a, b: op.b, y0: 0, y1: H - 0.3 };
     return door(op.a, op.b, op.hi ?? 2.6);
   };
   const doorWp = (axis, line, a, b, y) => { const c = (a + b) / 2; for (const d of [-1.0, 0, 1.0]) out.push({ wp: axis === 'x' ? [c, y, line + d] : [line + d, y, c] }); };
-  for (const q of ops) if (q.k !== 'win') { const y = (q.f ?? 0) * H; if (q.s === 'n') doorWp('x', z0 + t / 2, q.a, q.b, y); if (q.s === 's') doorWp('x', z1 - t / 2, q.a, q.b, y); if (q.s === 'w') doorWp('z', x0 + t / 2, q.a, q.b, y); if (q.s === 'e') doorWp('z', x1 - t / 2, q.a, q.b, y); }
-  for (const w of inner) for (const q of w.ops || []) if (q.k !== 'win') doorWp(w.axis, w.line, q.a, q.b, (w.f ?? 0) * H);
+  for (const q of ops) if (q.k !== 'win') { const y = y0 + (q.f ?? 0) * H; if (q.s === 'n') doorWp('x', z0 + t / 2, q.a, q.b, y); if (q.s === 's') doorWp('x', z1 - t / 2, q.a, q.b, y); if (q.s === 'w') doorWp('z', x0 + t / 2, q.a, q.b, y); if (q.s === 'e') doorWp('z', x1 - t / 2, q.a, q.b, y); }
+  for (const w of inner) for (const q of w.ops || []) if (q.k !== 'win') doorWp(w.axis, w.line, q.a, q.b, y0 + (w.f ?? 0) * H);
   for (let f = 0; f < floors; f++) {
-    const y = f * H, h = H, of = (side) => ops.filter((q) => q.s === side && (q.f ?? 0) === f).map((q) => opening(q, f));
+    const y = y0 + f * H, h = H, of = (side) => ops.filter((q) => q.s === side && (q.f ?? 0) === f).map((q) => opening(q, f));
     if (!noWall.includes('n' + f)) out.push(...wallX(x0, x1, z0 + t / 2, t, h, col.wall, of('n'), y));
     if (!noWall.includes('s' + f)) out.push(...wallX(x0, x1, z1 - t / 2, t, h, col.wall, of('s'), y));
     if (!noWall.includes('w' + f)) out.push(...wallZ(z0 + t, z1 - t, x0 + t / 2, t, h, col.wall2 || col.wall, of('w'), y));
@@ -110,10 +110,10 @@ export function building(x0, z0, x1, z1, o) {
     if (f > 0) out.push(...slab(x0 + t, z0 + t, x1 - t, z1 - t, y, 0.3, col.floor, [...stairs.filter((st) => st.f === f - 1).map((st) => st.r), ...(floorHoles[f] || [])]));
     if (f > 0 && col.trim) out.push(B(x0 - 0.12, z0 - 0.12, x1 + 0.12, z0 + 0.1, 0.22, col.trim, y - 0.3), B(x0 - 0.12, z1 - 0.1, x1 + 0.12, z1 + 0.12, 0.22, col.trim, y - 0.3));
   }
-  for (const w of inner) { const y = (w.f ?? 0) * H, ops2 = (w.ops || []).map((q) => opening(q)); out.push(...(w.axis === 'x' ? wallX(w.s0, w.s1, w.line, 0.3, H - 0.3, col.inner || col.wall, ops2, y) : wallZ(w.s0, w.s1, w.line, 0.3, H - 0.3, col.inner || col.wall, ops2, y))); }
-  for (const st of stairs) { const [a0, b0, a1, b1] = st.r; out.push(R(a0, b0, a1, b1, st.f * H, (st.f + 1) * H, st.axis, st.dir, col.stair)); }
+  for (const w of inner) { const y = y0 + (w.f ?? 0) * H, ops2 = (w.ops || []).map((q) => opening(q)); out.push(...(w.axis === 'x' ? wallX(w.s0, w.s1, w.line, 0.3, H - 0.3, col.inner || col.wall, ops2, y) : wallZ(w.s0, w.s1, w.line, 0.3, H - 0.3, col.inner || col.wall, ops2, y))); }
+  for (const st of stairs) { const [a0, b0, a1, b1] = st.r; out.push(R(a0, b0, a1, b1, y0 + st.f * H, y0 + (st.f + 1) * H, st.axis, st.dir, col.stair)); }
   if (roof) {
-    const Y = floors * H;
+    const Y = y0 + floors * H;
     out.push(...slab(x0, z0, x1, z1, Y, 0.35, col.roof, stairs.filter((st) => st.f === floors - 1).map((st) => st.r)));
     if (parapet > 0) {
       const g = (side) => roofGaps.filter((q) => q.s === side).map((q) => ({ a: q.a, b: q.b, y0: 0, y1: 9 }));
@@ -1168,6 +1168,277 @@ function flipHotmilkZ(part, cz) {
     spawns: [[5, 26], [10, 30], [15, 26], [20, 30], [25, 26], [30, 30], [35, 26], [8, 32.5], [-6, 26], [-14, 32], [-30, 33], [-37, 24.5]],
     pickups: [['grenade', 8, 23.8], ['grenade', 16, 23.8], ['ammo', 24, 23.8], ['health', -20, 32.5], ['health', 34, 32.5], ['ammo', -28, 24.5]],
     showcase: [12, 0, 26], view: [0, 1.6, 26, 0, -0.05],
+  });
+}
+
+// ---------- Saguão do Leitão (Terminal MW2, rodada 1) ----------
+// Norte = +Z (praça de alimentação / lobby), leste = +X (nariz do avião). 1 unidade = 1 m.
+// Piso do terminal a +4,5 m (saia de concreto); pista/apron a 0. Fuselagem jogável, teto do avião a +7,05 m.
+// Borda: meio-fio de 22 cm na cor do concreto + colisor invisível de 40 m. Montanhas, mata e o segundo avião ficam fora do limite.
+// Visadas de propósito: corredor de vidro ~50 m (Hallway of Death) e a faixa da pista ao norte do avião ~50 m.
+{
+  const Y = 4.5, CAB = 4.2, ROOFY = 7.05;
+  const SKIRT = '#a39e94', WALLC = '#c5c9c4', WALL2 = '#9aa198', FLOOR = '#b7b3a8', ROOFC = '#8d9390';
+  const WHITE = '#e4e0d8', BLUE = '#3f5fae', METAL = '#8a9096', SEAT = '#3e4a55', ORANGE = '#d06a32';
+  const DARK = '#2c3134', WOOD = '#c4a574', FOOD = '#c45a2a';
+  const colT = { wall: WALLC, wall2: WALL2, inner: '#d5d8d2', floor: FLOOR, roof: ROOFC, roof2: '#6e756f', stair: METAL, trim: '#e7e4de' };
+  const colFood = { ...colT, wall: '#e4d7c4', wall2: FOOD, inner: '#efe6d6', floor: '#d9cbb0' };
+  const colShop = { ...colT, wall: '#d9d3c4', wall2: '#b7b0a0', inner: '#cfc6b4', floor: '#6e756f' };
+  const boxes = [], props = [];
+  const wp = (x, y, z) => boxes.push({ wp: [x, y, z] });
+  const glass = (x0, z0, x1, z1, y, h) => props.push({ t: 'glass', x0, z0, x1, z1, y, h, c: 0xb7d4dc, o: 0.34 });
+  const sign = (x, y, z, text, rot, bg = '#1e3a5f') => props.push({ t: 'sign', x, y, z, w: Math.max(3.2, text.length * 0.55), h: 0.9, rot, text, bg, fg: '#f4f7fb' });
+
+  // saia do terminal (o topo é o piso). A pista fica no y=0, ao lado.
+  boxes.push(B(-66, -46, 2, 48, Y, SKIRT));
+  boxes.push(B(2, -26, 8, 30, Y, SKIRT));
+  boxes.push(B(2, 30, 16, 50, Y, SKIRT));
+
+  // --- segurança: detectores, spawn oeste ---
+  boxes.push(...wallX(-64, -46, -10, 0.45, 4.2, WALLC, [door(-58, -54.5, 2.8), door(-52, -48.5, 2.8)], Y));
+  boxes.push(...wallX(-64, -46, 22, 0.45, 4.2, WALLC, [door(-60, -56.5, 2.8)], Y));
+  boxes.push(...wallZ(-10, 22, -64, 0.45, 4.2, WALL2, [], Y));
+  boxes.push(...wallZ(-10, 22, -46, 0.45, 4.2, WALL2, [door(-2, 1.6, 2.8), door(8, 11.6, 2.8)], Y));
+  boxes.push(...slab(-64, -10, -46, 22, 9.0, 0.28, ROOFC));
+  for (const z of [-2, 6, 13]) {
+    boxes.push(B(-57.3, z - 0.9, -57.05, z - 0.55, 2.15, METAL, Y), B(-54.7, z - 0.9, -54.45, z - 0.55, 2.15, METAL, Y));
+    boxes.push(B(-57.3, z - 0.9, -54.45, z - 0.72, 0.18, METAL, Y + 2.0));
+    wp(-56, Y, z);
+  }
+  sign(-55, Y + 3.3, -9.7, 'SEGURANÇA', 0);
+
+  // --- saguão ---
+  boxes.push(...building(-44, -16, -22, 26, { col: colT, floors: 1, H: 5.1, y0: Y, parapet: 0.9,
+    ops: [{ s: 'w', a: -1, b: 2.2 }, { s: 'w', a: 8, b: 11.4 }, { s: 'e', a: 2, b: 5.2 }, { s: 'e', a: 12, b: 15.2 },
+      { s: 's', a: -40, b: -36.2 }, { s: 's', a: -30, b: -26.2 }, { s: 'n', a: -40, b: -36.2 }, { s: 'n', a: -32, b: -28.2 },
+      { s: 'w', a: -12, b: -8, k: 'win', lo: 1.2, hi: 3.4 }, { s: 'e', a: 18, b: 22, k: 'win', lo: 1.2, hi: 3.4 }] }));
+  for (const [x, z] of [[-40, -8], [-33, -8], [-40, 4], [-33, 4], [-40, 16], [-33, 16]]) boxes.push(B(x, z, x + 3.3, z + 1.1, 1.15, WOOD, Y));
+  sign(-33, Y + 3.4, -15.7, 'SAGUÃO', Math.PI);
+
+  // --- livraria / duty free ---
+  boxes.push(...building(-20, -2, -4, 18, { col: colShop, floors: 1, H: 3.8, y0: Y, parapet: 0.7,
+    ops: [{ s: 'w', a: 2, b: 5.2 }, { s: 'w', a: 10, b: 13.2 }, { s: 'e', a: 3, b: 6.4 }, { s: 'e', a: 11, b: 14.2 },
+      { s: 's', a: -16, b: -12.4 }, { s: 'n', a: -14, b: -10.2 }] }));
+  boxes.push(B(-16.5, 4, -8.2, 5.3, 1.15, WOOD, Y), B(-18.6, 1, -17.2, 15, 1.35, '#8d6a45', Y), B(-6.6, 1, -5.2, 15, 1.35, '#8d6a45', Y));
+  sign(-12, Y + 2.8, -1.7, 'LIVRARIA', Math.PI);
+
+  // --- lanchonete (Burger Town) ---
+  boxes.push(...building(-60, -44, -26, -18, { col: colFood, floors: 1, H: 4.0, y0: Y, parapet: 0.8,
+    ops: [{ s: 'n', a: -52, b: -48.2 }, { s: 'n', a: -40, b: -36.2 }, { s: 's', a: -50, b: -45.2 }, { s: 'e', a: -28, b: -24.6 },
+      { s: 's', a: -40, b: -34, k: 'win', lo: 1.1, hi: 2.5 }, { s: 'w', a: -36, b: -30, k: 'win', lo: 1.1, hi: 2.5 }] }));
+  boxes.push(B(-52, -34, -36, -32.7, 1.15, FOOD, Y), B(-54, -30, -50, -22, 1.05, WOOD, Y));
+  for (const x of [-48, -42, -36]) boxes.push(B(x, -40.5, x + 0.4, -40.1, 3.2, WALL2, Y));
+  boxes.push(B(-57, -28, -55.2, -24.5, 1.2, '#6a8f4a', Y));
+  sign(-46, Y + 3.1, -17.7, 'LANCHE', Math.PI);
+
+  // --- lojas sul, entre a lanchonete e o corredor ---
+  boxes.push(...building(-20, -22, -4, -6, { col: colShop, floors: 1, H: 3.6, y0: Y, parapet: 0.6,
+    ops: [{ s: 'n', a: -16, b: -12.4 }, { s: 'e', a: -16, b: -12.6 }, { s: 's', a: -14, b: -10.2 }, { s: 'w', a: -18, b: -14.6 }] }));
+  boxes.push(B(-17, -16, -7, -14.7, 1.1, WOOD, Y));
+
+  // --- corredor de vidro (Hallway of Death): ~52 m, eixo norte-sul ---
+  const hallWins = [];
+  for (let z = -20; z <= 24; z += 4.4) {
+    const a = z, b = z + 3.3;
+    if ((a < 9.2 && b > 4.8) || (a < -15.8 && b > -21.2)) continue; // não cobre a porta do finger nem a da rampa
+    hallWins.push({ s: 'e', a, b, k: 'win', lo: 0.85, hi: 4.9 });
+  }
+  boxes.push(...building(-2, -24, 8, 28, { col: { ...colT, wall: '#b7bdb8', wall2: '#8e9692' }, floors: 1, H: 6.2, y0: Y, parapet: 1.05,
+    ops: [{ s: 'w', a: -16, b: -12.4 }, { s: 'w', a: 2, b: 6.2 }, { s: 'w', a: 12, b: 16 }, { s: 'e', a: 5.2, b: 8.8, hi: 3.0 },
+      { s: 'e', a: -20.5, b: -16.6, hi: 3.0 }, { s: 's', a: 0, b: 3.4 }, { s: 'n', a: 1, b: 4.6 }, ...hallWins] }));
+  for (const z of [-16, -6, 6, 16]) {
+    boxes.push(B(-1.5, z, -0.3, z + 1.6, 0.5, METAL, Y));
+    boxes.push(B(5.6, z + 2, 7.2, z + 3.5, 1.15, '#6a8f4a', Y));
+  }
+  for (let z = -20; z <= 24; z += 4.4) glass(8.15, z, 8.15, z + 3.3, Y + 0.85, 4.05);
+  sign(3, Y + 4.6, -23.7, 'PORTÕES', Math.PI);
+  sign(6.2, Y + 3.2, 8, 'A', Math.PI / 2, '#8e2f2a');
+
+  // --- praça de alimentação ---
+  boxes.push(...building(-42, 28, -14, 46, { col: colFood, floors: 1, H: 4.1, y0: Y, parapet: 0.75,
+    ops: [{ s: 's', a: -36, b: -32.2 }, { s: 's', a: -26, b: -22.2 }, { s: 'e', a: 34, b: 37.6 }, { s: 'n', a: -32, b: -28.2 },
+      { s: 'n', a: -24, b: -18, k: 'win', lo: 1.1, hi: 2.6 }] }));
+  for (const [x, z] of [[-36, 32], [-28, 32], [-36, 39], [-28, 39]]) boxes.push(B(x, z, x + 2.4, z + 2.4, 0.85, WOOD, Y));
+  props.push({ t: 'decal', x0: -40, z0: 30, x1: -16, z1: 44, y: Y + 0.05, c: '#e7e2d4', layer: 4 });
+  props.push({ t: 'decal', x0: -38, z0: 32, x1: -34, z1: 36, y: Y + 0.07, c: '#9aa398', layer: 5 });
+  props.push({ t: 'decal', x0: -30, z0: 32, x1: -26, z1: 36, y: Y + 0.07, c: '#9aa398', layer: 5 });
+  sign(-30, Y + 3.2, 28.3, 'PRAÇA', 0);
+
+  // átrio entre a praça, a livraria e o corredor
+  boxes.push(B(-12, 18, -8.2, 22, 1.15, WOOD, Y), B(-12, 24, -10, 27.2, 1.15, '#6a8f4a', Y));
+
+  // --- lobby + manutenção (2º piso). A janela leste olha um pátio curto, não a pista inteira. ---
+  boxes.push(...building(-8, 34, 16, 50, { col: colT, floors: 2, H: 3.5, y0: Y, parapet: 1.15,
+    ops: [{ s: 's', a: -4, b: -0.6 }, { s: 's', a: 6, b: 9.6 }, { s: 'w', a: 38, b: 41.4 }, { s: 'e', a: 44.6, b: 48.2, hi: 2.8 },
+      { s: 'n', a: 2, b: 5.6 }, { s: 'e', a: 35.6, b: 39.4, f: 1, k: 'win', lo: 0.8, hi: 2.15 }, { s: 's', a: 8, b: 12, f: 1, k: 'win', lo: 0.8, hi: 2.15 }],
+    stairs: [{ f: 0, r: [-6.2, 42.2, 0.4, 46.4], axis: 'x', dir: 1 }],
+    inner: [{ axis: 'z', s0: 34.6, s1: 49.4, line: 6, ops: [{ a: 40, b: 43.2 }] }] }));
+  boxes.push(B(17.4, 34.6, 22.8, 40.4, 11, WALL2)); // painel alto na frente da janela do 2º piso
+  sign(2, Y + 3.2, 33.7, 'EMBARQUE', 0);
+  glass(16.25, 35.6, 16.25, 39.4, Y + 4.3, 1.35);
+
+  // mureta de 1,8 m na borda do piso: o olho não varre a pista inteira, o cenário continua visível lá de baixo e das janelas
+  boxes.push(...wallX(-66, -53, -45.72, 0.32, 2.2, WALL2, [], Y));
+  boxes.push(...wallX(-33, 2, -45.72, 0.32, 2.2, WALL2, [], Y));
+  boxes.push(...wallZ(-45.4, -18, 1.72, 0.32, 2.2, WALL2, [], Y));
+  boxes.push(...wallX(-66, -48, 47.7, 0.32, 2.2, WALL2, [], Y));
+
+  // --- rampas pra pista (4,5 m em ~10 m) ---
+  boxes.push(R(-52, -56.6, -34, -45.7, 0, Y, 'z', 1, METAL));
+  boxes.push(R(7.55, -21.2, 18.5, -15.6, 0, Y, 'x', -1, METAL));
+  boxes.push(R(15.55, 44.2, 27, 48.8, 0, Y, 'x', -1, METAL));
+  for (const z of [-56.2, -55.2, -54.2]) boxes.push(B(-50, z, -36, z + 0.35, 0.08, '#f2c94c', 0.05 + (-56.6 - z) / -10.9 * 0.2));
+  props.push({ t: 'decal', x0: -51, z0: -56.4, x1: -35, z1: -46, y: 0.04, c: '#e6c15a', o: 0.85, layer: 4 });
+
+  // --- finger até a porta do avião ---
+  boxes.push(B(7.6, 5.15, 34, 8.85, 0.28, METAL, Y - 0.28));
+  boxes.push(B(30.6, -3.5, 38.2, 8.85, 0.28, METAL, Y - 0.28));
+  boxes.push(B(7.6, 5.15, 30.5, 5.38, 1.05, METAL, Y));
+  boxes.push(B(7.6, 8.62, 38.2, 8.85, 1.05, METAL, Y));
+  boxes.push(B(30.55, -3.5, 30.8, 5.05, 1.05, METAL, Y), B(37.95, -3.5, 38.2, 8.7, 1.05, METAL, Y));
+  for (const x of [12, 20, 28]) boxes.push(B(x, 5.5, x + 0.45, 5.95, Y - 0.05, METAL));
+  for (let x = 10; x <= 30; x += 4) wp(x, Y, 7);
+  wp(34.4, Y, 2); wp(34.4, Y, -1.2); wp(35.8, CAB, -4.2);
+
+  // --- avião (nariz a leste). Cabine a +4,2 m, teto caminhável a +7,05. Por baixo, a pista continua. ---
+  const winRow = (skip) => {
+    const row = [];
+    for (let x = 33; x <= 54; x += 3.1) {
+      const a = x, b = x + 1.45;
+      if (skip(a, b)) continue;
+      row.push(win(a, b, 0.72, 1.55));
+    }
+    return row;
+  };
+  boxes.push(...wallX(26, 58, -9.15, 0.3, 2.6, WHITE, [...winRow((a, b) => a < 31.2 && b > 26.8), door(27.4, 30.6, 2.55)], CAB));
+  boxes.push(...wallX(26, 58, -2.65, 0.3, 2.6, WHITE, [...winRow((a, b) => a < 38.4 && b > 33.6), door(34.2, 37.6, 2.55)], CAB));
+  boxes.push(...wallZ(-8.95, -2.85, 26, 0.3, 2.6, WHITE, [door(-7.3, -4.7, 2.25)], CAB));
+  boxes.push(...wallZ(-8.95, -2.85, 58, 0.3, 2.6, WHITE, [win(-7.2, -4.4, 0.65, 1.7)], CAB));
+  boxes.push(B(26.2, -8.95, 57.8, -2.85, 0.22, DARK, 3.98));
+  boxes.push(...slab(26, -9.2, 58, -2.6, ROOFY, 0.3, WHITE));
+  boxes.push(B(24, -9.28, 26.8, -9.12, 0.42, BLUE, 5.25), B(31.2, -9.28, 58, -9.12, 0.42, BLUE, 5.25));
+  boxes.push(B(24, -2.68, 33.6, -2.52, 0.42, BLUE, 5.25), B(38.2, -2.68, 58, -2.52, 0.42, BLUE, 5.25));
+  for (let x = 33; x <= 54; x += 3.1) {
+    glass(x, -9.4, x + 1.45, -9.4, CAB + 0.72, 0.83);
+    glass(x, -2.45, x + 1.45, -2.45, CAB + 0.72, 0.83);
+  }
+  for (let x = 39; x <= 53; x += 1.85) {
+    boxes.push(B(x, -8.55, x + 1.15, -7.2, 0.55, SEAT, CAB));
+    boxes.push(B(x, -4.55, x + 1.15, -3.2, 0.55, SEAT, CAB));
+  }
+  for (let x = 30; x <= 54; x += 4) wp(x, CAB, -5.9);
+  // nariz, cauda, asas, motores, trem. A asa norte sobe por uma rampa; dela um lance chega no teto.
+  boxes.push(B(58.35, -7.4, 63.2, -4.2, 1.9, WHITE, 2.7), B(62.6, -6.4, 66.2, -5.2, 1.15, WHITE, 3.0));
+  boxes.push(B(17.5, -7.4, 26.3, -4.3, 2.5, WHITE, 3.1));
+  boxes.push(B(18.6, -5.85, 22.4, -5.15, 8.2, WHITE, 4.0));
+  boxes.push(B(18.2, -9.2, 22.8, -2.4, 0.32, WHITE, 7.15));
+  boxes.push(B(36, -22, 50, -9.15, 0.42, WHITE, 2.72));
+  boxes.push(B(36, -2.65, 50, 16, 0.42, WHITE, 2.72));
+  boxes.push(B(40.2, -17.2, 47.4, -13.8, 1.45, '#d5d8dc', 0.35), B(40.2, 2.4, 47.4, 5.8, 1.45, '#d5d8dc', 0.35));
+  for (const [x, z] of [[33, -8.15], [33, -3.55], [50, -8.15], [50, -3.55]]) boxes.push(B(x, z, x + 0.7, z + 0.6, 1.35, DARK));
+  boxes.push(R(22, 12.6, 38, 15.8, 0, 3.15, 'x', 1, METAL));
+  // lance reto da asa norte até o teto: sobe em z e a ponte entra na fuselagem
+  boxes.push(R(45.2, 1.2, 50.6, 11.2, 3.15, ROOFY, 'z', -1, METAL));
+  boxes.push(B(45.2, -6.2, 50.6, 1.5, 0.3, WHITE, ROOFY - 0.3));
+  boxes.push(R(26.6, -18.2, 31.2, -9.25, 0, CAB, 'z', 1, ORANGE));
+  boxes.push(B(27.2, -8.85, 57.4, -8.45, 1.15, METAL, ROOFY));
+  boxes.push(B(27.2, -4.05, 44.6, -3.65, 1.15, METAL, ROOFY), B(51.2, -4.05, 57.4, -3.65, 1.15, METAL, ROOFY));
+  wp(32, 3.15, 12); wp(48, 3.15, 10); wp(48, ROOFY, 4); wp(48, ROOFY, -2); wp(48, ROOFY, -5);
+  sign(46, 6.15, -9.55, 'LEITÃO', Math.PI, BLUE);
+  wp(32, 3.15, 9.4); wp(48, 3.15, 4); wp(54, ROOFY, 0.6); wp(29, CAB, -14);
+
+  // pátio sul do terminal, entre a lanchonete e as lojas: sem isso vira campo aberto
+  for (const [x, z] of [[-18, -40], [-10, -38], [-2, -42], [-14, -32], [-6, -30], [-16, -26], [0, -34]]) boxes.push(B(x, z, x + 2.2, z + 1.3, 1.2, WOOD, Y));
+  boxes.push(B(-8, -44.2, -4.2, -43.6, 1.3, WALL2, Y));
+
+  // quebra-visada no perímetro: lâminas perpendiculares à borda. O olho passa entre elas pro cenário; não corre a pista inteira.
+  const finH = 2.6;
+  for (let x = -66; x <= 64; x += 7.5) {
+    if (x > -56 && x < -30) continue;
+    boxes.push(B(x, -57.2, x + 0.7, -50.6, finH, '#b7b3aa'));
+  }
+  for (let z = -48; z <= 52; z += 7.5) boxes.push(B(66.4, z, 69.3, z + 0.7, finH, '#b7b3aa'));
+  for (let x = -64; x <= 60; x += 8) {
+    if (x > -20 && x < 20) continue;
+    boxes.push(B(x, 51.2, x + 0.7, 57.2, finH, '#b7b3aa'));
+  }
+  for (let z = -40; z <= 40; z += 8) boxes.push(B(-69.2, z, -66.2, z + 0.7, finH, '#b7b3aa'));
+
+  // depósito noroeste, no vão entre a segurança e a praça
+  boxes.push(...building(-62, 26, -48, 44, { col: colT, floors: 1, H: 3.4, y0: Y, parapet: 0.45,
+    ops: [{ s: 'e', a: 30, b: 33.6 }, { s: 's', a: -58, b: -54.2 }, { s: 'n', a: -58, b: -54.4 }] }));
+  boxes.push(B(-58, 34, -52, 35.2, 1.15, WOOD, Y));
+  // muro baixo ao lado da rampa sul e fileiras de carga: cortam a pista em trechos curtos
+  boxes.push(B(-30.4, -56.2, -28.8, -42, 4.4, '#b7b3aa'));
+  boxes.push(B(-32, -48.8, 64, -47.3, 4.6, '#b7b3aa'));
+  boxes.push(B(12, -22.6, 24, -21.0, 2.6, WHITE));
+  boxes.push(B(34, -22.6, 58, -21.0, 2.6, WHITE));
+  boxes.push(B(10, 12.6, 20, 14.4, 2.6, WHITE));
+  boxes.push(B(52, 4.2, 54.4, 16, 2.6, '#d7dbe0'));
+  boxes.push(B(-24, -28, -6, -26.6, 2.2, WALL2, Y));
+  boxes.push(B(30, -18.4, 58, -16.8, 2.6, WHITE));
+  boxes.push(B(14, 20.4, 32, 22.0, 2.6, '#d7dbe0'));
+  boxes.push(B(30, 18.2, 60, 19.8, 2.6, '#d7dbe0'));
+
+  // pórticos da pista: dá pra passar por baixo e eles cortam a visada alta
+  const gantry = (x0, x1, z, yTop) => {
+    boxes.push(B(x0, z, x0 + 0.4, z + 0.4, yTop - 0.4, METAL), B(x1 - 0.4, z, x1, z + 0.4, yTop - 0.4, METAL));
+    boxes.push(B(x0, z - 0.15, x1, z + 0.55, 2.4, WALLC, yTop - 2.4));
+  };
+  gantry(20, 38, 16.2, 6.4);
+  gantry(24, 46, -30.2, 6.2);
+  boxes.push(B(58, 44, 64, 50, 14, WALL2), B(57.2, 43.2, 64.8, 50.8, 0.4, ROOFC, 14));
+  sign(61, 12.2, 43.9, 'TORRE', Math.PI, '#1e3a5f');
+
+  // contêineres e barreiras: cobertura a cada ~7 m, uma faixa limpa ao norte do avião
+  const uld = (x, z, w, d, h, c) => boxes.push(B(x, z, x + w, z + d, h, c));
+  const yard = [[10, 2, 2.4, 5.2, 2.5, WHITE], [10, 10, 2.6, 2.4, 2.4, '#c5d0dc'], [14, -8, 2.4, 2.4, 2.5, WHITE],
+    [18, 22, 4.2, 2.4, 2.5, WHITE], [18, 28, 2.4, 2.4, 2.4, BLUE], [28, 24, 2.6, 2.4, 2.5, WHITE], [36, 26, 2.4, 4.2, 2.4, '#d7dbe0'],
+    [44, 22, 2.6, 2.4, 2.5, WHITE], [52, 28, 2.4, 2.4, 2.4, BLUE], [58, 18, 4.2, 2.4, 2.5, WHITE], [62, 8, 2.4, 2.4, 2.4, WHITE],
+    [48, 8, 2.6, 2.4, 2.5, '#d7dbe0'], [40, 12, 2.4, 2.2, 2.4, WHITE], [22, -24, 2.6, 2.4, 2.5, WHITE], [30, -24, 2.4, 4.0, 2.4, BLUE],
+    [40, -26, 2.6, 2.4, 2.5, WHITE], [48, -22, 2.4, 2.4, 2.4, WHITE], [56, -20, 4.0, 2.4, 2.5, '#d7dbe0'], [62, -28, 2.4, 2.4, 2.4, ORANGE],
+    [14, -28, 2.6, 2.4, 2.5, WHITE], [8, -18, 2.4, 4.2, 2.4, WHITE], [20, -40, 2.6, 2.4, 2.5, WHITE], [32, -42, 4.2, 2.4, 2.4, BLUE],
+    [46, -40, 2.4, 2.4, 2.5, WHITE], [58, -42, 2.6, 2.4, 2.4, WHITE], [64, 32, 2.4, 2.4, 2.5, WHITE], [50, 40, 2.6, 2.4, 2.4, WHITE],
+    [34, 40, 2.4, 4.0, 2.5, '#d7dbe0'], [16, 40, 2.6, 2.4, 2.4, WHITE], [8, 30, 2.4, 2.4, 2.5, BLUE], [24, -14, 2.2, 2.2, 1.15, ORANGE],
+    [42, -14, 2.4, 1.1, 1.15, '#e6c15a'], [60, -8, 2.2, 2.2, 1.15, ORANGE], [12, 18, 3.2, 1.05, 1.15, METAL]];
+  for (const [x, z, w, d, h, c] of yard) uld(x, z, w, d, h, c);
+  for (const x of [22, 34, 46, 58]) boxes.push(B(x, 17.4, x + 0.28, 17.68, 7.2, METAL));
+  props.push({ t: 'decal', x0: 12, z0: 14.6, x1: 66, z1: 15.15, y: 0.035, c: '#f2c94c', layer: 4 });
+  props.push({ t: 'decal', x0: 16, z0: -34.2, x1: 66, z1: -33.7, y: 0.035, c: '#f4f7fb', layer: 4 });
+  props.push({ t: 'decal', x0: 62, z0: -40, x1: 66.2, z1: 36, y: 0.035, c: '#f2c94c', layer: 4 });
+
+  // cenário atrás do meio-fio (fora do retângulo jogável, ou encostado na borda)
+  boxes.push(B(-40, 62, 55, 108, 24, '#9aa7a4'), B(-130, -20, -74, 46, 16, '#748678'), B(-80, -70, -72, 20, 8, '#748678'));
+  boxes.push(B(78, -18, 122, -9, 3.6, WHITE, 3.4), B(84, -22, 108, -5, 0.35, WHITE, 5.5), B(76.5, -14.2, 81, -12.6, 6.5, WHITE, 4.2));
+  props.push({ t: 'decal', x0: -160, z0: -90, x1: -70, z1: 90, y: 0.02, c: '#6d7c62' });
+  props.push({ t: 'decal', x0: -70, z0: 58, x1: 90, z1: 130, y: 0.02, c: '#6d7c62' });
+  props.push({ t: 'decal', x0: 70, z0: -58, x1: 150, z1: 58, y: 0.02, c: '#b7b3aa' });
+  for (const [x, z] of [[-73, -20], [-73, 8], [-73, 36], [30, 54], [55, 52], [20, -54], [48, -54], [66, 20]]) props.push({ t: 'tree', x, z });
+  props.push({ t: 'car', x: 16, z: -4, rot: Math.PI / 2, c: '#f4f7fb' }, { t: 'truck', x: 22, z: -36, c: '#3f5fae' }, { t: 'car', x: 54, z: 4, rot: -Math.PI / 2, c: '#e7e4de' });
+  sign(100, 7.2, -13.2, 'PISTA 2', Math.PI / 2, BLUE);
+
+  MAPS.push({
+    id: 'sagao-leitao', name: 'Saguão do Leitão',
+    desc: 'Aeroporto: detectores, livraria, lanchonete e o corredor de vidro. Na pista, contêineres e o avião de fuselagem aberta.',
+    size: [70, 58], wallH: 0.22, wallColor: ['#d2cac2', '#c8c4bc'], openMax: 8.6, laneMin: 40,
+    palette: { sky: '#c5d0d4', fog: ['#c5d0d4', 80, 220], hemi: ['#eef3f6', '#8a9186', 1.5], sun: ['#f7f4ee', 1.9], ground: '#c8c4ba', tiles: null, clouds: true },
+    ...fin(boxes), props,
+    spawns: [[-60, 4, Y], [-60, 14, Y], [-58, -6, Y], [-50, 10, Y], [-48, -30, Y], [-34, 6, Y], [-28, 36, Y],
+      [2, 6, Y], [4, 40, Y], [1.5, 38, Y + 3.5], [10, 18], [46, 36], [44, -38], [44, -5.9, CAB], [22, -28]],
+    pickups: [['health', -58, 8, Y], ['health', -12, 8, Y], ['health', -30, 36, Y], ['health', 46, -5.9, CAB], ['health', 42, 30],
+      ['ammo', -34, 12, Y], ['ammo', -46, -28, Y], ['ammo', 1.5, 40, Y + 3.5], ['ammo', 40, 6, 3.15], ['ammo', 3, -8, Y],
+      ['grenade', -12, -14, Y], ['grenade', 18, 7, Y], ['grenade', 22, -28], ['grenade', -24, 40, Y], ['grenade', 49, -5, ROOFY]],
+    bomb: {
+      sites: [[3, Y, 2], [-44, Y, -30]],
+      atk: [[-60, 4, Y], [-60, 14, Y], [-58, -6, Y], [-50, 10, Y], [-62, 8, Y], [-54, 18, Y]],
+      def: [[4, 40, Y], [1.5, 38, Y + 3.5], [10, 18], [46, 36], [18, 7, Y], [44, -5.9, CAB]],
+    },
+    showcase: [3, Y, 4], view: [2, Y, -6, 0.9, -0.06],
+    test: {
+      stairs: { from: [-43, 0, -55], to: [-43, Y, -45.2], level: Y },
+      roof: { from: [49, 3.15, 12.2], to: [49, ROOFY, -3.6], level: ROOFY },
+      under: { from: [32, 0, -6], to: [52, 0, -6], ceil: 3.98 },
+    },
   });
 }
 

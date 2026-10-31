@@ -227,6 +227,16 @@ function buildProp(p, ctx) {
       const m = textPlane(3, 2.2, (x, w, h) => { x.fillStyle = p.c; x.fillRect(0, 0, w, h); x.lineWidth = 10; x.strokeStyle = '#2a1410'; x.strokeRect(5, 5, w - 10, h - 10); drawLogo(x, w / 2, h / 2, h * 0.62, '#ffffff', '#2a1410'); });
       m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot || 0; group.add(m); break;
     }
+    case 'decal': { // pintura no chão (faixa, xadrez, zebrado). Sem colisão e fora do raycast de visão.
+      const w = p.x1 - p.x0, d = p.z1 - p.z0;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(w), Math.abs(d)), decal(new THREE.MeshBasicMaterial({ color: p.c, transparent: p.o != null && p.o < 1, opacity: p.o ?? 1 }), p.layer || 3));
+      m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, p.y ?? 0.03, (p.z0 + p.z1) / 2); m.receiveShadow = true; group.add(m); break;
+    }
+    case 'glass': { // vidro só visual: o tiro passa (a física não vê), a silhueta da janela fica
+      const dx = p.x1 - p.x0, dz = p.z1 - p.z0, len = Math.max(0.2, Math.hypot(dx, dz)), h = p.h || 1.6;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(len, h), new THREE.MeshBasicMaterial({ color: p.c || 0x9ec9d6, transparent: true, opacity: p.o ?? 0.32, depthWrite: false }));
+      m.position.set((p.x0 + p.x1) / 2, (p.y || 0) + h / 2, (p.z0 + p.z1) / 2); m.rotation.y = -Math.atan2(dz, dx); group.add(m); break;
+    }
     default: console.warn('prop desconhecido', p.t);
   }
 }
