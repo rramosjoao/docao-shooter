@@ -8181,9 +8181,10 @@ function unstickSurvMarks() {
     if (r.width < 2 || r.height < 2) continue;
     blocks.push({ left: r.left - 18, right: r.right + 18, top: r.top - 22, bottom: r.bottom + 14 });
   }
-  // Munição à direita e poderes da Invasão à esquerda. O marcador não pode sentar em cima.
+  // Munição à direita, poderes à esquerda, e a arma na mão no meio de baixo.
   blocks.push({ left: innerWidth - 500, right: innerWidth, top: innerHeight - 220, bottom: innerHeight });
   blocks.push({ left: 0, right: 380, top: innerHeight - 340, bottom: innerHeight });
+  blocks.push({ left: innerWidth * 0.35, right: innerWidth * 0.92, top: innerHeight * 0.62, bottom: innerHeight });
   const placed = [];
   const hit = (a, b) => !(a.right < b.left + 2 || a.left > b.right - 2 || a.bottom < b.top + 2 || a.top > b.bottom - 2);
   for (const id of ids) {
