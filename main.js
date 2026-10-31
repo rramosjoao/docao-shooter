@@ -5901,13 +5901,23 @@ function tickNight(dt) {
 // seletor: mapa salvo no navegador ('random' = aleatório a cada partida)
 const invMenu = () => $('modeSel').value === INV.mode; // Invasão tem lista de mapas própria (Rodízio + Fazenda + os normais)
 const bombMenu = () => $('modeSel').value === 'bomb';
-const menuPool = (md) => (isSurvivalMode(md) ? SURVIVAL_MAPS : isX1(md) ? X1_MAPS : md === 'bomb' ? BOMB_MAPS : isInvasion(md) ? INV_MAPS : PLAY_MAPS); // Survival: só a HOTMILK à Noite. Bomba: sites feitos à mão. X1: currais.
+const menuSurvival = () => invMenu() && isSurvival($('survSel') && $('survSel').value); // Survival é variante da Invasão, não um modo solto
+const menuPool = (md, surv = false) => ((surv || isSurvivalMode(md)) ? SURVIVAL_MAPS : isX1(md) ? X1_MAPS : md === 'bomb' ? BOMB_MAPS : isInvasion(md) ? INV_MAPS : PLAY_MAPS); // Survival: só a HOTMILK à Noite. Bomba: sites feitos à mão. X1: currais.
 const mapKey = () => (bombMenu() ? 'docao.bombMap' : invMenu() ? 'docao.invMap' : x1Menu() ? 'docao.x1Map' : 'docao.map');
 const x1Menu = () => $('modeSel').value === X1.mode;
-const mapPool = () => menuPool($('modeSel').value);
+const mapPool = () => menuPool($('modeSel').value, menuSurvival());
 function storedMap() { let v = null; try { v = localStorage.getItem(mapKey()); } catch (e) { /* */ } return v === 'random' || mapPool().some((m) => m.id === v) ? v : bombMenu() ? BOMB_MAP : isSurvivalMode($('modeSel').value) ? SURVIVAL.DEFAULT_MAP : invMenu() ? INV.DEFAULT_MAP : MAPS[0].id; }
 let selectedMap = storedMap();
 function syncMapForMode() {
+  if (menuSurvival()) {
+    selectedMap = SURVIVAL.DEFAULT_MAP;
+    if (!currentMap || currentMap.id !== SURVIVAL.DEFAULT_MAP) loadMap(SURVIVAL.DEFAULT_MAP, true);
+    const m = getMap(SURVIVAL.DEFAULT_MAP);
+    if (m && !thumbs[m.id]) { try { thumbs[m.id] = renderThumb(m); } catch (e) { /* miniatura depois */ } }
+    $('mapModal').classList.add('hidden');
+    buildMapGrid();
+    return;
+  }
   if (x1Menu()) { selectedMap = 'random'; if (!currentMap || !currentMap.x1) loadMap(X1_MAPS[0].id); buildMapGrid(); return; }
   const v = storedMap(); if (v !== selectedMap) { selectedMap = v; if (v !== 'random') loadMap(v); } buildMapGrid();
 }
@@ -5921,6 +5931,18 @@ function mapCard(id) {
   return b;
 }
 function refreshMapUI() {
+  const card = $('mapBtn');
+  if (menuSurvival()) {
+    const m = getMap(SURVIVAL.DEFAULT_MAP);
+    $('mapName').textContent = m ? m.name : 'HOTMILK à Noite';
+    $('mapDesc').textContent = 'Travado: o Survival só abre neste mapa.';
+    const th = card.querySelector('.thumb'); th.textContent = ''; th.style.backgroundImage = m && thumbs[m.id] ? `url(${thumbs[m.id]})` : ''; th.classList.remove('rnd');
+    const ch = card.querySelector('.mchange'); if (ch) ch.textContent = 'TRAVADO';
+    card.classList.add('locked'); card.title = 'O Survival só abre na HOTMILK à Noite';
+    return;
+  }
+  card.classList.remove('locked'); card.title = 'Escolher mapa';
+  const ch = card.querySelector('.mchange'); if (ch && ch.textContent !== 'TROCAR') ch.textContent = 'TROCAR';
   if (x1Menu()) {
     $('mapName').textContent = 'Sortido'; $('mapDesc').textContent = 'Um curral pequeno, sorteado. Cada um nasce de um lado.';
     const th = $('mapBtn').querySelector('.thumb'); th.textContent = '?'; th.style.backgroundImage = ''; th.classList.add('rnd');
@@ -5934,6 +5956,7 @@ function refreshMapUI() {
   document.querySelectorAll('#mapGrid .mapcard').forEach((c) => c.classList.toggle('active', c.dataset.map === selectedMap));
 }
 function selectMap(id) {
+  if (menuSurvival()) { refreshMapUI(); return; }
   if (x1Menu()) { if (id !== 'random') loadMap(id); refreshMapUI(); return; } // no X1 o mapa da partida é sorteado; o clique só mostra o curral
   selectedMap = id; try { localStorage.setItem(mapKey(), id); } catch (e) { /* sem storage */ }
   if (id !== 'random') loadMap(id);
@@ -5945,7 +5968,7 @@ function invThumbs() { // Rodízio/Fazenda: renderiza a miniatura só quando o m
   const next = () => { const m = todo.shift(); if (!m) { invThumbsBusy = false; buildMapGrid(); return; } try { thumbs[m.id] = renderThumb(m); } catch (e) { console.warn('miniatura', m.id, e); } refreshMapUI(); requestAnimationFrame(next); };
   requestAnimationFrame(next);
 }
-function buildMapGrid() { if (invMenu()) invThumbs(); const g = $('mapGrid'); g.innerHTML = ''; for (const m of mapPool()) g.appendChild(mapCard(m.id)); g.appendChild(mapCard('random')); refreshMapUI(); }
+function buildMapGrid() { if (invMenu() && !menuSurvival()) invThumbs(); const g = $('mapGrid'); g.innerHTML = ''; for (const m of mapPool()) g.appendChild(mapCard(m.id)); if (!menuSurvival()) g.appendChild(mapCard('random')); refreshMapUI(); }
 function makeThumbs() { // miniaturas renderizadas da vista aérea, uma por quadro pra não travar o menu
   const L = MAPS.filter((m) => !m.survivalOnly && (PLAY_MAPS.includes(m) || !INV_MAPS.includes(m))); // HOTMILK à Noite e os mapas só da Invasão: miniatura sob demanda
   let i = 0; const next = () => {
@@ -5965,10 +5988,10 @@ function resolveX1Map(mapId) {
 }
 function pickMapForMatch() {
   if (selectedMap !== 'random' && mapPool().some((m) => m.id === selectedMap)) return selectedMap;
-  if (selectedMap !== 'random') return bombMenu() ? BOMB_MAP : isSurvivalMode($('modeSel').value) ? SURVIVAL.DEFAULT_MAP : invMenu() ? INV.DEFAULT_MAP : PLAY_MAPS[0].id; // Bomba: mapa sem sites → Rodízio. Survival: HOTMILK à Noite.
+  if (selectedMap !== 'random') return bombMenu() ? BOMB_MAP : menuSurvival() ? SURVIVAL.DEFAULT_MAP : invMenu() ? INV.DEFAULT_MAP : PLAY_MAPS[0].id; // Bomba: mapa sem sites → Rodízio. Survival: HOTMILK à Noite.
   const pool = mapPool().filter((m) => !currentMap || m.id !== currentMap.id); return pool[Math.floor(Math.random() * pool.length)].id;
 }
-$('mapBtn').onclick = () => { buildMapGrid(); $('mapModal').classList.remove('hidden'); };
+$('mapBtn').onclick = () => { if (menuSurvival()) return; buildMapGrid(); $('mapModal').classList.remove('hidden'); };
 $('mapClose').onclick = () => $('mapModal').classList.add('hidden');
 loadMap(selectedMap === 'random' ? MAPS[0].id : selectedMap); buildMapGrid(); makeThumbs();
 
@@ -6005,7 +6028,7 @@ function startGame(mapId) {
   endVictory(); stopEmote();
   resetAds(); stopInspect(true); // inspeção velha não sobrevive ao 'Jogar de novo'
   initAudio();
-  const wantSurv = isSurvivalMode($('modeSel').value);
+  const wantSurv = menuSurvival();
   loadMap($('modeSel').value === TRAIN.mode ? TRAIN.map : $('modeSel').value === X1.mode ? resolveX1Map(mapId) : wantSurv ? SURVIVAL.DEFAULT_MAP : (typeof mapId === 'string' ? mapId : pickMapForMatch()), wantSurv || $('modeSel').value === INV.mode);
   const name = myName(); saveName(name);
   sens = parseFloat($('sens').value) || 1.4; sensAds = parseFloat($('sensAds').value) || 1;
@@ -6014,7 +6037,7 @@ function startGame(mapId) {
   clearBots(); gameTime = 0; inv = null; invNet = null; survClear();
   const picked = $('modeSel').value;
   saveBotDiff($('botDiff').value);
-  mode = MODE_OK(picked); matchVariant = isSurvivalMode(picked) ? 'survival' : ''; survLive = matchVariant === 'survival'; armsWinner = null; teamScore = [0, 0]; zone = null; window.__capLog = []; offlineMinutes = normTime($('timeSel').value);
+  mode = MODE_OK(picked); matchVariant = wantSurv ? 'survival' : ''; survLive = wantSurv; armsWinner = null; teamScore = [0, 0]; zone = null; window.__capLog = []; offlineMinutes = normTime($('timeSel').value);
   noclipOn = false; noclipSpeed = 22; paintNoclip();
   matchLimits = { weapons: null, powers: null }; rulesLive = true; // solo: arsenal inteiro. O limite de armas é regra da sala, escolhida ao criar.
   player = makeEntity(name, true, selectedSkin, '#ffd27a'); entities.push(player); fp.setSkin(selectedSkin);
@@ -6616,7 +6639,7 @@ const MENU_RULES = {
   treino: 'Estande do Docão: alvos que não atacam e voltam em 2 s. B/N/M trocam a arma, munição infinita, sem tempo.',
   bomb: `💣 COMO JOGAR · Bomba (protótipo, estilo Valorant)\n🔥 Ataque: leve o Botijão até o site A ou B e segure ${BOMB.KEY_LABEL} por ${BOMB.PLANT} s pra plantar. Ele explode em ${BOMB.FUSE} s.\n🛡️ Defesa: impeça a plantação ou segure ${BOMB.KEY_LABEL} por ${BOMB.DEFUSE} s perto do Botijão pra desarmar.\n🔁 ${BOMB.PREP} s de preparação por rodada (dá pra trocar de arma com 1–9) · renascimento normal · primeiro a ${BOMB.WIN} rodadas · troca de lado depois da ${BOMB.HALF}ª.`,
   inv: 'Invasão 🎃 · co-op contra 20 waves de Docões zumbis. 2 vidas cada, poderes caem dos zumbis (G usa, X troca) e a Névoa Assombrada fecha o mapa.',
-  survival: 'Survival · só na HOTMILK à Noite. Nasce de pistola e faca. F usa a loja (parede, Barraca da Sorte e Papada). E compra a porta. A Ray Gun só sai na barraca.',
+  survival: 'Survival, dentro da Invasão: o mapa trava na HOTMILK à Noite. Nasce de pistola e faca. F usa a loja (parede, Barraca da Sorte e Papada). E compra a porta. A Ray Gun só sai na barraca.',
   explore: 'Mapa vazio, só você. Ande e teste as armas. Vírgula, ponto ou [ ] trocam a primária. N liga o noclip: voa na direção da mira, atravessa parede, Espaço sobe, Ctrl ou C desce, Shift acelera, a rodinha muda a velocidade. Munição não acaba e a partida não termina.',
   x1: 'X1 · duelo. Mapa pequeno sorteado, cada um nasce de um lado. Primeiro a 10 abates. Só munição no chão, sem vida. A arma é a mesma pros dois e troca quando alguém cai.',
 };
@@ -7094,23 +7117,25 @@ function paintLoadoutDock() {
 }
 function syncLoadoutUi() { paintLoadoutDock(); fillLoadoutRow('lobbyLoadoutRow', 'lobby', false); buildDeathPrimaries(); buildDeathSec(); buildDeathMelee(); }
 function refreshMenuMode() {
-  const v = ['dom', ARMS_RACE.mode, 'bomb', 'explore', TRAIN.mode, INV.mode, X1.mode, 'survival'].includes($('modeSel').value) ? $('modeSel').value : 'dm';
+  if ($('modeSel').value === 'survival') { $('modeSel').value = INV.mode; if ($('survSel')) $('survSel').value = 'survival'; }
+  const v = ['dom', ARMS_RACE.mode, 'bomb', 'explore', TRAIN.mode, INV.mode, X1.mode].includes($('modeSel').value) ? $('modeSel').value : 'dm';
+  const inv = v === INV.mode;
+  const surv = inv && isSurvival($('survSel') && $('survSel').value);
   $('menuTrain').classList.toggle('hidden', v !== TRAIN.mode);
   $('menuTeam').classList.toggle('hidden', v !== 'dom' && !isArmsRace(v) && v !== 'bomb'); // Dominação e Bomba: escolhe o time
-  $('botCount').closest('label').classList.toggle('hidden', v === 'explore' || v === TRAIN.mode || v === INV.mode || v === X1.mode || v === 'survival');
-  $('timeSel').closest('label').classList.toggle('hidden', v === 'explore' || v === TRAIN.mode || v === INV.mode || isArmsRace(v) || v === 'survival');
-  const showDiff = v !== 'explore' && v !== TRAIN.mode && v !== 'survival';
+  $('botCount').closest('label').classList.toggle('hidden', v === 'explore' || v === TRAIN.mode || inv || v === X1.mode);
+  $('timeSel').closest('label').classList.toggle('hidden', v === 'explore' || v === TRAIN.mode || inv || isArmsRace(v));
+  const showDiff = v !== 'explore' && v !== TRAIN.mode;
   $('botDiffLabel').classList.toggle('hidden', !showDiff);
   $('botDiffNote').classList.toggle('hidden', !showDiff);
-  if ($('survLabel')) $('survLabel').classList.add('hidden');
-  const showSurv = v === 'survival';
-  $('survNote').classList.toggle('hidden', !showSurv);
+  if ($('survLabel')) $('survLabel').classList.toggle('hidden', !inv);
+  if ($('survNote')) $('survNote').classList.toggle('hidden', !inv);
   if (showDiff) paintDiffNote();
-  if (showSurv && $('survNote')) $('survNote').textContent = `Survival abre direto na HOTMILK à Noite. Pistola e faca, ${SURV.useLabel} usa a loja, E compra a porta. A Ray Gun só sai na Barraca da Sorte.`;
-  const playTitle = v === INV.mode || v === 'survival' ? 'SOBREVIVER' : v === 'explore' ? 'EXPLORAR' : v === TRAIN.mode ? 'TREINAR' : v === X1.mode ? 'X1' : '<img class="menu-lettering" src="./assets/menu/lettering-jogar.webp" alt="Jogar">';
-  const playHint = v === 'survival' ? 'HOTMILK À NOITE · LOJA E PORTAS' : v === INV.mode ? 'SOLO · 20 WAVES DE ZUMBIS' : v === 'explore' ? 'SEM BOTS · SEM PRESSA' : v === TRAIN.mode ? 'ESTANDE · SEM LIMITE' : v === X1.mode ? 'DUELO · PRIMEIRO A 10' : 'SOLO · CONTRA BOTS';
+  if (inv) paintSurvNote();
+  const playTitle = inv ? 'SOBREVIVER' : v === 'explore' ? 'EXPLORAR' : v === TRAIN.mode ? 'TREINAR' : v === X1.mode ? 'X1' : '<img class="menu-lettering" src="./assets/menu/lettering-jogar.webp" alt="Jogar">';
+  const playHint = surv ? 'HOTMILK À NOITE · LOJA E PORTAS' : inv ? 'CLÁSSICA · 20 WAVES' : v === 'explore' ? 'SEM BOTS · SEM PRESSA' : v === TRAIN.mode ? 'ESTANDE · SEM LIMITE' : v === X1.mode ? 'DUELO · PRIMEIRO A 10' : 'SOLO · CONTRA BOTS';
   $('playBtn').innerHTML = `<span class="play-title">${playTitle}</span><small>${playHint}</small>`;
-  $('menuRules').textContent = MENU_RULES[v];
+  $('menuRules').textContent = inv ? (surv ? 'Survival · dentro da Invasão, só na HOTMILK à Noite.' : 'Invasão clássica · 20 waves, poderes e a Névoa Assombrada.') : MENU_RULES[v];
   teamButtons($('menuTeamBtns'), menuTeam, (t) => { menuTeam = t; refreshMenuMode(); });
   syncLoadoutUi();
 }
@@ -7130,18 +7155,17 @@ function saveBotDiff(id) {
 function paintSurvNote() {
   const el = $('survNote'); if (!el) return;
   const surv = isSurvival($('survSel').value);
-  const ex = exclusiveSurvivalMap(MAPS.map((m) => m.id));
   el.textContent = surv
-    ? `Survival: a sala inteira nasce só de pistola e faca. Na partida compra arma na parede, gira a ${BOX_NAME} e passa a arma na ${PAPADA_NAME}. Morreu, volta pra pistola e faca — o tier e os pontos ficam.${ex ? ` Mapa: ${ex}.` : ' A Papada e a barraca nascem perto de você. Segure F.'}`
-    : 'Padrão: o loadout de sempre, sem loja na partida. A horda e as waves continuam iguais.';
+    ? 'Survival: o mapa trava na HOTMILK à Noite. Nasce de pistola e faca. F usa a loja (parede, Barraca da Sorte e Papada). E compra a porta. A Ray Gun só sai na barraca.'
+    : 'Invasão clássica: 20 waves, 2 vidas, poderes no chão (G usa, X troca) e a Névoa Assombrada fecha o mapa. Os mapas da Invasão continuam valendo, inclusive o Rodízio.';
 }
-$('survSel').onchange = () => { try { localStorage.setItem('docao.surv', $('survSel').value); } catch (e) { /* */ } paintSurvNote(); };
+$('survSel').onchange = () => { try { localStorage.setItem('docao.surv', $('survSel').value); } catch (e) { /* */ } refreshMenuMode(); syncMapForMode(); };
 try { const s = localStorage.getItem('docao.surv'); if (s === 'survival' || s === 'padrao') $('survSel').value = s; } catch (e) { /* */ }
 $('botDiff').onchange = () => saveBotDiff($('botDiff').value);
 $('roomDiff').onchange = () => saveBotDiff($('roomDiff').value);
 try { const d = localStorage.getItem('docao.botDiff'); if (d) saveBotDiff(d); } catch (e) { /* */ }
 $('modeSel').onchange = () => { try { localStorage.setItem('docao.mode', $('modeSel').value); } catch (e) { /* */ } refreshMenuMode(); syncMapForMode(); };
-try { const m = localStorage.getItem('docao.mode'); if (m === 'dom' || isArmsRace(m) || m === 'dm' || m === 'explore' || m === TRAIN.mode || m === INV.mode || m === 'bomb' || m === X1.mode || m === 'survival') $('modeSel').value = m; } catch (e) { /* */ }
+try { const m = localStorage.getItem('docao.mode'); if (m === 'survival') { $('modeSel').value = INV.mode; $('survSel').value = 'survival'; } else if (m === 'dom' || isArmsRace(m) || m === 'dm' || m === 'explore' || m === TRAIN.mode || m === INV.mode || m === 'bomb' || m === X1.mode) $('modeSel').value = m; } catch (e) { /* */ }
 if (invMenu() || bombMenu() || x1Menu()) syncMapForMode();
 $('timeSel').onchange = () => { try { localStorage.setItem('docao.time', $('timeSel').value); } catch (e) { /* */ } };
 try { $('timeSel').value = String(normTime(localStorage.getItem('docao.time'))); } catch (e) { /* */ }
@@ -7332,12 +7356,12 @@ function onNetMessage(m) {
   }
 }
 // ---------- lobby ----------
-function fillMapSelect(sel, value, md) { // Invasão: lista própria (Rodízio, Fazenda Mal-Assombrada + mapas normais). X1: o mapa é sempre sortido.
+function fillMapSelect(sel, value, md, surv = false) { // Invasão: lista própria (Rodízio, Fazenda Mal-Assombrada + mapas normais). Survival: só a HOTMILK à Noite. X1: o mapa é sempre sortido.
   if (isX1(md)) {
     if (sel.dataset.pool !== 'x1') { sel.innerHTML = ''; sel.dataset.pool = 'x1'; sel.add(new Option('Sortido · curral pequeno', 'random')); }
     sel.value = 'random'; return;
   }
-  const iv = isInvasion(md), sv = isSurvivalMode(md), L = menuPool(md), key = md === 'bomb' ? 'bomb' : sv ? 'surv' : iv ? 'inv' : 'play';
+  const iv = isInvasion(md), sv = !!(surv || isSurvivalMode(md)), L = menuPool(md, sv), key = md === 'bomb' ? 'bomb' : sv ? 'surv' : iv ? 'inv' : 'play';
   if (!sel.options.length || sel.dataset.pool !== key) { sel.innerHTML = ''; sel.dataset.pool = key; for (const m of L) sel.add(new Option(m.name, m.id)); if (!sv) sel.add(new Option('Aleatório', 'random')); }
   if (value && [...sel.options].some((o) => o.value === value)) sel.value = value; else if (value) sel.value = md === 'bomb' ? BOMB_MAP : sv ? SURVIVAL.DEFAULT_MAP : iv ? INV.DEFAULT_MAP : L[0].id; // Bomba: mapa sem sites → Rodízio. Survival: um mapa só.
   if (md === 'bomb' && value === 'random') sel.value = BOMB_MAP;
@@ -7361,9 +7385,11 @@ function renderLobby() {
     $('lobbyName').disabled = $('lobbyNameBtn').disabled = inGame;
     $('lobbyNameMsg').textContent = me && me.name !== myName() ? `Na sala você aparece como “${me.name}”${inGame ? '' : ' (nome repetido ou ajustado)'}` : inGame ? 'Partida em andamento: o nome muda na próxima partida' : ''; }
   $('hostCtl').classList.toggle('hidden', !isHost); $('lobbyWait').classList.toggle('hidden', isHost || L.state !== 'lobby');
-  if (isHost) { fillMapSelect($('lobbyMap'), cfg.map, cfg.mode); $('lobbyMax').value = String(cfg.max); $('lobbyBots').value = cfg.fillBots ? '1' : '0'; $('lobbyDiff').value = normBotDiff(cfg.botDiff); $('lobbyMode').value = cfg.mode || 'dm'; $('lobbySurv').value = normSurv(cfg.surv); $('lobbyTime').value = String(normTime(cfg.time)); $('lobbyChatOn').value = cfg.chat === false ? '0' : '1'; }
-  $('lobbySurvLabel').classList.toggle('hidden', (cfg.mode || 'dm') !== INV.mode);
-  if ((cfg.mode || 'dm') === INV.mode) $('lobbyInfo').textContent += (isSurvival(cfg.surv) ? ' · SURVIVAL' : ' · PADRÃO');
+  const lobbyVariant = cfg.mode === 'survival' || cfg.variant === 'survival' || isSurvival(cfg.surv);
+  const lobbyMode = cfg.mode === 'survival' ? INV.mode : (cfg.mode || 'dm');
+  if (isHost) { fillMapSelect($('lobbyMap'), cfg.map, lobbyMode, lobbyVariant); $('lobbyMax').value = String(cfg.max); $('lobbyBots').value = cfg.fillBots ? '1' : '0'; $('lobbyDiff').value = normBotDiff(cfg.botDiff); $('lobbyMode').value = lobbyMode; $('lobbySurv').value = lobbyVariant ? 'survival' : 'padrao'; $('lobbyTime').value = String(normTime(cfg.time)); $('lobbyChatOn').value = cfg.chat === false ? '0' : '1'; }
+  $('lobbySurvLabel').classList.toggle('hidden', lobbyMode !== INV.mode);
+  if (lobbyMode === INV.mode) $('lobbyInfo').textContent += (lobbyVariant ? ' · SURVIVAL · HOTMILK À NOITE' : ' · CLÁSSICA');
   syncLobbyLimits(cfg, isHost); syncLoadoutUi();
   if (state === 'over') { const h = o.myId === o.hostId; $('againBtn').classList.toggle('hidden', !h); $('nextMapBtn').classList.toggle('hidden', !h); $('overWait').classList.toggle('hidden', h); }
 }
@@ -7381,12 +7407,18 @@ const sendCfg = (lim) => {
 };
 ['lobbyMap', 'lobbyMax', 'lobbyBots', 'lobbyTime', 'lobbyChatOn'].forEach((id) => ($(id).onchange = sendCfg));
 $('lobbyDiff').onchange = () => { saveBotDiff($('lobbyDiff').value); sendCfg(); };
-$('lobbySurv').onchange = () => sendCfg();
+$('lobbySurv').onchange = () => {
+  if (isSurvival($('lobbySurv').value)) { const ex = exclusiveSurvivalMap(MAPS.map((m) => m.id)); if (ex) $('lobbyMap').value = ex; }
+  fillMapSelect($('lobbyMap'), $('lobbyMap').value, $('lobbyMode').value, isSurvival($('lobbySurv').value));
+  sendCfg();
+};
 $('lobbyMode').onchange = () => {
   const mode = $('lobbyMode').value, humans = online && online.lobby ? online.lobby.players.filter((p) => !p.bot).length : 0;
   if (mode === X1.mode && humans > X1.MAX) { $('lobbyMode').value = (online.cfg && online.cfg.mode) || 'dm'; $('lobbyStatus').textContent = `X1 é duelo: só cabem ${X1.MAX} jogadores. Tem ${humans} na sala.`; return; }
   if (mode === X1.mode) $('lobbyMax').value = '2';
-  fillMapSelect($('lobbyMap'), $('lobbyMode').value === 'bomb' ? BOMB_MAP : $('lobbyMap').value, mode); sendCfg(limitsFor(mode));
+  $('lobbySurvLabel').classList.toggle('hidden', mode !== INV.mode);
+  if (mode === INV.mode && isSurvival($('lobbySurv').value)) { const ex = exclusiveSurvivalMap(MAPS.map((m) => m.id)); if (ex) $('lobbyMap').value = ex; }
+  fillMapSelect($('lobbyMap'), $('lobbyMode').value === 'bomb' ? BOMB_MAP : $('lobbyMap').value, mode, mode === INV.mode && isSurvival($('lobbySurv').value)); sendCfg(limitsFor(mode));
 };
 $('startOnline').onclick = () => {
   if (!online) return; const humans = online.lobby ? online.lobby.players.filter((p) => !p.bot).length : 0;
@@ -7396,9 +7428,9 @@ $('startOnline').onclick = () => {
 $('leaveLobby').onclick = () => leaveOnline();
 // ---------- menu online ----------
 function onlineTab(create) { $('tabCreate').classList.toggle('active', create); $('tabJoin').classList.toggle('active', !create); $('paneCreate').classList.toggle('hidden', !create); $('paneJoin').classList.toggle('hidden', create); }
-$('roomMode').onchange = () => { if ($('roomMode').value === X1.mode) $('roomMax').value = '2'; $('roomSurvLabel').classList.toggle('hidden', $('roomMode').value !== INV.mode); fillMapSelect($('roomMap'), $('roomMode').value === 'bomb' ? BOMB_MAP : $('roomMap').value, $('roomMode').value); syncRoomLimits(); };
-$('roomSurv').onchange = () => { if (isSurvival($('roomSurv').value)) { const ex = exclusiveSurvivalMap(MAPS.map((m) => m.id)); if (ex) $('roomMap').value = ex; } };
-$('onlineBtn').onclick = () => { commitMenuSkin(); if (isSurvivalMode($('modeSel').value)) $('roomMode').value = 'survival'; else if (invMenu()) $('roomMode').value = INV.mode; else if (bombMenu()) $('roomMode').value = 'bomb'; if ($('roomSurvLabel')) $('roomSurvLabel').classList.add('hidden'); fillMapSelect($('roomMap'), isSurvivalMode($('roomMode').value) ? SURVIVAL.DEFAULT_MAP : selectedMap, $('roomMode').value); syncRoomLimits(); $('onlineErr').textContent = ''; $('menu').classList.add('hidden'); $('onlineModal').classList.remove('hidden'); };
+$('roomMode').onchange = () => { if ($('roomMode').value === X1.mode) $('roomMax').value = '2'; const inv = $('roomMode').value === INV.mode; $('roomSurvLabel').classList.toggle('hidden', !inv); const surv = inv && isSurvival($('roomSurv').value); if (surv) { const ex = exclusiveSurvivalMap(MAPS.map((m) => m.id)); if (ex) $('roomMap').value = ex; } fillMapSelect($('roomMap'), $('roomMode').value === 'bomb' ? BOMB_MAP : $('roomMap').value, $('roomMode').value, surv); syncRoomLimits(); };
+$('roomSurv').onchange = () => { const surv = isSurvival($('roomSurv').value); if (surv) { const ex = exclusiveSurvivalMap(MAPS.map((m) => m.id)); if (ex) $('roomMap').value = ex; } fillMapSelect($('roomMap'), $('roomMap').value, $('roomMode').value, surv); };
+$('onlineBtn').onclick = () => { commitMenuSkin(); const surv = menuSurvival(); if (invMenu()) { $('roomMode').value = INV.mode; $('roomSurv').value = surv ? 'survival' : 'padrao'; } else if (bombMenu()) $('roomMode').value = 'bomb'; if ($('roomSurvLabel')) $('roomSurvLabel').classList.toggle('hidden', !invMenu()); const map = surv ? SURVIVAL.DEFAULT_MAP : selectedMap; fillMapSelect($('roomMap'), map, $('roomMode').value, surv); if (surv) $('roomMap').value = SURVIVAL.DEFAULT_MAP; syncRoomLimits(); $('onlineErr').textContent = ''; $('menu').classList.add('hidden'); $('onlineModal').classList.remove('hidden'); };
 $('onlineClose').onclick = () => { $('onlineModal').classList.add('hidden'); $('menu').classList.remove('hidden'); };
 $('tabCreate').onclick = () => onlineTab(true); $('tabJoin').onclick = () => { onlineTab(false); $('joinCode').focus(); };
 $('createBtn').onclick = async () => {
