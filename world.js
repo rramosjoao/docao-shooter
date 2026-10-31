@@ -61,6 +61,17 @@ function buildProp(p, ctx) {
       mesh.userData.clock = { canvas, tex, ctx: canvas.getContext('2d') };
       (group.userData.clocks = group.userData.clocks || []).push(mesh); group.add(mesh); break;
     }
+    case 'cable': {
+      const dx = p.x1 - p.x0, dy = p.y1 - p.y0, dz = p.z1 - p.z0, len = Math.hypot(dx, dy, dz) || 0.01;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(p.r || 0.07, p.r || 0.07, len, 5), toon(p.c || '#2c3338'));
+      m.position.set((p.x0 + p.x1) / 2, (p.y0 + p.y1) / 2, (p.z0 + p.z1) / 2);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / len, dy / len, dz / len));
+      group.add(m); break;
+    }
+    case 'glow': {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(p.x1 - p.x0), Math.abs(p.z1 - p.z0)), new THREE.MeshBasicMaterial({ color: p.c || 0xF2D9A0, transparent: true, opacity: p.o || 0.85, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, p.y, (p.z0 + p.z1) / 2); group.add(m); break;
+    }
     case 'decal': {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(p.x1 - p.x0), Math.abs(p.z1 - p.z0)), new THREE.MeshBasicMaterial({ color: p.c || 0x4a5258 }));
       m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, p.y || 0.02, (p.z0 + p.z1) / 2); group.add(m); break;
@@ -311,9 +322,10 @@ export function buildWorld(map) {
   // limites do mapa (visual na altura wallH; colisão bem alta)
   const wh = map.wallH || 4, [wc1, wc2] = map.wallColor || ['#e86a5c', '#d85a4c'];
   add(-hx - 1, 0, -hz - 1, hx + 1, wh, -hz, wc1, null, WALL_COLLIDE_H); add(-hx - 1, 0, hz, hx + 1, wh, hz + 1, wc1, null, WALL_COLLIDE_H);
-  if (map.fall && map.fall.openWest) solid(-hx - 1, 0, -hz, -hx, WALL_COLLIDE_H, hz); // colisor da borda oeste, sem muro visível
+  if (map.fall && map.fall.openWest) solid(-hx - 1, 0, -hz, -hx, WALL_COLLIDE_H, hz);
   else add(-hx - 1, 0, -hz, -hx, wh, hz, wc2, null, WALL_COLLIDE_H);
-  add(hx, 0, -hz, hx + 1, wh, hz, wc2, null, WALL_COLLIDE_H);
+  if (map.fall && map.fall.openEast) solid(hx, 0, -hz, hx + 1, WALL_COLLIDE_H, hz);
+  else add(hx, 0, -hz, hx + 1, wh, hz, wc2, null, WALL_COLLIDE_H);
   // caixas e rampas do mapa
   for (const o of map.boxes) {
     const [x0, y0, z0, x1, y1, z1] = o.b; if (x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01) continue;
@@ -429,8 +441,9 @@ export function renderThumb(map, w = 320, h = 180) {
   const [hx, hz] = map.size, long = Math.max(hx, hz);
   const cam = new THREE.PerspectiveCamera(36, w / h, 1, 600);
   const d = long * 1.55 + 8;
-  if (hz > hx * 1.2) cam.position.set(d * 0.78, d * 0.72, 0); else cam.position.set(0, d * 0.72, d * 0.78);
-  cam.lookAt(0, 0, 0);
+  if (map.thumb) { cam.position.set(map.thumb.x, map.thumb.y, map.thumb.z); cam.lookAt(map.thumb.tx, map.thumb.ty, map.thumb.tz); }
+  else if (hz > hx * 1.2) { cam.position.set(d * 0.78, d * 0.72, 0); cam.lookAt(0, 0, 0); }
+  else { cam.position.set(0, d * 0.72, d * 0.78); cam.lookAt(0, 0, 0); }
   thumbRenderer.render(scene, cam);
   const url = thumbRenderer.domElement.toDataURL('image/jpeg', 0.85);
   disposeWorld(group);

@@ -60,6 +60,14 @@ Spawns: 6 no norte (z 38…52) e 6 no sul (z −58…−44), distância mínima 
 
 Linha longa medida na auditoria: cerca de 100 m (a passarela ainda está reta demais; a meta do dossiê é 40–60 m). Visão quebrada: ~22% dos pares a ≥ 10 m se enxergam (teto do teste: 30%). Ponto mais aberto: 7,2 m.
 
+## Posto Nevasca — rodada 4
+
+A linha de 77,8 m da rodada 3 era no chão: origem x 23,9 z −59,1, olho 1,6 m; destino x −0,1 z 14,9, olho 1,6 m. Um contêiner no pátio sul, a cerca de 39 m da origem, corta essa linha. O novo máximo da mesma amostra é **57 m**, pelo nível dos telhados: x 5,9 z −45,1 olho 5,2 até x −6,1 z 10,9 olho 5,0.
+
+Sala Fria 28 × 22 m em x −16…12, z −6…16 (pesquisador x 10…38, y 44…66), alinhada à borda oeste do prédio do meio. Lab 15 × 10 m em x −8…7, z 36…46. Prédio leste 13 × 14 m em x 1,2…14,2, z 18…32. A passarela fica a oeste, por fora da Sala Fria. Planta em `screenshots/18-mapa-posto-nevasca-planta.png`. Log em `screenshots/18-mapa-posto-nevasca-raycast.txt`.
+
+As bordas leste e oeste não desenham o muro do limite. Fica a borda de rocha de 1,15 m em #4A4E54, o colisor invisível de 4 m e a encosta até −30 m.
+
 ## Posto Nevasca — rodada 3
 
 Coordenadas atuais, no motor (x oeste negativo, z norte positivo) e na convenção do pesquisador (x_p = x + 26, y_p = 60 − z):
