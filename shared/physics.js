@@ -13,8 +13,9 @@ export const FALL_FLOOR = -40; // chão fantasma do abismo; a morte acontece bem
 export function baselineY(fall, x, z, hx, hz) {
   if (!fall) return 0;
   if (fall.basins) for (const r of fall.basins) if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return r[4];
-  if (fall.margin && (Math.abs(x) > hx - fall.margin || Math.abs(z) > hz - fall.margin)) return FALL_FLOOR;
-  if (fall.rects) for (const r of fall.rects) if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return FALL_FLOOR;
+  const abyss = fall.abyss ?? FALL_FLOOR;
+  if (fall.margin && (Math.abs(x) > hx - fall.margin || Math.abs(z) > hz - fall.margin)) return abyss;
+  if (fall.rects) for (const r of fall.rects) if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return abyss;
   return 0;
 }
 export function fellOff(fall, y) { return !!(fall && y < fall.y); }
@@ -58,6 +59,7 @@ export function mapSolids(map) {
       case 'awning': add(p.x0, p.y, p.z0, p.x1, p.y + 0.12, p.z1); break;
       case 'jar': add(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 1.1, p.z + 0.4); break;
       case 'pine': if (!(p.y < -2)) add(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
+      case 'drift': { const r = p.r || 1.1, h = p.h || 0.8; add(p.x - r * 0.45, y, p.z - r * 0.45, p.x + r * 0.45, y + h * 0.5, p.z + r * 0.45); break; }
       case 'dome': { const r = p.r || 2.2, h = (p.h || 1.3) + r * 0.55; add(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break; }
       case 'tank': { const r = p.r || 1.15, h = p.h || 2.5; add(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break; }
       default: break; // placas, neon, rua, água, estandarte, vidro: sem colisão

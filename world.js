@@ -253,6 +253,14 @@ function buildProp(p, ctx) {
     case 'pine': { // pinheiro nevado: só o tronco colide; o visual é instanciado no fim
       if (p.y == null || p.y > -2) solid(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
     }
+    case 'drift': { // monte de neve chanfrado (cone), colisão só no miolo
+      const r = p.r || 1.1, h = p.h || 0.8;
+      const g = new THREE.Group();
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), toon(p.c || '#E8EDF2')); cone.position.y = h / 2; g.add(cone);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(r * 0.34, 8, 6), toon('#F7FBFF')); cap.position.y = h * 0.86; g.add(cap);
+      g.position.set(p.x, y, p.z); g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+      solid(p.x - r * 0.45, y, p.z - r * 0.45, p.x + r * 0.45, y + h * 0.5, p.z + r * 0.45); break;
+    }
     case 'grate': { // grade da passarela: só visual
       const w = p.x1 - p.x0, d = p.z1 - p.z0;
       const tex = canvasTex(64, 64, (x) => { x.fillStyle = '#5c656c'; x.fillRect(0, 0, 64, 64); x.fillStyle = '#1c2428'; for (let i = 0; i < 8; i++) { x.fillRect(i * 8, 0, 2, 64); x.fillRect(0, i * 8, 64, 2); } });
@@ -344,7 +352,8 @@ export function buildWorld(map) {
   const R = ext + 130;
   let groundRects = [[-R, -R, R, R]];
   const voids = fallRectsOf(map);
-  for (const v of voids) groundRects = punchRect(groundRects, v);
+  const cuts = (map.fall && map.fall.cuts) || [];
+  for (const v of [...voids, ...cuts]) groundRects = punchRect(groundRects, v);
   for (const [x0, z0, x1, z1] of groundRects) {
     if (x1 - x0 < 0.2 || z1 - z0 < 0.2) continue;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), toon(pal.ground));
@@ -355,9 +364,37 @@ export function buildWorld(map) {
     pit.rotation.x = -Math.PI / 2; pit.position.set((x0 + x1) / 2, (map.fall.floor ?? -30), (z0 + z1) / 2); pit.receiveShadow = true; group.add(pit);
   }
   if (map.fall && map.fall.slopes) {
-    const geos = map.fall.slopes.map((s) => boxGeo(s.x0, s.y0, s.z0, s.x1, s.y1, s.z1, { axis: s.axis, dir: s.dir }));
-    const slope = new THREE.Mesh(mergeGeometries(geos, false), toon(map.fall.slopeColor || '#e4ebf1'));
-    slope.receiveShadow = true; group.add(slope); meshes.push(slope);
+    // faixas da crista (neve) até o fundo (rocha): o plano liso da cor da névoa lia como chão plano
+    const bands = map.fall.slopeBands || ['#F4F7FA', '#E8EDF2', '#C5CED6', '#9AA6B0', '#6E757C', '#4A4E54', '#3A4046'];
+    const byBand = bands.map(() => []);
+    for (const s of map.fall.slopes) {
+      const { x0, z0, x1, z1, axis, dir } = s;
+      const yLo = Math.min(s.y0, s.y1), yHi = Math.max(s.y0, s.y1);
+      const n = bands.length;
+      const yAtX = (t) => { const yx0 = dir > 0 ? yLo : yHi, yx1 = dir > 0 ? yHi : yLo; return yx0 + (yx1 - yx0) * t; };
+      const yAtZ = (t) => { const yz0 = dir > 0 ? yLo : yHi, yz1 = dir > 0 ? yHi : yLo; return yz0 + (yz1 - yz0) * t; };
+      const highT = dir > 0 ? 1 : 0;
+      for (let i = 0; i < n; i++) {
+        const a = i / n, b = (i + 1) / n, u = highT === 1 ? (a + b) / 2 : 1 - (a + b) / 2;
+        const ci = Math.min(n - 1, Math.floor((1 - u) * n));
+        const geo = new THREE.BufferGeometry();
+        let pos;
+        if (axis === 'x') {
+          const xa = x0 + (x1 - x0) * a, xb = x0 + (x1 - x0) * b, ya = yAtX(a), yb = yAtX(b);
+          pos = [xa, ya, z0, xb, yb, z0, xb, yb, z1, xa, ya, z0, xb, yb, z1, xa, ya, z1];
+        } else {
+          const za = z0 + (z1 - z0) * a, zb = z0 + (z1 - z0) * b, ya = yAtZ(a), yb = yAtZ(b);
+          pos = [x0, ya, za, x1, ya, za, x1, yb, zb, x0, ya, za, x1, yb, zb, x0, yb, zb];
+        }
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        byBand[ci].push(geo);
+      }
+    }
+    bands.forEach((c, i) => {
+      if (!byBand[i].length) return;
+      const slope = new THREE.Mesh(mergeGeometries(byBand[i], false), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+      slope.receiveShadow = true; group.add(slope); meshes.push(slope);
+    });
   }
   if (map.fall && map.fall.haze) {
     const haze = new THREE.Group();
@@ -413,12 +450,18 @@ export function buildWorld(map) {
   // caixas e rampas do mapa. Pisos e paredes no mesmo plano saem uns milímetros pra fora só na malha.
   // hide: colisor do penhasco, sem malha.
   const vis = map.boxes.filter((o) => { const [x0, y0, z0, x1, y1, z1] = o.b; return !(x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01); });
-  const shown = vis.filter((o) => !o.hide);
+  const shown = vis.filter((o) => !o.hide && !o.flat);
   const voff = visualOffsets(shown);
   for (const o of vis) if (o.hide) {
     const [x0, y0, z0, x1, y1, z1] = o.b;
     solids.push({ min: new V3(x0, y0, z0), max: new V3(x1, y1, z1), ramp: o.ramp || null });
     proxies.push(boxGeo(x0, y0, z0, x1, y1, z1, o.ramp || null));
+  }
+  for (const o of vis) if (o.flat) {
+    const [x0, y0, z0, x1, y1, z1] = o.b;
+    const m = new THREE.Mesh(boxGeo(x0, y0, z0, x1, y1, z1, o.ramp || null), new THREE.MeshBasicMaterial({ color: o.c }));
+    m.castShadow = m.receiveShadow = true; group.add(m);
+    solids.push({ min: new V3(x0, y0, z0), max: new V3(x1, y1, z1), ramp: o.ramp || null });
   }
   shown.forEach((o, i) => { const [x0, y0, z0, x1, y1, z1] = o.b; add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null, null, voff[i]); });
   for (const p of map.props || []) buildProp(p, { group, solid, add });
@@ -457,24 +500,30 @@ function buildPines(list, group) {
   if (!list.length) return;
   const onMap = list.filter((p) => !(p.y < -2));
   if (onMap.length) {
-    const trunk = new THREE.CylinderGeometry(0.26, 0.42, 3.2, 6); trunk.translate(0, 1.6, 0);
-    const cap = new THREE.ConeGeometry(1.55, 3.4, 7); cap.translate(0, 4.15, 0);
-    const trunks = new THREE.InstancedMesh(trunk, toon('#5C4636'), onMap.length);
-    const caps = new THREE.InstancedMesh(cap, toon('#E8EDF2'), onMap.length);
+    const trunkG = new THREE.CylinderGeometry(0.22, 0.38, 2.4, 6); trunkG.translate(0, 1.2, 0);
+    const fol1 = new THREE.ConeGeometry(1.55, 2.2, 7); fol1.translate(0, 2.5, 0);
+    const fol2 = new THREE.ConeGeometry(1.15, 1.8, 7); fol2.translate(0, 3.7, 0);
+    const snowG = new THREE.ConeGeometry(0.7, 1.3, 6); snowG.translate(0, 4.7, 0);
+    const trunks = new THREE.InstancedMesh(trunkG, toon('#3a2a22'), onMap.length);
+    const a1 = new THREE.InstancedMesh(fol1, toon('#2F3A36'), onMap.length);
+    const a2 = new THREE.InstancedMesh(fol2, toon('#2F3A36'), onMap.length);
+    const caps = new THREE.InstancedMesh(snowG, toon('#E8EDF2'), onMap.length);
     const dummy = new THREE.Object3D();
     onMap.forEach((p, i) => {
       dummy.position.set(p.x, p.y || 0, p.z); dummy.rotation.y = (i * 1.7) % 6; dummy.scale.setScalar(p.s || 1);
-      dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix); caps.setMatrixAt(i, dummy.matrix);
+      dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix); a1.setMatrixAt(i, dummy.matrix); a2.setMatrixAt(i, dummy.matrix); caps.setMatrixAt(i, dummy.matrix);
     });
-    trunks.castShadow = caps.castShadow = true; trunks.frustumCulled = caps.frustumCulled = false; group.add(trunks, caps);
+    for (const m of [trunks, a1, a2, caps]) { m.castShadow = true; m.frustumCulled = false; }
+    group.add(trunks, a1, a2, caps);
   }
   // na encosta, árvore própria: o branco da neblina engolia o pinheiro instanciado
   for (const p of list.filter((q) => q.y < -2)) {
-    const s = p.s || 1, g = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.46, 3.4, 6), toon('#4a3428')); trunk.position.y = 1.7;
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(1.7, 3.6, 7), toon('#2f6b45')); cap.position.y = 4.2;
-    const snow = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.15, 6), toon('#E8EDF2')); snow.position.y = 5.7;
-    g.add(trunk, cap, snow); g.position.set(p.x, p.y, p.z); g.scale.setScalar(s); g.traverse((o) => { o.castShadow = true; }); group.add(g);
+    const s = p.s || 1, g = new THREE.Group(), pine = '#2F3A36', snow = '#E8EDF2';
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 2.4, 6), toon('#3a2a22')); trunk.position.y = 1.2; g.add(trunk);
+    const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.55, 2.2, 7), toon(pine)); c1.position.y = 2.5; g.add(c1);
+    const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.15, 1.8, 7), toon(pine)); c2.position.y = 3.7; g.add(c2);
+    const c3 = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.3, 6), toon(snow)); c3.position.y = 4.7; g.add(c3);
+    g.position.set(p.x, p.y, p.z); g.scale.setScalar(s); g.traverse((o) => { o.castShadow = true; }); group.add(g);
   }
 }
 
@@ -520,7 +569,7 @@ export function disposeWorld(group) {
 export function applyPalette(scene, hemi, sun, map) {
   const pal = map.palette, [hx, hz] = map.size, ext = Math.max(hx, hz);
   scene.background = new THREE.Color(pal.sky);
-  scene.fog = new THREE.Fog(pal.fog[0], pal.fog[1], pal.fog[2]);
+  scene.fog = pal.fogExp ? new THREE.FogExp2(pal.fogExp[0], pal.fogExp[1]) : new THREE.Fog(pal.fog[0], pal.fog[1], pal.fog[2]);
   hemi.color.set(pal.hemi[0]); hemi.groundColor.set(pal.hemi[1]); hemi.intensity = pal.hemi[2];
   sun.color.set(pal.sun[0]); sun.intensity = pal.sun[1];
   sun.position.set(ext * 0.8, 50, ext * 0.5); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld();
