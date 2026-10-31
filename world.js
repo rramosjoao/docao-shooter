@@ -341,6 +341,8 @@ export function applyPalette(scene, hemi, sun, map) {
   scene.fog = new THREE.Fog(pal.fog[0], pal.fog[1], pal.fog[2]);
   hemi.color.set(pal.hemi[0]); hemi.groundColor.set(pal.hemi[1]); hemi.intensity = pal.hemi[2];
   sun.color.set(pal.sun[0]); sun.intensity = pal.sun[1];
+  // Mapa noturno grande: a sombra do sol cobre o campus inteiro e escurece todo interior.
+  sun.castShadow = pal.shadow !== false;
   sun.position.set(ext * 0.8, 50, ext * 0.5); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld();
   const e = ext + 6; Object.assign(sun.shadow.camera, { left: -e, right: e, top: e, bottom: -e, near: 1, far: 50 + ext * 2.5 }); sun.shadow.camera.updateProjectionMatrix();
 }

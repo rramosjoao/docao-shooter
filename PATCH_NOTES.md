@@ -8,7 +8,9 @@ Jogue em **https://docao.mvalentim.dev**
 
 🌙 **SÓ NO SURVIVAL.** Campus da HOTMILK de madrugada, maior que o de dia: saguão do Bloco 01 (a partida inteira nasce lá), cozinha, estoque, câmara fria, dois andares, telhado, Bloco 02, garagem de teto baixo e a Rua do Leite. Não entra no rodízio dos outros modos.
 
-🚪 **PORTAS.** Pra sair do saguão compra a folha (E): 750, 1000, 1250 e sobe até 3250. O servidor confere a distância e o saldo da partida, debita quem comprou e abre pra todo mundo. A área nova passa a soltar zumbi. Cada área tem uma segunda porta, então dá pra kitear em circuito.
+🚪 **PORTAS.** Pra sair do saguão compra a folha (E): 750, 1000, 1250 e sobe até 3250. O servidor confere a distância e o saldo da partida, debita quem comprou e abre pra todo mundo. A área nova passa a soltar zumbi. Cada área tem uma segunda porta, então dá pra kitear em circuito. A escada do telhado não deixa contornar a folha pelo 3º andar.
+
+🏠 **PISO E LUZ.** O térreo dos blocos e a garagem têm piso próprio, em vez do asfalto da rua. Este mapa não projeta sombra de sol: o shadow map do campus inteiro deixava o interior preto e pesava o quadro. A garagem, de teto baixo, leva lâmpada quente e teto claro o bastante pra ler o vão.
 
 💰 **PONTOS DA PARTIDA.** 500 pra começar. Abate paga (andador 70, até o chefão 500; cabeça e faca dão um extra). É o saldo que a máquina de upgrade, a mystery box e a arma de parede vão usar — os lugares já estão marcados no mapa. O seletor Survival/Padrão entra na outra branch. Detalhe em `docs/HOTMILK-NOITE.md`.
 

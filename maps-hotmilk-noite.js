@@ -94,6 +94,14 @@ export function addHotmilkNoite(MAPS, kit) {
     ],
   }));
 
+  // Laje do térreo. O building() só fecha o piso a partir do 2º andar,
+  // e sem isso o asfalto da rua aparece dentro do bloco.
+  boxes.push(B(-27.5, 8.5, 27.5, 47.5, 0.06, col.floor));
+  boxes.push(B(-2.15, 8.02, 2.15, 8.55, 0.06, col.floor)); // soleira da praça
+  boxes.push(B(27.5, 30.05, 28.25, 33.75, 0.06, col.floor)); // soleira da garagem
+  boxes.push(B(-25.5, -41.5, 25.5, -12.5, 0.06, col.floor));
+  boxes.push(B(-2.15, -12.55, 2.15, -11.95, 0.06, col.floor)); // soleira do bloco 02
+
   // ---------- passarela dos telhados (y = 10.2), porta no meio ----------
   boxes.push(B(-2.5, -12, 2.5, 8, 0.28, col.floor, 9.92));
   boxes.push(B(-2.7, -12, -2.35, 8, 1.05, col.roof2, 10.2));
@@ -116,14 +124,16 @@ export function addHotmilkNoite(MAPS, kit) {
   }
 
   // ---------- garagem anexa (pé-direito baixo), a leste do estoque ----------
-  const gY = 2.75;
-  boxes.push(B(28.15, 20, 50, 20.4, gY, steel));
-  boxes.push(B(28.15, 41.6, 50, 42, gY, steel));
-  boxes.push(B(49.6, 20, 50, 27.6, gY, steel));
-  boxes.push(B(49.6, 31.2, 50, 42, gY, steel));
-  boxes.push(B(28.15, 20, 28.55, 29.7, gY, steel));
-  boxes.push(B(28.15, 34.1, 28.55, 42, gY, steel));
-  boxes.push(B(28.2, 20.15, 49.7, 41.85, 0.22, '#3a4250', gY - 0.22)); // teto baixo
+  const gY = 2.75, gWall = '#6a7384', gCeil = '#aeb6c2';
+  boxes.push(B(28.15, 20, 50, 20.4, gY, gWall));
+  boxes.push(B(28.15, 41.6, 50, 42, gY, gWall));
+  boxes.push(B(49.6, 20, 50, 27.6, gY, gWall));
+  boxes.push(B(49.6, 31.2, 50, 42, gY, gWall));
+  boxes.push(B(28.15, 20, 28.55, 29.7, gY, gWall));
+  boxes.push(B(28.15, 34.1, 28.55, 42, gY, gWall));
+  boxes.push(B(28.2, 20.15, 49.7, 41.85, 0.22, gCeil, gY - 0.22)); // teto baixo, claro o bastante pra ler o vão
+  boxes.push(B(28.25, 20.5, 49.5, 41.5, 0.06, '#6a7384')); // piso de concreto, claro o bastante pra ler o chão
+  boxes.push(B(49.45, 27.7, 50.2, 31.15, 0.06, '#4c5668')); // soleira da cancela
   // carros e pilares: corredor central e volta pelos lados
   for (const [x, z] of [[34, 24.5], [34, 37], [42, 24.5], [42, 37], [46.5, 30.5]]) boxes.push(B(x - 0.35, z - 0.35, x + 0.35, z + 0.35, 2.3, steel));
   boxes.push(B(33.2, 26.8, 37.4, 28.6, 1.15, '#2c4d6e'), B(33.2, 33.2, 37.4, 35.0, 1.15, '#8d3a3a'));
@@ -204,6 +214,9 @@ export function addHotmilkNoite(MAPS, kit) {
     post(-10, 38, 2.2, steel, y); post(10, 38, 2.2, steel, y);
     post(-20, 43, 2.2, steel, y); post(20, 43, 2.2, steel, y); post(0, 44.2, 2.2, steel, y);
   }
+  // orelhas da escada do telhado: a folha sozinha deixa o 3º andar contornar e subir
+  boxes.push(B(14.3, 19.35, 23.7, 20.12, 2.7, col.inner, 6.8));
+  boxes.push(B(14.3, 26.28, 23.7, 27.05, 2.7, col.inner, 6.8));
   // telhado do bloco 01
   for (const [x, z] of [[-16, 18], [-16, 32], [0, 20], [0, 36], [16, 30], [10, 16], [-8, 44]]) boxes.push(crate(x, z, 1.5, 1.15, steel, 3 * H));
   for (let x = -18; x <= 18; x += 9) for (let z = 18; z <= 42; z += 9) {
@@ -259,7 +272,7 @@ export function addHotmilkNoite(MAPS, kit) {
     { id: 'porta-praca', areas: ['saguao', 'praca'], price: 1500, name: 'Praça do Copo', prompt: 'Sair pra Praça do Copo', at: [0, 1.1, 8.15], block: [-2.35, 0, 7.9, 2.35, 2.7, 8.55], swing: 1 },
     { id: 'porta-servico', areas: ['cozinha', 'estoque'], price: 1750, name: 'Porta de serviço', prompt: 'Abrir a porta de serviço', at: [0, 1.1, 45], block: [-0.32, 0, 43.45, 0.32, 2.7, 46.55], swing: 1 },
     { id: 'porta-bloco2', areas: ['praca', 'bloco2'], price: 2000, name: 'Bloco 02', prompt: 'Entrar no Bloco 02', at: [0, 1.1, -11.35], block: [-2.35, 0, -12.55, 2.35, 2.7, -11.85], swing: 1 },
-    { id: 'porta-telhado', areas: ['andar2', 'telhado'], price: 2250, name: 'Telhado', prompt: 'Subir pro telhado', at: [13.4, 7.9, 23.2], block: [14.35, 6.8, 20.05, 15.05, 9.5, 26.35], swing: 1 },
+    { id: 'porta-telhado', areas: ['andar2', 'telhado'], price: 2250, name: 'Telhado', prompt: 'Subir pro telhado', at: [13.4, 7.9, 23.2], block: [14.15, 6.8, 20.05, 15.95, 9.7, 26.35], swing: 1 },
     { id: 'porta-garagem', areas: ['estoque', 'garagem'], price: 2500, name: 'Garagem', prompt: 'Abrir a garagem', at: [27.15, 1.1, 31.9], block: [27.45, 0, 29.85, 28.15, 2.7, 33.95], swing: 1 },
     { id: 'porta-rua', areas: ['praca', 'rua'], price: 2750, name: 'Portão da rua', prompt: 'Abrir o portão da Rua do Leite', at: [25.2, 1.1, 0], block: [25.75, 0, -1.65, 26.45, 2.7, 1.65], swing: 1 },
     { id: 'porta-cancela', areas: ['garagem', 'rua'], price: 3000, name: 'Cancela', prompt: 'Abrir a cancela da garagem', at: [49.2, 1.1, 29.4], block: [49.45, 0, 27.55, 50.15, 2.7, 31.25], swing: -1 },
@@ -280,7 +293,7 @@ export function addHotmilkNoite(MAPS, kit) {
       zspawns: [[-14, 4, 0], [14, 4, 0], [-14, -8, 0], [14, -8, 0], [0, 5.5, 0]] },
     { id: 'bloco2', name: 'Bloco 02', floor: 0, box: [-25, -41, 25, -13, 0, 10.2],
       zspawns: [[-18, -20, 0], [18, -20, 0], [0, -28, 0], [-22, -28, H], [18, -26, 2 * H], [20, -30, 3 * H]] },
-    { id: 'telhado', name: 'Telhado do Bloco 01', floor: 3, box: [-27, 9, 27, 47, 10.2, 13],
+    { id: 'telhado', name: 'Telhado do Bloco 01', floor: 3, box: [-27, -12, 27, 47, 10.2, 13],
       zspawns: [[-12, 16, 3 * H], [12, 22, 3 * H], [-6, 36, 3 * H], [8, 42, 3 * H], [0, 4, 10.2]] },
     { id: 'garagem', name: 'Garagem', floor: 0, box: [29, 21, 49, 41, 0, 2.7],
       zspawns: [[32, 23.2, 0], [46, 23.2, 0], [32, 39, 0], [46, 39, 0], [38, 31, 0]] },
@@ -347,8 +360,12 @@ export function addHotmilkNoite(MAPS, kit) {
     ['#ffe0b8', 0, 2.4 + H, -26, 5, 16],
     ['#d0dcff', 0, 2.2 + 3 * H, -24, 4, 14],
     ['#d7e4ff', 0, 12.2, -2, 3.5, 12],
-    ['#c9d7ff', 38, 2.3, 30, 4, 14, 'buzz'],
-    ['#ffb45a', 30, 2.1, 31.9, 2.6, 8, 'alarm'],
+    ['#ffe0b0', 34, 1.85, 25.5, 14, 18],
+    ['#ffe0b0', 44, 1.85, 25.5, 14, 18],
+    ['#d7e4ff', 34, 1.85, 36.5, 12, 18],
+    ['#d7e4ff', 44, 1.85, 36.5, 12, 18],
+    ['#ffd8b0', 21.6, 2.2, 33, 6, 14],
+    ['#ffb45a', 30, 1.8, 31.9, 4.5, 10, 'alarm'],
     ['#c9d7ff', 48, 3.2, 0, 3.5, 18],
     ['#c9d7ff', 48, 3.2, -28, 3, 16],
     ['#c9d7ff', -50, 3.2, 8, 3, 16],
@@ -363,7 +380,7 @@ export function addHotmilkNoite(MAPS, kit) {
     size: [58, 74], wallH: 4.2, wallColor: ['#1a2436', '#141c2c'],
     navSpacing: 2, openMax: 7.5, laneMin: 36, expMax: 0.32,
     palette: {
-      sky: '#10182e', fog: ['#1c2944', 38, 128], hemi: ['#8ea4d4', '#2a2118', 0.82], sun: ['#c5d4ff', 0.58],
+      sky: '#10182e', fog: ['#1c2944', 38, 128], hemi: ['#8ea4d4', '#2a2118', 0.82], sun: ['#c5d4ff', 0.58], shadow: false,
       ground: '#2a3038', tiles: ['#343b46', '#262c34', 64, 16], clouds: false, stars: true,
       lights,
     },

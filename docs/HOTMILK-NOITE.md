@@ -42,4 +42,4 @@ Porta é o servidor. Mensagem `{ t: 'door', id }`. Perto do `door.at` (2,35 m), 
 
 Zumbi só nasce em `unlockedZombieSpawns`. Abrir a porta chama `rebuildDoors`: a folha sai da colisão e o grafo (`nav.js`) passa a entrar na área.
 
-A garagem é um anexo de teto baixo no y = 0. A física não aceita chão negativo (`groundAt` começa em 0), então não há subsolo de verdade.
+A garagem é um anexo de teto baixo no y = 0. A física não aceita chão negativo (`groundAt` começa em 0), então não há subsolo de verdade. O térreo dos dois blocos e a garagem têm uma laje fina (6 cm): o `building()` só fecha o piso a partir do segundo andar, e sem a laje o asfalto da rua aparecia dentro. `palette.shadow: false` desliga a sombra do sol neste mapa. O frustum cobria o campus inteiro, escurecia todo interior e pesava o quadro.
