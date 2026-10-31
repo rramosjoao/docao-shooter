@@ -17,7 +17,7 @@ import { SKINS, skinOk } from '../../skins.js';
 import { EARN, knifeKind, sniperKind, parseGuns } from '../../shared/closet.js';
 import { CHAL_MODES } from '../../shared/challenges.js';
 import { cleanName, uniqueName, NAME_MAX } from '../../shared/names.js';
-import { KILL_LIMIT, TIME_LIMIT, normTime, RESPAWN_TIME, INVULN, JUMP, SPEED, BOT_SPEED, EYE, WEAPONS, PRIMARIES, SECONDARIES, MELEES, PISTOL, KNIFE, SABER, SABER2, isSaber, POKE, isPokeCode, MINIGUN, isMiniCode, UZI, P90, DISC_W, CORN_W, EGG_W, NAIL, SEMI, MELEE, W_NADE, NADE, BACON_ITEM, noteHurt, resetRegen, regenStep, BOT_DEFS, BOT_RANGE, TAG_COLORS, TAMPA } from '../../shared/rules.js';
+import { KILL_LIMIT, TIME_LIMIT, normTime, RESPAWN_TIME, INVULN, JUMP, SPEED, BOT_SPEED, EYE, WEAPONS, PRIMARIES, SECONDARIES, MELEES, PISTOL, KNIFE, SABER, SABER2, isSaber, POKE, isPokeCode, MINIGUN, isMiniCode, UZI, P90, DISC_W, CORN_W, EGG_W, NAIL, SEMI, MELEE, W_NADE, NADE, BACON_ITEM, noteHurt, resetRegen, regenStep, BOT_DEFS, BOT_RANGE, TAG_COLORS, TAMPA, RAY } from '../../shared/rules.js';
 import { normBotDiff, applyBotDiff, profileOf, nextThink, considerTarget, hitscanAim, nadeChoice, nadeWaitFor, nadeCooldown, rollStrafe, wantPanicReload, wantSafeReload, refreshCover, refreshFlank, hearGunshot as noteGunshot, scopeDelay } from '../../shared/bot-difficulty.js';
 import { SHIELD, isShieldW, shieldRaised, resetShield, bulletOnShield, splashOnShield, meleeOnShield, hurtShield, noteBlocked, shieldBashHit, classifyRay, raisedAt, shieldAim, aimOffset, botWantsShield } from '../../shared/shield.js';
 import { normWeapons, normPowers, clampLoadout, botPool, weaponOn, powerOn } from '../../shared/loadout.js';
@@ -28,6 +28,7 @@ import { mapSolids, createPhysics, raySphere, HITBOXES, rayHitboxes } from '../.
 import { stanceScale, stanceHeight, stepCrouch } from '../../shared/stance.js';
 import { traceShot } from '../../shared/penetration.js';
 import { DISC, stepDisc } from '../../shared/disc.js';
+import { stepRay, raySplash } from '../../shared/ray.js';
 import { CORN, cornDirs, cornAim, stepCorn, popChain, popOpts } from '../../shared/corn.js';
 import { EGG, eggSpeed, eggDmg, stepEgg } from '../../shared/egg.js';
 import { explosionHits, rayCapsule, ROCKET_PAD, shotKnock } from '../../shared/combat.js';
@@ -67,7 +68,7 @@ export class Game {
     this.io = io; // { send(id, obj), broadcast(obj), startLoop(), stopLoop() }
     this.ents = new Map(); this.nextId = 1; this.hostId = 0;
     this.state = 'lobby'; this.mapId = null; this.T = 0; this.t0 = 0;
-    this.events = []; this.personal = new Map(); this.nades = []; this.shocks = []; this.rockets = []; this.blades = []; this.discs = []; this.eggs = []; this.corns = []; this.cornPops = []; this.pickups = []; this.bacons = []; this.helis = []; this.gunships = []; this.nukes = []; this.projId = 1;
+    this.events = []; this.personal = new Map(); this.nades = []; this.shocks = []; this.rockets = []; this.blades = []; this.discs = []; this.rays = []; this.eggs = []; this.corns = []; this.cornPops = []; this.pickups = []; this.bacons = []; this.helis = []; this.gunships = []; this.nukes = []; this.projId = 1;
     this.forcedWinTeam = null; this.nukeWinner = 0; this.x1Gun = 0; this.x1Hold = 0; // max de antes do X1, pra voltar ao sair
   }
   now() { return Date.now() / 1000; }
@@ -245,7 +246,7 @@ export class Game {
     this.nav = buildNav({ hx: map.size[0], hz: map.size[1], spacing: map.navSpacing || 2, collides: this.P.collides, groundAt: this.P.groundAt, solids, topAt: this.P.topAt, seeds: this.spawns.map((s) => [s.x, s.y, s.z]), extra: map.waypoints || [] });
     const rawPicks = this.invasion && map.invPickups ? [...map.pickups, ...map.invPickups] : map.pickups;
     this.pickups = (this.x1Mode ? rawPicks.filter((p) => p[0] === 'ammo') : rawPicks).map(([type, x, z, y]) => { const on = (!this.armsMode || type === 'ammo' || type === 'health') && powerOn(type, this.cfg.powers); return { type, pos: { x, y: this.P.groundAt(x, z, (y || 0) + 0.3), z }, active: on, respawnAt: on ? 0 : 1e9 }; });
-    this.nades = []; this.shocks = []; this.rockets = []; this.blades = []; this.discs = []; this.eggs = []; this.corns = []; this.cornPops = []; this.bacons = []; this.helis = []; this.gunships = []; this.nukes = []; this.events = []; this.personal.clear();
+    this.nades = []; this.shocks = []; this.rockets = []; this.blades = []; this.discs = []; this.rays = []; this.eggs = []; this.corns = []; this.cornPops = []; this.bacons = []; this.helis = []; this.gunships = []; this.nukes = []; this.events = []; this.personal.clear();
     this.state = 'playing'; this.t0 = this.now(); this.T = 0; this.lastTick = this.now();
     this.curLimit = this.cfgLimit;
     for (const e of this.ents.values()) { e.ck = 0; e.cpaid = 0; e.jt = 0; e.cpl = 0; e.cdf = 0; e.vu = e.voice && e.voice !== 'off' ? 1 : 0;
@@ -335,7 +336,7 @@ export class Game {
   endMatch() {
     const rows = [...this.ents.values()].filter((e) => (e.bot && !e.zt) || e.connected).sort((a, b) => this.score(b) - this.score(a) || a.deaths - b.deaths);
     for (const e of rows) if (e.acct && e.connected) this.flushStats(e, true, this.matchWon(e, rows));
-    this.state = 'over'; this.io.stopLoop(); this.nades = []; this.shocks = []; this.rockets = []; this.blades = []; this.discs = []; this.eggs = []; this.corns = []; this.cornPops = []; this.helis = []; this.gunships = []; this.nukes = [];
+    this.state = 'over'; this.io.stopLoop(); this.nades = []; this.shocks = []; this.rockets = []; this.blades = []; this.discs = []; this.rays = []; this.eggs = []; this.corns = []; this.cornPops = []; this.helis = []; this.gunships = []; this.nukes = [];
     this.io.broadcast(this.endMsg()); this.sendLobby();
   }
   endMsg() {
@@ -524,13 +525,14 @@ export class Game {
       return;
     }
     if (!e.alive) return;
-    if (this.emoting(e) && (k === 'f' || k === 'mgs' || k === 'r' || k === 'dk' || k === 'cn' || k === 'eg' || k === 'n' || k === 'm' || k === 'sw' || k === 'sd' || k === 'ss' || k === 'sbg' || k === 'tb' || k === 'gf' || k === 'af' || k === 'rl' || k === 'sk')) return;
-    if (e.stunUntil > this.T && this.T - (e.stunAt ?? -9) > 0.3 && (k === 'f' || k === 'r' || k === 'dk' || k === 'cn' || k === 'eg' || k === 'n' || k === 'm' || k === 'sw' || k === 'sd' || k === 'ss' || k === 'tb' || k === 'sk')) { if (k === 'sk') this.toMe(e, ['skn', e.shocks | 0]); else if (k === 'n') this.toMe(e, ev[3] === 'p' ? ['pkb', e.pokeballs | 0] : ['ndn', e.nades | 0]); return; } // levou choque: não atira (0,3 s de folga pra rede)
+    if (this.emoting(e) && (k === 'f' || k === 'mgs' || k === 'r' || k === 'dk' || k === 'ry' || k === 'cn' || k === 'eg' || k === 'n' || k === 'm' || k === 'sw' || k === 'sd' || k === 'ss' || k === 'sbg' || k === 'tb' || k === 'gf' || k === 'af' || k === 'rl' || k === 'sk')) return;
+    if (e.stunUntil > this.T && this.T - (e.stunAt ?? -9) > 0.3 && (k === 'f' || k === 'r' || k === 'dk' || k === 'ry' || k === 'cn' || k === 'eg' || k === 'n' || k === 'm' || k === 'sw' || k === 'sd' || k === 'ss' || k === 'tb' || k === 'sk')) { if (k === 'sk') this.toMe(e, ['skn', e.shocks | 0]); else if (k === 'n') this.toMe(e, ev[3] === 'p' ? ['pkb', e.pokeballs | 0] : ['ndn', e.nades | 0]); return; } // levou choque: não atira (0,3 s de folga pra rede)
     if (k === 'rl') { const w = ev[1], W = e.slots.includes(w) ? this.resolvedW(e, w) : null; const full = W && (W.revolver ? drumsFull(e, w) : e.mag[w] >= W.mag); if (W && !full && !W.melee && !W.shield && e.reserve[w] > 0) e.reload = { w, start: this.T, done: 0 }; return; }
     if (k === 'f') { const Wf = WEAPONS[ev[3]]; const hand = Wf && Wf.akimbo ? ev[6] : 0; if (Wf && Wf.akimbo && hand !== 0 && hand !== 1) { e.rejectedShots = (e.rejectedShots || 0) + 1; return; } return this.clockOk(e, ev[4], ev[3], hand) && this.mgOk(e, ev[3], ev[4]) && this.humanFire(e, ev[1], ev[2], ev[3], ev[5], ev[6]); }
     if (k === 'mgs') return this.mgSpin(e, ev[1], ev[2]);
     if (k === 'r') return this.clockOk(e, ev[3], 3) && this.humanRocket(e, ev[1], ev[2]);
     if (k === 'dk') return this.clockOk(e, ev[3], DISC_W) && this.humanDisc(e, ev[1], ev[2]);
+    if (k === 'ry') return this.clockOk(e, ev[3], RAY) && this.humanRay(e, ev[1], ev[2]);
     if (k === 'cn') return this.clockOk(e, ev[3], CORN_W) && this.humanCorn(e, ev[1], ev[2]);
     if (k === 'eg') return this.clockOk(e, ev[4], EGG_W) && this.humanEgg(e, ev[1], ev[2], ev[3]);
     if (k === 'sk') return this.humanShock(e, ev[1], ev[2]);
@@ -775,7 +777,7 @@ export class Game {
   }
   humanFire(e, oA, dirs, w, rt, pull) {
     if (WEAPONS[w] && WEAPONS[w].egg) { e.rejectedShots = (e.rejectedShots || 0) + 1; return; } // estilingue não é hitscan: só 'eg'
-    const o = obj3(oA); if (!this.eyeOk(e, o) || !Number.isInteger(w) || !WEAPONS[w] || WEAPONS[w].rocket || WEAPONS[w].egg || WEAPONS[w].corn || WEAPONS[w].disc || !Array.isArray(dirs)) return; // projéteis têm evento próprio
+    const o = obj3(oA); if (!this.eyeOk(e, o) || !Number.isInteger(w) || !WEAPONS[w] || WEAPONS[w].rocket || WEAPONS[w].egg || WEAPONS[w].corn || WEAPONS[w].disc || WEAPONS[w].ray || !Array.isArray(dirs)) return; // projéteis têm evento próprio
     const hand = WEAPONS[w].akimbo && pull === 1 ? 1 : 0;
     if (!this.canShoot(e, w, hand)) { e.rejectedShots = (e.rejectedShots || 0) + 1; return; }
     const ds = dirs.slice(0, Math.max(1, WEAPONS[w].pellets)).map(obj3).filter(Boolean).map(norm);
@@ -1113,7 +1115,7 @@ export class Game {
   friends(a, b) { if (this.invasion) return !!(a && b && a !== b && !a.zt === !b.zt); return this.teamMode && a && b && a !== b && a.team === b.team && a.team >= 0; }
   damage(t, amount, a, w, head, back = false, ks = null, fx = 0, origin = a && a !== t && !a.fog ? a.pos : null) {
     if (!t.alive || this.T < t.invulnUntil || this.friends(t, a) || bombFrozen(this.bomb)) return false; // sem fogo amigo; Bomba: ninguém leva dano na preparação
-    if (this.invasion && !t.zt && a && !a.zt && !a.fog) return false; // Invasão: jogador nunca machuca jogador (nem a si mesmo)
+    if (this.invasion && !t.zt && a && !a.zt && !a.fog && !(w === RAY && t === a)) return false; // Invasão: jogador não machuca jogador. A Ray Gun é a exceção leve: o splash pega em quem atirou.
     t.hp -= amount; t.lastAttacker = a ? a.id : 0; noteHurt(t, a, this.T); // regen só com dano de outro
     if (this.survival && t.zt && a && !a.bot && !a.zt) { const add = t.hp <= 0 ? grantKill(a, t.zt, head) : grantHit(a, t.id); if (add) this.events.push(['spts', a.id, a.pts | 0, add]); }
     if (t.bot && a && a !== t && !t.target) { t.target = a; t.aim = t.reaction * 0.5; }
@@ -1243,6 +1245,53 @@ export class Game {
       if (d.dead) { this.discs.splice(i, 1); this.events.push(['dx', d.id, arr3(d.pos), 0]); }
     }
   }
+  // Quique perto de quem atirou: o splash leve pega nele e o raio segue. O estouro cheio continua no zumbi e no fim do trajeto.
+  rayNick(pos, owner) {
+    if (!owner || !owner.alive) return;
+    const W = this.resolvedW(owner, RAY) || WEAPONS[RAY];
+    const hits = explosionHits(pos, raySplash(W), [owner], () => true, owner, false, null);
+    for (const h of hits) if (h.dmg > 0) this.damage(owner, h.dmg, owner, RAY, false, false, null, 0, pos);
+  }
+  // Ray Gun: só no Survival. O servidor voa e quica (shared/ray.js) e o estouro passa por blast().
+  humanRay(e, oA, dA) {
+    if (!this.survival) { e.rejectedShots = (e.rejectedShots || 0) + 1; return; }
+    const o = obj3(oA), d = obj3(dA); if (!this.eyeOk(e, o) || !d || !this.canShoot(e, RAY)) return;
+    const n = norm(d), id = this.projId++;
+    const ray = { id, owner: e, pos: { x: o.x + n.x * 0.45, y: o.y + n.y * 0.45 - 0.05, z: o.z + n.z * 0.45 }, dir: n, bounces: 0, t: 0, traveled: 0 };
+    this.rays.push(ray); this.events.push(['yl', id, e.id, arr3(ray.pos), arr3(n)]);
+  }
+  stepRays(dt) {
+    for (let i = this.rays.length - 1; i >= 0; i--) {
+      const r = this.rays[i];
+      const from = { ...r.pos }, hits = stepRay(this.P, r, dt);
+      const pts = [from, ...hits.map((h) => h.pos), { ...r.pos }];
+      let hit = null;
+      for (let k = 0; k < pts.length - 1 && !hit; k++) {
+        const a = pts[k], b = pts[k + 1], L = dist(a, b); if (L < 1e-5) continue;
+        const dir = { x: (b.x - a.x) / L, y: (b.y - a.y) / L, z: (b.z - a.z) / L };
+        for (const t of this.ents.values()) {
+          if (!t.alive || t === r.owner) continue; // o dono não para o raio; o auto-dano é o splash do estouro
+          if (this.friends(t, r.owner) || (!t.bot && !t.connected)) continue;
+          const pad = 0.16 * (t.size || 1);
+          const tt = rayCapsule(a, dir, L, t.pos, pad, t.crouch);
+          if (tt !== null && tt <= L && (!hit || tt < hit.tt)) hit = { t, tt, at: { x: a.x + dir.x * tt, y: a.y + dir.y * tt, z: a.z + dir.z * tt } };
+        }
+      }
+      if (hit) {
+        this.rays.splice(i, 1);
+        const W = this.resolvedW(r.owner, RAY) || WEAPONS[RAY];
+        this.blast(hit.at, r.owner, { ...raySplash(W), wIdx: RAY, kind: 'y', pid: r.id }, hit.t);
+        continue;
+      }
+      for (const h of hits) if (!h.dead) { this.events.push(['yb', r.id, arr3(h.pos), arr3(r.dir), r.bounces]); this.rayNick(h.pos, r.owner); }
+      if (r.dead) {
+        this.rays.splice(i, 1);
+        const W = this.resolvedW(r.owner, RAY) || WEAPONS[RAY];
+        const at = hits.length ? hits[hits.length - 1].pos : r.pos;
+        this.blast(at, r.owner, { ...raySplash(W), wIdx: RAY, kind: 'y', pid: r.id }, null);
+      }
+    }
+  }
   // Estilingue de Ovo: o servidor calcula a velocidade pela força (k limitado a 0..1 e ao tempo de puxada), voa em arco (shared/egg.js) e dá o dano. Sem 'sh': é silencioso
   humanEgg(e, oA, dA, pull) {
     const o = obj3(oA), d = obj3(dA), last = e.lastShot[EGG_W] ?? -Infinity; if (!this.eyeOk(e, o) || !d || vlen(d) < 0.5 || !this.canShoot(e, EGG_W)) return;
@@ -1274,7 +1323,7 @@ export class Game {
     if (ok && t.alive) { t.eggUntil = this.T + EGG.splat; this.toMe(t, ['egg', EGG.splat]); } // tela suja só pra quem levou e continua vivo
   }
   stepProjectiles(dt) {
-    this.stepDiscs(dt); this.stepEggs(dt); this.stepCorns(dt); this.stepShocks(dt);
+    this.stepDiscs(dt); this.stepRays(dt); this.stepEggs(dt); this.stepCorns(dt); this.stepShocks(dt);
     for (let i = this.nades.length - 1; i >= 0; i--) {
       const n = this.nades[i]; this.P.advanceNade(n, dt);
       if (this.T >= n.explodeAt && n.poke) { this.nades.splice(i, 1); this.pokeOpen(n); continue; }
