@@ -11,12 +11,11 @@ const V = { // [câmera x,y,z, alvo x,y,z]
   'vizinhanca-cheers': { 'visao-geral': [0, 50, 42, 0, 0, -1], predio: [-15, 5.1, -17.5, -4, 4.3, -9], telhado: [-14, 8.7, -17.5, 6, 4, 10] },
   'bar-cheers': { 'visao-geral': [0, 42, 32, 0, 0, -2], predio: [-12, 4.9, -16.5, 2, 1, 6], telhado: [17, 8.3, -18.5, -4, 1, 8] },
   'posto-nevasca': {
-    'visao-geral': [0, 118, 16, 0, 0, 0],
-    passarela: [-14, 7, -4, -23, 1.4, 28],
-    'sala-fria': [6, 2.4, 9, 9, 3.2, 22],
-    teleferico: [-12, 6, 36, -24, 3.2, 44],
-    'patio-sul': [10, 7, -6, 0, 1.2, -22],
-    'spawn-norte': [2, 9, 34, 0, 2, 52],
+    'visao-geral': [10, 46, 34, -2, 0, -6],
+    'sala-fria': [15, 3.6, 11, 2, 2.2, 22],
+    neve: [8, 1.6, -9, 0, -0.6, -20],
+    passarela: [-16, 5, 8, -26, 1.4, -8],
+    penhasco: [-18, 5, 8, -32, -6, -2],
   },
   'morro-leitao': {
     'visao-geral': [0, 150, 18, 0, 0, -6],

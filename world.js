@@ -166,7 +166,27 @@ function buildProp(p, ctx) {
       m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot || 0; group.add(m); break;
     }
     case 'pine': { // pinheiro nevado: só o tronco colide; o visual é instanciado no fim
-      solid(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
+      if (p.y == null || p.y > -2) solid(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
+    }
+    case 'grate': { // grade da passarela: só visual
+      const w = p.x1 - p.x0, d = p.z1 - p.z0;
+      const tex = canvasTex(64, 64, (x) => { x.fillStyle = '#5c656c'; x.fillRect(0, 0, 64, 64); x.fillStyle = '#1c2428'; for (let i = 0; i < 8; i++) { x.fillRect(i * 8, 0, 2, 64); x.fillRect(0, i * 8, 64, 2); } });
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(Math.max(1, w / 2), Math.max(1, d / 2));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), toon(0xffffff, { map: tex }));
+      m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, p.y || 0.03, (p.z0 + p.z1) / 2); group.add(m); break;
+    }
+    case 'dish': { // parabólica, sem colisão
+      const r = p.r || 1.1;
+      const d = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), toon(p.c || '#d5dbe0'));
+      d.rotation.x = -0.9; d.position.set(p.x, p.y, p.z); group.add(d);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.4, 6), toon('#6E7378')); mast.position.set(p.x, p.y - 0.4, p.z); group.add(mast); break;
+    }
+    case 'heli': { // silhueta na neblina, sem colisão
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(7, 2.2, 2.4), toon('#2a3138')); body.position.y = 1.2; g.add(body);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.7, 0.7), toon('#2a3138')); tail.position.set(-5.2, 1.6, 0); g.add(tail);
+      const rotor = new THREE.Mesh(new THREE.BoxGeometry(11, 0.12, 0.35), toon('#1c2228')); rotor.position.y = 2.5; g.add(rotor);
+      g.position.set(p.x, p.y, p.z); g.rotation.y = p.rot || 0; group.add(g); break;
     }
     case 'dome': { // domo / tanque esférico (radar)
       const r = p.r || 2.2, h = p.h || 1.3;
@@ -246,7 +266,22 @@ export function buildWorld(map) {
   }
   if (map.fall) for (const [x0, z0, x1, z1] of voids) {
     const pit = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.4, x1 - x0), Math.max(0.4, z1 - z0)), toon(map.fall.pit || '#1a2228'));
-    pit.rotation.x = -Math.PI / 2; pit.position.set((x0 + x1) / 2, map.fall.y - 6, (z0 + z1) / 2); pit.receiveShadow = true; group.add(pit);
+    pit.rotation.x = -Math.PI / 2; pit.position.set((x0 + x1) / 2, (map.fall.floor ?? -30), (z0 + z1) / 2); pit.receiveShadow = true; group.add(pit);
+  }
+  if (map.fall && map.fall.haze) {
+    const hazeMat = (o) => new THREE.MeshBasicMaterial({ color: 0xC9D3DC, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
+    for (const [yy, op, grow] of [[-10, 0.45, 8], [-18, 0.62, 18], [-26, 0.8, 30]]) {
+      const h = new THREE.Mesh(new THREE.PlaneGeometry(hx * 2 + grow, hz * 2 + grow), hazeMat(op));
+      h.rotation.x = -Math.PI / 2; h.position.y = yy; group.add(h);
+    }
+  }
+  if (pal.mountains) {
+    const geo = new THREE.ConeGeometry(18, 46, 5); geo.translate(0, 18, 0);
+    const peaks = new THREE.InstancedMesh(geo, toon('#e7eef3'), 9);
+    const dummy = new THREE.Object3D();
+    const ring = [[-90, -40], [-70, 50], [-20, -100], [40, -90], [100, -30], [80, 60], [10, 100], [-100, 10], [0, -70]];
+    ring.forEach(([x, z], i) => { dummy.position.set(x, -8, z); dummy.scale.set(1, 0.7 + (i % 3) * 0.25, 1); dummy.updateMatrix(); peaks.setMatrixAt(i, dummy.matrix); });
+    group.add(peaks);
   }
   if (pal.tiles) {
     const [c1, c2, size, count] = pal.tiles, cell = size / count;
@@ -259,7 +294,11 @@ export function buildWorld(map) {
   add(-hx - 1, 0, -hz - 1, hx + 1, wh, -hz, wc1, null, WALL_COLLIDE_H); add(-hx - 1, 0, hz, hx + 1, wh, hz + 1, wc1, null, WALL_COLLIDE_H);
   add(-hx - 1, 0, -hz, -hx, wh, hz, wc2, null, WALL_COLLIDE_H); add(hx, 0, -hz, hx + 1, wh, hz, wc2, null, WALL_COLLIDE_H);
   // caixas e rampas do mapa
-  for (const o of map.boxes) { const [x0, y0, z0, x1, y1, z1] = o.b; if (x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01) continue; add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null); }
+  for (const o of map.boxes) {
+    const [x0, y0, z0, x1, y1, z1] = o.b; if (x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01) continue;
+    if (o.hide) { solid(x0, y0, z0, x1, y1, z1); continue; } // colisor invisível (penhasco)
+    add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null);
+  }
   for (const p of map.props || []) buildProp(p, { group, solid, add });
   buildPines((map.props || []).filter((p) => p.t === 'pine'), group);
   if (map.weather) { const w = makeWeather(map); group.userData.weather = w; group.add(w.pts); }

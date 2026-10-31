@@ -8,9 +8,10 @@ import { GRAV, STEP, RADIUS, HEIGHT, NADE } from './rules.js';
 
 export const WALL_COLLIDE_H = 40;
 export const FALL_FLOOR = -40; // chão fantasma do abismo; a morte acontece bem antes (map.fall.y)
-// map.fall = { y: -8, margin?: metros da borda sem chão, rects?: [[x0,z0,x1,z1]] }
+// map.fall = { y, margin?, rects?: [[x0,z0,x1,z1]], basins?: [[x0,z0,x1,z1,piso]] }
 export function baselineY(fall, x, z, hx, hz) {
   if (!fall) return 0;
+  if (fall.basins) for (const r of fall.basins) if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return r[4];
   if (fall.margin && (Math.abs(x) > hx - fall.margin || Math.abs(z) > hz - fall.margin)) return FALL_FLOOR;
   if (fall.rects) for (const r of fall.rects) if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return FALL_FLOOR;
   return 0;
@@ -38,7 +39,7 @@ export function mapSolids(map) {
       case 'stall': add(p.x - 1.2, y, p.z - 0.6, p.x + 1.2, y + 1.0, p.z + 0.6); add(p.x - 1.6, y + 2.6, p.z - 1.1, p.x + 1.6, y + 2.72, p.z + 1.1); break;
       case 'awning': add(p.x0, p.y, p.z0, p.x1, p.y + 0.12, p.z1); break;
       case 'jar': add(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 1.1, p.z + 0.4); break;
-      case 'pine': add(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
+      case 'pine': if (!(p.y < -2)) add(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
       case 'dome': { const r = p.r || 2.2, h = (p.h || 1.3) + r * 0.55; add(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break; }
       case 'tank': { const r = p.r || 1.15, h = p.h || 2.5; add(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break; }
       default: break; // placas, neon, rua, água, estandarte, vidro: sem colisão

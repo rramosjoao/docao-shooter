@@ -60,9 +60,19 @@ Spawns: 6 no norte (z 38…52) e 6 no sul (z −58…−44), distância mínima 
 
 Linha longa medida na auditoria: cerca de 100 m (a passarela ainda está reta demais; a meta do dossiê é 40–60 m). Visão quebrada: ~22% dos pares a ≥ 10 m se enxergam (teto do teste: 30%). Ponto mais aberto: 7,2 m.
 
-O penhasco oeste é um retângulo sem chão (`fall.rects` x ≤ −24,05). Um lábio de rocha de 0,4 m marca a borda; passar dele derruba, e y < −8 mata. O teleférico continua com piso próprio em cima do buraco.
+## Posto Nevasca — rodada 2
 
-Rodada 2, quando chegar print de comparação: quebrar a reta de ~100 m no meio da passarela.
+Coordenadas do pesquisador: x 0 oeste → 52 leste, y 0 lab → 120 galpão. No motor, x = x_pesquisa − 26 e z = 60 − y_pesquisa. O vão entre o lab e a Sala Fria, lido no print como y 32–48, no motor é z ≈ 30–46 (o lab está em z 48–58, y de pesquisa 2–12, não 12–28).
+
+O prédio do meio de 14×12 m da rodada 1 era x −12…2, z 33…45. Na vista de cima ele colava no lab. Na rodada 2 ele foi refeito como o bloco oeste do pátio: **x −16…−2, z 31…43** (14×12 m), dois andares, piso a +3,4 m. Ao lado, o bloco com escada: **x 1,6…19,6, z 30…44** (18×14 m). O corredor entre eles tem 3,6 m.
+
+Passarela: curva de até 5 m para oeste, pico em z = −2 (y de pesquisa 62). Rochas de 5×4×4,2 m em z 13–17 e z −34…−30 (y 43–47 e 90–94). Cobertura de 1 m a cada ~12 m. A visada no chão do oeste, medida olho a olho, ficou em **34 m**. A maior visada do mapa inteiro ainda passa de 60 m: é a rampa da torre (y ≈ 4) olhando o sudeste, não o corredor oeste.
+
+Penhasco: borda de rocha de 1,15 m, colisor invisível de 4 m no resto do trecho, e um vão no pico da curva onde dá para cair. Kill em y < −6. Encosta visual até −30 m, pinheiros no fundo, neblina de altura abaixo de −10 m. A placa PENHASCO está num mastro na borda. Neblina de distância: 40–120 m. Montanhas claras no horizonte. Sombras suaves.
+
+Sala Fria: claraboia de vidro em quatro panos, 8×12 m, a +6,8 m. A neve para no vidro e não entra. Consoles de 1,1 m, seis arquivos de 2 m, parede de relógios no mezanino, guarda-corpo de 1 m, seis luzes `#F2D9A0`.
+
+Pátio sul a −1,5 m, com escada metálica. Teleférico com janela e dois cabos até a torre treliçada e para fora, na neblina. Silhueta de helicóptero a leste.
 
 ## Morro do Leitão (rodada 1) — referência Favela (MW2)
 
