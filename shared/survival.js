@@ -211,10 +211,27 @@ export function fmtPts(n) {
   return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
+// Um saldo só. A loja escreve `pts` e a porta escreve `points`; os dois ficam iguais.
+export function syncPurse(e) {
+  if (!e) return 0;
+  if (e.pts == null && e.points == null) { e.pts = 0; e.points = 0; }
+  else if (e.pts == null) e.pts = e.points | 0;
+  else if (e.points == null) e.points = e.pts | 0;
+  else if ((e.pts | 0) !== (e.points | 0)) {
+    const v = Math.max(0, e.pts | 0, e.points | 0);
+    e.pts = v; e.points = v;
+  }
+  return e.pts | 0;
+}
+function setPurse(e, n) {
+  const v = Math.max(0, n | 0);
+  e.pts = v; e.points = v;
+  return v;
+}
 export function ensurePurse(e) {
   if (!e.pap || typeof e.pap !== 'object') e.pap = {};
   if (!e.slotOn) e.slotOn = [1, 1, 1];
-  if (e.pts == null) e.pts = 0;
+  syncPurse(e);
   if (!e.hitFarm) e.hitFarm = {};
   return e;
 }
@@ -227,13 +244,13 @@ export function grantHit(e, zid) {
   const n = e.hitFarm[k] | 0;
   if (n >= SURV.hitCap) return 0;
   e.hitFarm[k] = n + 1;
-  e.pts = (e.pts | 0) + SURV.hit;
+  setPurse(e, syncPurse(e) + SURV.hit);
   return SURV.hit;
 }
 export function grantKill(e, zt, head) {
   ensurePurse(e);
   const add = killPoints(zt, head);
-  e.pts = (e.pts | 0) + add;
+  setPurse(e, syncPurse(e) + add);
   return add;
 }
 
@@ -290,9 +307,10 @@ export function tryPap(e, weapons = WEAPONS, now = 0) {
   const cur = papTierOf(e, w);
   if (cur >= 3) return { ok: false, reason: 'max', tier: 3 };
   const cost = PAP_COST[cur];
-  if ((e.pts | 0) < cost) return { ok: false, reason: 'pontos', cost, have: e.pts | 0, tier: cur };
+  const have = syncPurse(e);
+  if (have < cost) return { ok: false, reason: 'pontos', cost, have, tier: cur };
   const line = statLine(base, cur, cur + 1);
-  e.pts -= cost;
+  setPurse(e, have - cost);
   e.pap[w] = cur + 1;
   fillGun(e, w, weapons);
   return { ok: true, weapon: w, tier: cur + 1, cost, pts: e.pts | 0, line };
@@ -300,8 +318,9 @@ export function tryPap(e, weapons = WEAPONS, now = 0) {
 
 export function tryBoxPay(e) {
   ensurePurse(e);
-  if ((e.pts | 0) < SURV.boxPrice) return { ok: false, reason: 'pontos', cost: SURV.boxPrice, have: e.pts | 0 };
-  e.pts -= SURV.boxPrice;
+  const have = syncPurse(e);
+  if (have < SURV.boxPrice) return { ok: false, reason: 'pontos', cost: SURV.boxPrice, have };
+  setPurse(e, have - SURV.boxPrice);
   return { ok: true, cost: SURV.boxPrice, pts: e.pts | 0 };
 }
 export function rollBox(rng, avoid = -1) {
@@ -332,13 +351,15 @@ export function tryWall(e, wall, weapons = WEAPONS) {
   if (owns) {
     if (!needsAmmo(e, w, weapons)) return { ok: false, reason: 'cheia', weapon: w };
     const cost = wall.ammo | 0;
-    if ((e.pts | 0) < cost) return { ok: false, reason: 'pontos', cost, have: e.pts | 0, weapon: w, kind: 'ammo' };
-    e.pts -= cost; fillGun(e, w, weapons);
+    const haveAmmo = syncPurse(e);
+    if (haveAmmo < cost) return { ok: false, reason: 'pontos', cost, have: haveAmmo, weapon: w, kind: 'ammo' };
+    setPurse(e, haveAmmo - cost); fillGun(e, w, weapons);
     return { ok: true, kind: 'ammo', cost, pts: e.pts | 0, weapon: w };
   }
   const cost = wall.price | 0;
-  if ((e.pts | 0) < cost) return { ok: false, reason: 'pontos', cost, have: e.pts | 0, weapon: w, kind: 'buy' };
-  e.pts -= cost;
+  const have = syncPurse(e);
+  if (have < cost) return { ok: false, reason: 'pontos', cost, have, weapon: w, kind: 'buy' };
+  setPurse(e, have - cost);
   const how = giveGun(e, w, weapons);
   return { ok: true, kind: how, cost, pts: e.pts | 0, weapon: w };
 }
@@ -568,31 +589,72 @@ function openSpot(phys, map, prefer, avoid) {
   return { x: prefer.x, y, z: prefer.z, yaw: 0 };
 }
 
-// Papada e barraca no chão livre, perto de um spawn. Armas encostadas na parede, na altura do peito, olhando a normal.
+// A loja do mapa noturno sai das âncoras (Papada no saguão, barraca no ponto inicial, armas onde o mapa marcou).
+// Sem âncora e sem layout registrado, não inventa Papada no Rodízio, na Fazenda, na Arena nem em mapa nenhum.
+function mountWall(phys, w) {
+  const chest = w.y > 0 ? w.y : 1.3;
+  if (!phys || !phys.rayWorldN) return { x: w.x, y: chest, z: w.z, yaw: w.yaw || 0 };
+  const dirs = [{ nx: 1, nz: 0 }, { nx: -1, nz: 0 }, { nx: 0, nz: 1 }, { nx: 0, nz: -1 }];
+  let best = null;
+  for (const d of dirs) {
+    const from = { x: w.x - d.nx * 0.85, y: chest, z: w.z - d.nz * 0.85 };
+    const hit = phys.rayWorldN(from, { x: d.nx, y: 0, z: d.nz }, 1.5);
+    if (!hit || Math.abs(hit.n.y) > 0.45) continue;
+    if (!best || hit.t < best.t) best = { hit, from, d };
+  }
+  if (!best) return { x: w.x, y: chest, z: w.z, yaw: w.yaw || 0 };
+  const nl = Math.hypot(best.hit.n.x, best.hit.n.z) || 1;
+  const nx = best.hit.n.x / nl, nz = best.hit.n.z / nl;
+  return {
+    x: best.from.x + best.d.nx * best.hit.t + nx * 0.02,
+    y: chest,
+    z: best.from.z + best.d.nz * best.hit.t + nz * 0.02,
+    nx, nz, yaw: Math.atan2(-nz, nx),
+    stand: { x: w.x, y: 0, z: w.z },
+  };
+}
+function layoutFromAnchors(map, phys) {
+  const pack = map && map.survival && map.survival.anchors;
+  if (!pack || !pack.upgrade || !pack.upgrade.length || !pack.mystery || !pack.mystery.length || !pack.wall || !pack.wall.length) return null;
+  const up = pack.upgrade.find((a) => a.area === 'saguao') || pack.upgrade[0];
+  const box = pack.mystery.find((a) => a.start) || pack.mystery[0];
+  const walls = [];
+  for (const w of pack.wall) {
+    const idx = WEAPONS.findIndex((g) => g.key === w.weapon);
+    if (idx < 0 || (WEAPONS[idx] && WEAPONS[idx].ray)) continue;
+    const cat = WALL_CATALOG.find((c) => WEAPONS[c.w] && WEAPONS[c.w].key === w.weapon);
+    const price = w.suggestedPrice > 0 ? w.suggestedPrice | 0 : (cat ? cat.price : 500);
+    const ammo = w.ammo > 0 ? w.ammo | 0 : (cat ? cat.ammo : Math.max(250, Math.round(price / 2)));
+    const mount = mountWall(phys, w);
+    walls.push({ ...mount, w: idx, price, ammo, area: w.area, id: w.id });
+  }
+  if (!walls.length) return null;
+  const gy = (p) => (phys ? phys.groundAt(p.x, p.z, (p.y || 0) + 1) : (p.y || 0));
+  return {
+    id: map.id, test: false, exclusive: true, mounted: true,
+    papada: { x: up.x, y: gy(up), z: up.z, yaw: up.yaw || 0, area: up.area },
+    box: { x: box.x, y: gy(box), z: box.z, yaw: box.yaw || 0, area: box.area },
+    walls, doors: map.survival.doors || [],
+  };
+}
+
+// Papada, barraca e parede só existem no layout do mapa (HOTMILK à Noite) ou num registerSurvivalMap.
+// anchor fica na assinatura porque o servidor passa o spawn; o mapa noturno não usa posição de teste.
 export function bindStations(map, phys, anchor) {
+  void anchor;
   const custom = map && SURVIVAL_LAYOUTS[map.id];
-  if (custom && custom.papada && custom.box && Array.isArray(custom.walls) && custom.walls.length && custom.walls.every((w) => w.nx != null)) {
+  if (custom && custom.papada && custom.box && Array.isArray(custom.walls) && custom.walls.length) {
     const lay = stationsFor(map);
+    if (!lay) return null;
     if (!phys) return lay;
     return {
       ...lay,
-      papada: { ...lay.papada, y: phys.groundAt(lay.papada.x, lay.papada.z, 2) },
-      box: { ...lay.box, y: phys.groundAt(lay.box.x, lay.box.z, 2) },
-      walls: lay.walls.map((w) => ({ ...w, y: w.y != null ? w.y : phys.groundAt(w.x - (w.nx || 0), w.z - (w.nz || 0), 2) + 1.35 })),
+      papada: { ...lay.papada, y: lay.papada.y != null ? lay.papada.y : phys.groundAt(lay.papada.x, lay.papada.z, 2) },
+      box: { ...lay.box, y: lay.box.y != null ? lay.box.y : phys.groundAt(lay.box.x, lay.box.z, 2) },
+      walls: lay.walls.map((w) => ({ ...w, y: w.y != null ? w.y : phys.groundAt(w.x, w.z, 2) + 1.35 })),
     };
   }
-  if (!phys) return stationsFor(map || { id: '?', size: [20, 20], spawns: [[0, 0]] });
-  const sp = spawnsOf(map);
-  const home = anchor || sp.slice().sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0] || { x: 0, z: 0 };
-  const papada = openSpot(phys, map, home, []);
-  let box = openSpot(phys, map, { x: home.x + 9, z: home.z + 4 }, [papada]);
-  if (Math.hypot(box.x - papada.x, box.z - papada.z) < 5 || Math.hypot(box.x - home.x, box.z - home.z) > 22) box = openSpot(phys, map, { x: home.x - 8, z: home.z + 3 }, [papada]);
-  const mounts = pickSpread(wallSamples(map, phys, home), WALL_CATALOG.length, 7);
-  const walls = mounts.map((m, i) => wallFrom({ ...WALL_CATALOG[i % WALL_CATALOG.length], x: m.x, z: m.z, y: m.y, yaw: m.yaw, nx: m.nx, nz: m.nz }));
-  for (let i = 0; i < walls.length; i++) {
-    walls[i].y = mounts[i].y; walls[i].nx = mounts[i].nx; walls[i].nz = mounts[i].nz; walls[i].yaw = mounts[i].yaw; walls[i].stand = mounts[i].stand;
-  }
-  return { id: map.id, test: true, mounted: true, exclusive: false, papada, box, walls, doors: (custom && custom.doors) || [] };
+  return layoutFromAnchors(map, phys);
 }
 
 export function stationsFor(map) {
@@ -602,13 +664,13 @@ export function stationsFor(map) {
       id: map.id,
       test: false,
       exclusive: !!lay.exclusive,
-      papada: { x: lay.papada.x, z: lay.papada.z, yaw: lay.papada.yaw || 0 },
-      box: { x: lay.box.x, z: lay.box.z, yaw: lay.box.yaw || 0 },
+      papada: { x: lay.papada.x, y: lay.papada.y, z: lay.papada.z, yaw: lay.papada.yaw || 0 },
+      box: { x: lay.box.x, y: lay.box.y, z: lay.box.z, yaw: lay.box.yaw || 0 },
       walls: lay.walls.map((w) => wallFrom(w)),
       doors: (lay.doors || []).map((d) => ({ id: d.id, x: d.x, z: d.z, yaw: d.yaw || 0, price: d.price | 0 })),
     };
   }
-  return testStations(map || { id: '?', size: [20, 20], spawns: [[0, 0]] });
+  return layoutFromAnchors(map, null);
 }
 
 // Empurra um ponto pra fora de parede, se a física disser que está preso. Layout exclusivo também passa por aqui.
@@ -652,3 +714,144 @@ export function cornPopDmg(tier) {
   const m = tier ? tierMul(WEAPONS[CORN_W], tier) : null;
   return Math.round(CORN_POP * (m ? m.dmg : 1));
 }
+
+// ---------- HOTMILK à Noite: o único mapa do Survival, com portas ----------
+// O saldo é o mesmo da Papada (`pts` e `points` juntos). O abate na partida
+// usa grantHit/grantKill. pointsForKill fica pra quem quiser a tabela da porta.
+export const SURVIVAL = {
+  mode: 'survival',
+  variant: 'survival',
+  DEFAULT_MAP: 'hotmilk-noite',
+  START_POINTS: 500,
+  USE_R: 2.35,
+  KILL: { walker: 70, runner: 90, tank: 160, spitter: 110, boss: 500 },
+  HEAD_BONUS: 40,
+  KNIFE_BONUS: 30,
+  HIT: 10,
+  HIT_CAP: 4,
+};
+
+export function isSurvivalMode(mode, cfg) {
+  if (mode === SURVIVAL.mode) return true;
+  if (!cfg || typeof cfg !== 'object') return false;
+  if (cfg.mode === SURVIVAL.mode) return true;
+  if (cfg.variant === SURVIVAL.variant) return true;
+  if (cfg.surv === SURVIVAL.variant) return true;
+  return cfg.survival === true || cfg.survival === 1;
+}
+
+export function pointsForKill(zt, opts = {}) {
+  const base = SURVIVAL.KILL[zt] ?? SURVIVAL.KILL.walker;
+  return base + (opts.head ? SURVIVAL.HEAD_BONUS : 0) + (opts.knife ? SURVIVAL.KNIFE_BONUS : 0);
+}
+
+export function pointsForHit(zombie) {
+  if (!zombie) return 0;
+  const n = zombie.ptsHits | 0;
+  if (n >= SURVIVAL.HIT_CAP) return 0;
+  zombie.ptsHits = n + 1;
+  return SURVIVAL.HIT;
+}
+
+export function grantPoints(ent, n) {
+  if (!ent || !(n > 0)) return 0;
+  setPurse(ent, syncPurse(ent) + n);
+  return n;
+}
+
+export function trySpendPoints(ent, price) {
+  const cost = price | 0;
+  if (!ent || cost < 0) return false;
+  const have = syncPurse(ent);
+  if (have < cost) return false;
+  setPurse(ent, have - cost);
+  return true;
+}
+
+export function createMatchSurvival(map) {
+  const pack = map && map.survival;
+  if (!pack) return null;
+  const areas = new Set((pack.areas || []).filter((a) => a.start).map((a) => a.id));
+  return { open: new Set(), areas };
+}
+
+export function doorById(map, id) {
+  const doors = map && map.survival && map.survival.doors;
+  if (!doors) return null;
+  return doors.find((d) => d.id === id) || null;
+}
+
+export function areaById(map, id) {
+  const areas = map && map.survival && map.survival.areas;
+  if (!areas) return null;
+  return areas.find((a) => a.id === id) || null;
+}
+
+function doorDist(door, pos) {
+  if (!pos || !door.at) return Infinity;
+  const dx = pos.x - door.at[0], dy = (pos.y || 0) - (door.at[1] || 0), dz = pos.z - door.at[2];
+  return Math.hypot(dx, dy, dz);
+}
+
+export function evaluateDoorBuy(map, state, ent, doorId) {
+  const door = doorById(map, doorId);
+  if (!map || !map.survival || !state || !door) return { ok: false, reason: 'none' };
+  if (state.open.has(door.id)) return { ok: false, reason: 'open', door };
+  if (!ent || ent.alive === false) return { ok: false, reason: 'dead', door };
+  if (!door.areas.some((a) => state.areas.has(a))) return { ok: false, reason: 'locked', door };
+  if (doorDist(door, ent.pos) > SURVIVAL.USE_R) return { ok: false, reason: 'far', door };
+  const have = syncPurse(ent);
+  if (have < door.price) return { ok: false, reason: 'points', door, price: door.price, have };
+  return { ok: true, door, price: door.price, unlock: door.areas.filter((a) => !state.areas.has(a)) };
+}
+
+export function commitDoorBuy(state, ent, door) {
+  setPurse(ent, syncPurse(ent) - door.price);
+  state.open.add(door.id);
+  const unlocked = [];
+  for (const id of door.areas) if (!state.areas.has(id)) { state.areas.add(id); unlocked.push(id); }
+  return { points: ent.points, unlocked };
+}
+
+export function nearestClosedDoor(map, state, pos) {
+  if (!map || !map.survival || !state || !pos) return null;
+  let best = null, bd = SURVIVAL.USE_R;
+  for (const door of map.survival.doors) {
+    if (state.open.has(door.id)) continue;
+    if (!door.areas.some((a) => state.areas.has(a))) continue;
+    const d = doorDist(door, pos);
+    if (d < bd) { bd = d; best = door; }
+  }
+  return best ? { door: best, dist: bd } : null;
+}
+
+export function unlockedZombieSpawns(map, state) {
+  if (!map || !map.survival || !state) return [];
+  const out = [];
+  for (const area of map.survival.areas || []) {
+    if (!state.areas.has(area.id)) continue;
+    for (const s of area.zspawns || []) out.push({ area: area.id, x: s[0], z: s[1], y: s[2] || 0 });
+  }
+  return out;
+}
+
+export function closedDoorSolids(map, openSet) {
+  if (!map || !map.survival) return [];
+  const open = openSet || new Set();
+  const out = [];
+  for (const door of map.survival.doors) {
+    if (open.has(door.id)) continue;
+    const [x0, y0, z0, x1, y1, z1] = door.block;
+    out.push({ min: { x: Math.min(x0, x1), y: Math.min(y0, y1), z: Math.min(z0, z1) }, max: { x: Math.max(x0, x1), y: Math.max(y0, y1), z: Math.max(z0, z1) }, ramp: null, door: door.id });
+  }
+  return out;
+}
+
+export const DOOR_FAIL = {
+  points: 'Pontos insuficientes',
+  far: 'Chega mais perto da porta',
+  locked: 'Esse lado ainda está fechado',
+  dead: 'Só vivo compra porta',
+  open: '',
+  none: '',
+};

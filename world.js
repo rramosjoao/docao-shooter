@@ -227,6 +227,10 @@ function buildProp(p, ctx) {
       const m = textPlane(3, 2.2, (x, w, h) => { x.fillStyle = p.c; x.fillRect(0, 0, w, h); x.lineWidth = 10; x.strokeStyle = '#2a1410'; x.strokeRect(5, 5, w - 10, h - 10); drawLogo(x, w / 2, h / 2, h * 0.62, '#ffffff', '#2a1410'); });
       m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot || 0; group.add(m); break;
     }
+    case 'moon': { // vidraça com luz de lua: sem colisão, visível dos dois lados
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(p.w || 1.6, p.h || 1.1), new THREE.MeshBasicMaterial({ color: p.c || '#9eb6e4', transparent: true, opacity: 0.72, side: THREE.DoubleSide, toneMapped: false, depthWrite: false }));
+      m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot || 0; group.add(m); break;
+    }
     default: console.warn('prop desconhecido', p.t);
   }
 }
@@ -291,8 +295,36 @@ export function buildWorld(map) {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     group.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, fog: false })));
   }
-  for (const [c, x, y, z, i, d] of pal.lights || []) { const l = new THREE.PointLight(c, i, d, 1.4); l.position.set(x, y, z); group.add(l); }
-  return { group, solids, meshes };
+  const nightLights = [];
+  for (const L of pal.lights || []) {
+    const [c, x, y, z, i, d, kind] = L;
+    const l = new THREE.PointLight(c, i, d, 1.4); l.position.set(x, y, z);
+    if (kind) { l.userData.flicker = kind; l.userData.base = i; nightLights.push(l); }
+    group.add(l);
+  }
+  const doors = [];
+  for (const d of (map.survival && map.survival.doors) || []) {
+    const [x0, y0, z0, x1, y1, z1] = d.block;
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), dz = Math.abs(z1 - z0);
+    const alongZ = dx < dz;
+    const swing = d.swing || 1;
+    const g = new THREE.Group();
+    g.userData.doorId = d.id;
+    if (alongZ) {
+      g.position.set((x0 + x1) / 2, (y0 + y1) / 2, swing > 0 ? Math.min(z0, z1) : Math.max(z0, z1));
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(dx, dy, dz), toon('#1f6b45'));
+      mesh.position.z = swing > 0 ? dz / 2 : -dz / 2; mesh.castShadow = mesh.receiveShadow = true; g.add(mesh);
+      g.userData.openAngle = swing > 0 ? -1.25 : 1.25;
+    } else {
+      g.position.set(swing > 0 ? Math.min(x0, x1) : Math.max(x0, x1), (y0 + y1) / 2, (z0 + z1) / 2);
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(dx, dy, dz), toon('#1f6b45'));
+      mesh.position.x = swing > 0 ? dx / 2 : -dx / 2; mesh.castShadow = mesh.receiveShadow = true; g.add(mesh);
+      g.userData.openAngle = swing > 0 ? 1.25 : -1.25;
+    }
+    g.userData.want = 0;
+    group.add(g); doors.push(g);
+  }
+  return { group, solids, meshes, doors, nightLights };
 }
 
 export function disposeWorld(group) {
@@ -309,6 +341,8 @@ export function applyPalette(scene, hemi, sun, map) {
   scene.fog = new THREE.Fog(pal.fog[0], pal.fog[1], pal.fog[2]);
   hemi.color.set(pal.hemi[0]); hemi.groundColor.set(pal.hemi[1]); hemi.intensity = pal.hemi[2];
   sun.color.set(pal.sun[0]); sun.intensity = pal.sun[1];
+  // Mapa noturno grande: a sombra do sol cobre o campus inteiro e escurece todo interior.
+  sun.castShadow = pal.shadow !== false;
   sun.position.set(ext * 0.8, 50, ext * 0.5); sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld();
   const e = ext + 6; Object.assign(sun.shadow.camera, { left: -e, right: e, top: e, bottom: -e, near: 1, far: 50 + ext * 2.5 }); sun.shadow.camera.updateProjectionMatrix();
 }

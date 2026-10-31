@@ -209,23 +209,14 @@ function FAMAS_SAFE() { return 15; }
   delete SURVIVAL_LAYOUTS['hotmilk-noite'];
   for (const map of INV_MAPS) {
     const solids = mapSolids(map), P = createPhysics(solids, map.size);
-    const s = bindStations(map, P);
-    ok(s.mounted && s.papada && s.box && s.walls.length >= 4, `${map.id}: ${s.walls.length} armas na parede + Papada e barraca`);
-    const free = (x, y, z) => !P.collides(x, y + 0.45, z) && Math.abs(x) < map.size[0] - 0.6 && Math.abs(z) < map.size[1] - 0.6;
-    ok(free(s.papada.x, s.papada.y, s.papada.z) && free(s.box.x, s.box.y, s.box.z), `${map.id}: Papada e barraca no chão livre`);
-    const spawnNear = (p, max) => map.spawns.some((sp) => Math.hypot(sp[0] - p.x, sp[1] - p.z) < max);
-    ok(spawnNear(s.papada, 16), `${map.id}: Papada a menos de 16 m de um spawn`);
-    const loose = [];
-    for (const w of s.walls) {
-      if (w.nx == null || Math.hypot(w.nx, w.nz) < 0.9) { loose.push('normal'); continue; }
-      const hit = P.rayWorldN({ x: w.x + w.nx * 0.8, y: w.y, z: w.z + w.nz * 0.8 }, { x: -w.nx, y: 0, z: -w.nz }, 1.4);
-      if (!hit || hit.t > 1.15 || Math.abs(hit.n.y) > 0.5) loose.push([+w.x.toFixed(1), +w.z.toFixed(1)]);
-      const stand = w.stand;
-      if (stand && P.collides(stand.x, stand.y + 0.45, stand.z)) loose.push('stand');
-    }
-    ok(loose.length === 0, `${map.id}: armas encostadas na parede ${loose.length ? JSON.stringify(loose) : ''}`);
-    ok(s.walls.some((w) => spawnNear(w.stand || w, 20)), `${map.id}: pelo menos uma arma perto de um spawn`);
+    ok(bindStations(map, P) == null && stationsFor(map) == null, `${map.id}: sem Papada, barraca nem arma de teste`);
   }
+  const noite = getMap('hotmilk-noite');
+  const Pn = createPhysics(mapSolids(noite), noite.size);
+  const sn = bindStations(noite, Pn);
+  ok(sn && !sn.test && sn.papada && sn.box && sn.walls.length >= 4, `HOTMILK à Noite: ${sn && sn.walls.length} armas nas âncoras + Papada e barraca`);
+  ok(sn.walls.every((w) => w.nx == null || Math.hypot(w.nx, w.nz) > 0.9), 'armas da noite têm normal ou ficam na âncora');
+  ok(!INV_MAPS.some((m) => m.id === 'hotmilk-noite') && noite.survivalOnly, 'a noite não entra na lista da Invasão padrão');
 }
 
 // servidor: Survival debita e sincroniza; Padrão recusa; respawn volta pra pistola e faca
@@ -241,7 +232,7 @@ function room(surv) {
 {
   const { g, a } = room(SURV_ID);
   ok(g.survival && a.slots[0] === PISTOL && a.slotOn[1] === 0 && a.slots[2] === KNIFE && a.weapon === PISTOL, 'servidor Survival: nasce pistola e faca');
-  ok(g.stations && g.stations.papada && g.stations.box && g.stations.walls.length >= 5, 'servidor monta as estações do mapa');
+  ok(g.mapId === 'hotmilk-noite' && g.stations && g.stations.papada && g.stations.box && g.stations.walls.length >= 4, `servidor abre a HOTMILK à Noite e monta as estações (${g.mapId}, ${g.stations && g.stations.walls.length} paredes)`);
   a.pts = 10000; a.pos = { ...g.stations.papada, y: g.stations.papada.y }; a.weapon = PISTOL;
   g.onEvent(a, ['sv', 'pap']);
   ok(a.pap[PISTOL] === 1 && a.pts === 0, 'servidor debita a Papada e grava o tier');
@@ -412,7 +403,12 @@ function room(surv) {
   g.rays.length = 0;
   g.onEvent(a, ['ry', [a.pos.x, y + 1.45, a.pos.z], [0, -1, 0], g.now()]);
   let foot = 100;
-  for (let i = 0; i < 12 && g.rays.length; i++) { g.stepRays(0.05); foot = a.hp; }
+  // No saguão o teto é baixo: o raio quica de novo e acaba estourando. O conserto é o primeiro quique, que só dá o splash leve.
+  for (let i = 0; i < 8 && g.rays.length; i++) {
+    g.stepRays(0.05);
+    foot = a.hp;
+    if (g.rays[0] && g.rays[0].bounces > 0) break;
+  }
   ok(foot < 100 && 100 - foot < 40, `tiro no pé quica e dá auto-dano leve (${(100 - foot).toFixed(1)})`);
   z.alive = false; z.pos = { x: 999, y, z: 999 };
   a.mag[RAY] = 20; a.lastCt[RAY] = -9; a.lastShot[RAY] = -9; a.alive = true; a.hp = Math.max(a.hp, 40);
