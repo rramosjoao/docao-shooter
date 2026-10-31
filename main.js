@@ -4,7 +4,7 @@ import { makeDocao, makeFPArms, setPose, toon, outline, makeCup, makeRocket, dra
 import { SKINS, getSkin, DEFAULT_SKIN } from './skins.js';
 import './costumes.js';
 import { MAPS, getMap } from './maps.js';
-import { buildWorld, disposeWorld, applyPalette, renderThumb } from './world.js';
+import { buildWorld, disposeWorld, applyPalette, renderThumb, updateWeather } from './world.js';
 import { buildNav } from './nav.js';
 import { initBacon, spawnBacon, updateBacon, clearBacon, popModel, baconStats, activeBacons, BACON } from './bacon.js';
 import { Net, createRoom, roomInfo } from './net.js';
@@ -1231,6 +1231,7 @@ function loop() {
     showcase.rotation.y += dt * 0.7; showcase.position.y = showBaseY + (getSkin(selectedSkin).float ? 0.1 + Math.sin(menuT * 10) * 0.06 : Math.abs(Math.sin(menuT * 6)) * 0.06);
     for (const p of pickups) p.mesh.rotation.y += dt;
   }
+  if (worldGroup) updateWeather(worldGroup, dt);
   renderer.clear();
   const camO = window.__cam; // testes/screenshots: câmera livre { p: [x, y, z], t: [x, y, z], fov }
   if (camO) { camera.position.set(...camO.p); camera.lookAt(...camO.t); if (camO.fov && camera.fov !== camO.fov) { camera.fov = camO.fov; camera.updateProjectionMatrix(); } }

@@ -165,6 +165,36 @@ function buildProp(p, ctx) {
       const m = textPlane(3, 2.2, (x, w, h) => { x.fillStyle = p.c; x.fillRect(0, 0, w, h); x.lineWidth = 10; x.strokeStyle = '#2a1410'; x.strokeRect(5, 5, w - 10, h - 10); drawLogo(x, w / 2, h / 2, h * 0.62, '#ffffff', '#2a1410'); });
       m.position.set(p.x, p.y, p.z); m.rotation.y = p.rot || 0; group.add(m); break;
     }
+    case 'pine': { // pinheiro nevado: só o tronco colide; o visual é instanciado no fim
+      solid(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
+    }
+    case 'dome': { // domo / tanque esférico (radar)
+      const r = p.r || 2.2, h = p.h || 1.3;
+      const g = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.04, h, 16), toon(p.c || '#9C9A94')); base.position.y = h / 2; outline(base, 0.03); g.add(base);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(r * 0.94, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), toon(p.cap || '#E8EDF2')); cap.position.y = h; outline(cap, 0.03); g.add(cap);
+      g.position.set(p.x, y, p.z); g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+      solid(p.x - r, y, p.z - r, p.x + r, y + h + r * 0.55, p.z + r); break;
+    }
+    case 'tank': { // tanque vertical (propano / combustível)
+      const r = p.r || 1.15, h = p.h || 2.5;
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), toon(p.c || '#8A8D8F')); body.position.y = h / 2; outline(body, 0.03); g.add(body);
+      const top = new THREE.Mesh(new THREE.SphereGeometry(r * 0.98, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), toon(p.cap || '#E8EDF2')); top.position.y = h; g.add(top);
+      if (p.band) { const band = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.04, r + 0.04, 0.18, 16), toon(p.band)); band.position.y = h * 0.62; g.add(band); }
+      g.position.set(p.x, y, p.z); g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+      solid(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break;
+    }
+    case 'pane': { // vidro sem colisão (claraboia / janela): tiro e gente passam
+      const ww = Math.abs((p.x1 ?? p.x) - (p.x0 ?? p.x)) || 0.04, dd = Math.abs((p.z1 ?? p.z) - (p.z0 ?? p.z)) || 0.04;
+      const horiz = (p.axis || (ww >= dd ? 'x' : 'z')) === 'y';
+      const geo = horiz ? new THREE.PlaneGeometry(Math.max(ww, 0.4), Math.max(dd, 0.4)) : new THREE.PlaneGeometry(Math.max(ww, dd), p.h || 2.2);
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: p.c || 0xBFDDEB, transparent: true, opacity: p.o ?? 0.28, side: THREE.DoubleSide, depthWrite: false }));
+      if (horiz) m.rotation.x = -Math.PI / 2;
+      else if ((p.axis || (ww >= dd ? 'x' : 'z')) === 'z') m.rotation.y = Math.PI / 2;
+      const cx = ((p.x0 ?? p.x) + (p.x1 ?? p.x)) / 2, cz = ((p.z0 ?? p.z) + (p.z1 ?? p.z)) / 2;
+      m.position.set(cx, p.y, cz); group.add(m); break;
+    }
     default: console.warn('prop desconhecido', p.t);
   }
 }
@@ -200,6 +230,8 @@ export function buildWorld(map) {
   // caixas e rampas do mapa
   for (const o of map.boxes) { const [x0, y0, z0, x1, y1, z1] = o.b; if (x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01) continue; add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null); }
   for (const p of map.props || []) buildProp(p, { group, solid, add });
+  buildPines((map.props || []).filter((p) => p.t === 'pine'), group);
+  if (map.weather) { const w = makeWeather(map); group.userData.weather = w; group.add(w.pts); }
   // mescla: uma malha por cor
   for (const [k, list] of byColor) {
     const geo = mergeGeometries(list, false); list.forEach((g) => g.dispose());
@@ -226,6 +258,52 @@ export function buildWorld(map) {
   }
   for (const [c, x, y, z, i, d] of pal.lights || []) { const l = new THREE.PointLight(c, i, d, 1.4); l.position.set(x, y, z); group.add(l); }
   return { group, solids, meshes };
+}
+
+// pinheiros instanciados: 2 draw calls para o mapa inteiro (Safari)
+function buildPines(list, group) {
+  if (!list.length) return;
+  const trunk = new THREE.CylinderGeometry(0.26, 0.42, 3.2, 6); trunk.translate(0, 1.6, 0);
+  const cap = new THREE.ConeGeometry(1.55, 3.4, 7); cap.translate(0, 4.15, 0);
+  const trunks = new THREE.InstancedMesh(trunk, toon('#5C4636'), list.length);
+  const caps = new THREE.InstancedMesh(cap, toon('#E8EDF2'), list.length);
+  const dummy = new THREE.Object3D();
+  list.forEach((p, i) => {
+    dummy.position.set(p.x, p.y || 0, p.z); dummy.rotation.y = (i * 1.7) % 6; dummy.scale.setScalar(p.s || 1);
+    dummy.updateMatrix(); trunks.setMatrixAt(i, dummy.matrix); caps.setMatrixAt(i, dummy.matrix);
+  });
+  trunks.castShadow = caps.castShadow = true; group.add(trunks, caps);
+}
+
+// neve leve: um Points só, vento na horizontal, flocos param em cima dos telhados
+function makeWeather(map) {
+  const w = map.weather, n = w.n || 1400, [hx, hz] = map.size;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() * 2 - 1) * hx; pos[i * 3 + 1] = Math.random() * (w.top || 28); pos[i * 3 + 2] = (Math.random() * 2 - 1) * hz; }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: w.color || 0xF4F7FA, size: w.size || 0.16, transparent: true, opacity: 0.85, depthWrite: false, fog: true }));
+  pts.frustumCulled = false; pts.userData.skipOutline = true;
+  return { pts, geo, n, fall: w.fall || 6.5, wind: w.wind || [2, 0, 0.4], top: w.top || 28, hx, hz, roofs: w.roofs || [], t: 0 };
+}
+
+export function updateWeather(group, dt) {
+  const w = group && group.userData.weather; if (!w || dt <= 0) return;
+  if (!w.pts.parent) group.add(w.pts);
+  w.t += dt; const gust = 1 + 0.28 * Math.sin(w.t * 0.55);
+  const a = w.geo.attributes.position.array, wx = w.wind[0] * gust * dt, wz = w.wind[2] * gust * dt, fy = w.fall * dt;
+  for (let i = 0; i < a.length; i += 3) {
+    let roofY = -1;
+    for (let r = 0; r < w.roofs.length; r++) {
+      const R = w.roofs[r];
+      if (a[i] > R[0] && a[i] < R[2] && a[i + 2] > R[1] && a[i + 2] < R[3]) { roofY = R[4]; break; }
+    }
+    if (roofY >= 0 && a[i + 1] <= roofY + 0.35) { a[i] += wx * 0.35; a[i + 2] += wz * 0.35; a[i + 1] = roofY + ((i * 17) % 10) * 0.03; }
+    else { a[i] += wx; a[i + 1] -= fy; a[i + 2] += wz; }
+    if (a[i + 1] < 0 || a[i] > w.hx || a[i] < -w.hx || a[i + 2] > w.hz || a[i + 2] < -w.hz) {
+      a[i] = (Math.random() * 2 - 1) * w.hx; a[i + 1] = w.top * (0.65 + Math.random() * 0.35); a[i + 2] = (Math.random() * 2 - 1) * w.hz;
+    }
+  }
+  w.geo.attributes.position.needsUpdate = true;
 }
 
 export function disposeWorld(group) {

@@ -10,6 +10,14 @@ const V = { // [câmera x,y,z, alvo x,y,z]
   'torres-do-barril': { 'visao-geral': [34, 46, 0, 0, 0, 0], predio: [-27.5, 5.1, 37, -4, 2, 14], telhado: [0, 10.2, 62.5, 0, 3, 20] },
   'vizinhanca-cheers': { 'visao-geral': [0, 50, 42, 0, 0, -1], predio: [-15, 5.1, -17.5, -4, 4.3, -9], telhado: [-14, 8.7, -17.5, 6, 4, 10] },
   'bar-cheers': { 'visao-geral': [0, 42, 32, 0, 0, -2], predio: [-12, 4.9, -16.5, 2, 1, 6], telhado: [17, 8.3, -18.5, -4, 1, 8] },
+  'posto-nevasca': {
+    'visao-geral': [0, 118, 16, 0, 0, 0],
+    passarela: [-14, 7, -4, -23, 1.4, 28],
+    'sala-fria': [6, 2.4, 9, 9, 3.2, 22],
+    teleferico: [-12, 6, 36, -24, 3.2, 44],
+    'patio-sul': [10, 7, -6, 0, 1.2, -22],
+    'spawn-norte': [2, 9, 34, 0, 2, 52],
+  },
 };
 const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(V);
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

@@ -523,4 +523,129 @@ export const MAPS = [];
   });
 }
 
+// ---------- 8) Posto Nevasca (Summit: base no cume, eixo N–S, 3 rotas) ----------
+// +Z norte (spawn do lab), −Z sul (spawn da estrada), −X penhasco, +X salas estreitas.
+// 1 unidade = 1 m. Pé-direito e portas folgados pro Docão (2,0 m): vão de porta ≥ 2,6 m, altura 2,6 m.
+{
+  const SNOW = '#E8EDF2', SNOW2 = '#A9B6C4', ROCK = '#4A4E54', METAL = '#8A8D8F', METAL2 = '#6E7378';
+  const CONC = '#9C9A94', RUST = '#8E2F2A', ICE = '#BFDDEB', FLOOR = '#8A8680', IN = '#B7B2A8';
+  const H = 3.4;
+  const col = { wall: METAL, wall2: METAL2, inner: IN, floor: FLOOR, roof: SNOW, roof2: SNOW2, stair: METAL, trim: ICE };
+  const boxes = [];
+  const mound = (x, z, s = 2, h = 0.75) => boxes.push(B(x - s / 2, z - s / 2, x + s / 2, z + s / 2, h, h > 0.85 ? SNOW2 : SNOW));
+  const C = (x, z, s = 1.3, h = 1.15, c = METAL2, y0 = 0) => boxes.push(crate(x, z, s, h, c, y0));
+
+  // penhasco oeste (parede de rocha; o motor não tem kill volume — ver MAPS_NOTES)
+  boxes.push(B(-26, -8, -24.55, 41.5, 8, ROCK), B(-26, 48.2, -24.55, 56, 8, ROCK));
+  // passarela: corredor de ~3,4 m. Guarda-corpo de 1,05 m não tampa o olho (1,6 m) — linha longa.
+  const rail = (z0, z1) => boxes.push(B(-21.28, z0, -21.02, z1, 1.05, METAL2));
+  rail(-6, 13.2); rail(19.6, 36.4);
+
+  // lab norte (spawn), 1 andar, portas pro pátio
+  boxes.push(...building(-14, 48, 10, 58, { col, floors: 1, H: 3.5, parapet: 0.6,
+    ops: [{ s: 'n', a: -8, b: -5 }, { s: 'n', a: 2, b: 5.2 }, { s: 's', a: -2, b: 1.2 }, { s: 'e', a: 50, b: 53 },
+      { s: 'n', a: -12, b: -9.5, k: 'win', lo: 1.05, hi: 2.15 }, { s: 'w', a: 50, b: 53.2, k: 'win', lo: 1.05, hi: 2.1 }],
+    inner: [{ axis: 'x', s0: -13.4, s1: 9.4, line: 53.2, ops: [{ a: -2.2, b: 1.2 }] }] }));
+  // prédio B3, 2 andares, entre o pátio e o lab
+  boxes.push(...building(-12, 33, 2, 45, { col, floors: 2, H, parapet: 0.7,
+    ops: [{ s: 'n', a: -6, b: -2.6 }, { s: 'e', a: 36, b: 39.4 }, { s: 's', a: -8, b: -4.6 }, { s: 'w', a: 36.5, b: 39.5 },
+      { s: 'e', a: 40.2, b: 43.2, f: 1, k: 'win', lo: 0.85, hi: 2.05 }, { s: 'n', a: -8, b: -4, f: 1, k: 'win', lo: 0.85, hi: 2.05 }],
+    stairs: [{ f: 0, r: [-9.6, 35.2, -3.4, 37.8], axis: 'x', dir: 1 }] }));
+  // garagem / sala com escada (lado do carro)
+  boxes.push(...building(8, 34, 18, 46, { col: { ...col, wall: CONC, wall2: METAL }, floors: 1, H: 3.6, parapet: 0.5,
+    ops: [{ s: 'n', a: 10.2, b: 14.2, k: 'wide' }, { s: 'w', a: 38, b: 41.2 }, { s: 'e', a: 37, b: 40 }] }));
+  C(13.5, 42, 2.2, 1.15, '#6E7378'); C(15.2, 40.2, 1.2, 0.9, RUST);
+
+  // SALA FRIA / control room: 22 × 22 m, mezanino a +3,4 m, átrio aberto, 5 portas
+  boxes.push(...building(-2, 6, 20, 28, { col: { ...col, wall: CONC, wall2: METAL, inner: '#C4BFB4' }, floors: 2, H, roof: false,
+    ops: [{ s: 'w', a: 14.2, b: 17.8 }, { s: 'e', a: 12.2, b: 15.8 }, { s: 'n', a: 6, b: 9.4 }, { s: 's', a: 4, b: 7.6 }, { s: 's', a: 13, b: 16.4 },
+      { s: 's', a: 8.2, b: 12.2, k: 'win', lo: 1.0, hi: 2.15 },
+      { s: 's', a: 8, b: 12.4, f: 1, k: 'win', lo: 0.75, hi: 2.15 }, { s: 'n', a: 8, b: 12.4, f: 1, k: 'win', lo: 0.75, hi: 2.15 },
+      { s: 'w', a: 8.5, b: 12, f: 1, k: 'win', lo: 0.8, hi: 2.05 }, { s: 'e', a: 20, b: 24, f: 1, k: 'win', lo: 0.8, hi: 2.05 }],
+    stairs: [{ f: 0, r: [1.6, 21.4, 10.2, 24.3], axis: 'x', dir: 1 }],
+    floorHoles: { 1: [[-1.4, 6.6, 15.4, 20.4]] } }));
+  boxes.push(...slab(-2, 6, 20, 28, 2 * H, 0.35, SNOW, [[6.5, 12.5, 13.5, 19.5]]));
+  boxes.push(B(-1.6, 20.28, 15.2, 20.52, 1.0, METAL2, H), B(15.28, 6.9, 15.52, 20.35, 1.0, METAL2, H));
+  C(4.2, 12.2, 1.35, 1.2, METAL); C(5.6, 12.2, 1.15, 1.2, METAL2); C(11.2, 25.2, 1.3, 1.05, METAL, H);
+
+  // salas estreitas a leste (CQB), parede oeste é a da sala fria
+  boxes.push(...building(20, 8, 26, 32, { col, floors: 1, H: 3.3, parapet: 0.4, noWall: ['w0'],
+    ops: [{ s: 'e', a: 12, b: 15 }, { s: 'e', a: 22, b: 25 }, { s: 's', a: 21.5, b: 24.4 }, { s: 'n', a: 21.2, b: 24.2 }],
+    inner: [{ axis: 'x', s0: 20.4, s1: 25.6, line: 18, ops: [{ a: 21.3, b: 24.1 }] }, { axis: 'x', s0: 20.4, s1: 25.6, line: 25, ops: [{ a: 21.3, b: 24.1 }] }] }));
+
+  // galpão sul + rampa pro telhado (antena)
+  boxes.push(...building(-12, -46, 12, -30, { col: { ...col, wall: CONC }, floors: 1, H: 3.6, parapet: 1.15,
+    ops: [{ s: 's', a: -3.2, b: 0.4 }, { s: 's', a: 4, b: 7.2 }, { s: 'n', a: -8.2, b: -5.2 }, { s: 'e', a: -40, b: -37 }],
+    roofGaps: [{ s: 'n', a: -2.6, b: 2.6 }] }));
+  boxes.push(B(-2.7, -49.4, 2.7, -46, 0.28, SNOW, 3.32), R(-2.2, -55.2, 2.2, -49.2, 0, 3.6, 'z', 1, METAL));
+  boxes.push(B(3.55, -38.45, 3.95, -38.05, 6.2, RUST, 3.6), B(3.2, -39.3, 4.3, -38.9, 0.35, RUST, 9.5));
+
+  // torre do cabo (+8,1 m) e duas rampas, a leste da passarela
+  boxes.push(R(-19.8, 20.2, -17.2, 29, 0, 4.05, 'z', 1, METAL), B(-20.3, 28.2, -16.7, 31.1, 0.24, METAL, 3.81));
+  boxes.push(R(-19.8, 30.4, -17.2, 37.2, 4.05, 8.15, 'z', 1, METAL));
+  boxes.push(B(-20.5, 36.6, -15.5, 42.2, 0.28, METAL, 7.87));
+  for (const [x, z] of [[-20.2, 36.9], [-15.8, 36.9], [-20.2, 41.9], [-15.8, 41.9]]) boxes.push(B(x, z, x + 0.35, z + 0.35, 8.15, METAL2));
+  boxes.push(B(-20.5, 36.6, -15.5, 36.85, 1.0, METAL2, 8.15), B(-20.5, 41.95, -15.5, 42.2, 1.0, METAL2, 8.15));
+  boxes.push(B(-20.5, 36.6, -20.25, 42.2, 1.0, METAL2, 8.15), B(-15.75, 36.6, -15.5, 42.2, 1.0, METAL2, 8.15));
+
+  // teleférico no rasgo do penhasco (piso a +2,37 m)
+  const gy = 2.37;
+  boxes.push(B(-25.95, 42.25, -22.65, 46.75, 0.2, RUST, 2.17));
+  boxes.push(...wallZ(42.45, 46.55, -25.75, 0.18, 2.6, RUST, [], gy));
+  boxes.push(...wallZ(42.45, 46.55, -22.8, 0.18, 2.6, RUST, [door(43.15, 45.85, 2.45)], gy));
+  boxes.push(...wallX(-25.7, -22.95, 42.4, 0.18, 2.6, RUST, [], gy));
+  boxes.push(...wallX(-25.7, -22.95, 46.6, 0.18, 2.6, RUST, [], gy));
+  boxes.push(B(-25.95, 42.25, -22.65, 46.75, 0.28, SNOW, gy + 2.6));
+  boxes.push(R(-22.65, 43.15, -17.6, 45.85, 0, gy, 'x', -1, METAL));
+  boxes.push({ wp: [-21.3, gy, 44.5] }, { wp: [-24.2, gy, 44.5] }, { wp: [-18.2, 8.15, 39] }, { wp: [-18.6, 4.05, 29.5] });
+  // cabo (acima da cabeça de quem está na torre)
+  boxes.push(B(-24.2, 44.2, -17.2, 44.45, 0.12, METAL2, 12.2), B(-17.4, 40.6, -17.15, 44.5, 0.12, METAL2, 12.2));
+
+  // montes de neve (0,55–1,0 m) e caixotes de cobertura — pátio norte, vão central, pátio sul
+  for (const [x, z, s, h] of [[-16, 46.2, 2.1, 0.7], [-14, 30.2, 1.8, 0.7], [5.2, 30.6, 1.7, 0.8], [14.2, 31.2, 2, 0.85],
+    [-16, -4, 2, 0.95], [-13.2, 1.4, 1.5, 0.85], [2.6, -6.6, 1.5, 0.9], [-6, -8, 1.6, 0.7], [10, -6, 1.6, 0.9], [18, -4, 1.6, 0.75],
+    [-16, -14, 2, 0.85], [8, -12, 1.8, 0.65], [17, -16, 2, 1.0], [-15, -24, 2, 0.8],
+    [10, -24, 2, 0.75], [18, -26, 2.1, 0.9], [-6, 2.2, 2, 0.8], [14, 3.2, 1.8, 0.7], [22.5, 4.2, 1.5, 0.65],
+    [-19.4, 8.2, 1.5, 0.7], [0, 3.4, 1.6, 0.7]]) mound(x, z, s, h);
+  C(-12.4, 16.2, 1.4, 1.2, METAL); C(-8, -20, 1.5, 1.3, '#6E5438'); C(14, -20, 1.3, 1.15, METAL2); C(-18.6, 10, 1.2, 1.05, METAL);
+
+  // estalactites de gelo nos beirais (acima da cabeça: y ≥ 2,6)
+  for (const [x, z] of [[-2, 18], [20, 18], [-12, 39], [2, 39], [-10, -30], [10, -30]]) boxes.push(B(x - 0.08, z - 0.08, x + 0.08, z + 0.08, 0.7, ICE, 2.7));
+
+  const props = [
+    { t: 'dome', x: 15.6, z: 52.2, r: 2.15, h: 1.25, c: CONC, cap: SNOW },
+    { t: 'dome', x: 6.5, z: 1.6, r: 1.7, h: 1.05, c: METAL, cap: SNOW },
+    { t: 'tank', x: -8.2, z: -16.5, r: 1.15, h: 2.45, c: METAL, cap: SNOW, band: RUST },
+    { t: 'tank', x: 16.5, z: -10, r: 0.85, h: 1.8, c: RUST, cap: SNOW2 },
+    { t: 'truck', x: 1.5, z: -18.5, c: '#4A4E54' },
+    { t: 'pine', x: -21.2, z: -56, s: 1.15 }, { t: 'pine', x: 21.2, z: 55.2, s: 1.25 }, { t: 'pine', x: 23.2, z: 2.2, s: 1.05 },
+    { t: 'pine', x: 22.4, z: -27, s: 1.1 }, { t: 'pine', x: -16.2, z: 26.5, s: 0.95 }, { t: 'pine', x: 18.5, z: -52, s: 1.2 },
+    { t: 'sign', x: 6, y: 4.5, z: 28.35, w: 6.2, h: 1.35, rot: 0, text: 'SALA FRIA', bg: RUST, fg: '#F2D9A0' },
+    { t: 'sign', x: -23.15, y: 2.15, z: 8, w: 2.2, h: 1.15, rot: Math.PI / 2, text: 'PENHASCO', bg: RUST, fg: '#fff' },
+    { t: 'sign', x: 0, y: 3.2, z: -29.6, w: 5.5, h: 1.2, rot: Math.PI, text: 'GALPÃO', bg: '#3E4248', fg: SNOW },
+    { t: 'pane', x0: 7, z0: 13, x1: 13, z1: 19, y: 6.72, axis: 'y', c: 0xBFDDEB, o: 0.33 },
+    { t: 'keg', x: -10.2, z: 41.6 }, { t: 'keg', x: 0.4, z: 36.2 }, { t: 'keg', x: 16.2, z: 30.5 },
+    { t: 'keg', x: -8.1, z: -4.1 }, { t: 'keg', x: -4.1, z: -6.1 }, { t: 'keg', x: -12.1, z: 0.6 }, { t: 'keg', x: 1.1, z: -2.1 },
+    { t: 'keg', x: -14.5, z: -18 }, { t: 'keg', x: 12.5, z: -8.5 }, { t: 'keg', x: -19.3, z: 11 },
+  ];
+  const roofs = [[-14, 48, 10, 58, 3.5], [-12, 33, 2, 45, 6.8], [8, 34, 18, 46, 3.6],
+    [-2, 6, 20, 12.5, 6.8], [-2, 19.5, 20, 28, 6.8], [-2, 12.5, 6.5, 19.5, 6.8], [13.5, 12.5, 20, 19.5, 6.8],
+    [20, 8, 26, 32, 3.3], [-12, -46, 12, -30, 3.6], [-25.9, 42.2, -22.6, 46.8, 5.25], [-20.5, 36.6, -15.5, 42.2, 8.15]];
+  MAPS.push({
+    id: 'posto-nevasca', name: 'Posto Nevasca',
+    desc: 'Base no cume: sala fria com mezanino e claraboia, passarela no penhasco e salas estreitas a leste.',
+    size: [26, 60], wallH: 5, wallColor: [ROCK, '#3E4248'], openMax: 7.5, laneMin: 40,
+    palette: { sky: '#D5DEE6', fog: ['#C9D3DC', 48, 170], hemi: ['#E8EEF3', '#8B98A6', 1.35], sun: ['#F4F7FA', 0.95], ground: SNOW, tiles: null, clouds: true,
+      lights: [['#F2D9A0', 8, 2.5, 16, 16, 14], ['#F2D9A0', 8, 5.6, 24, 14, 12], ['#F2D9A0', -2, 2.4, 52, 14, 12], ['#F2D9A0', 0, 2.3, -38, 14, 12], ['#F2D9A0', 23, 2.3, 16, 10, 9]] },
+    weather: { kind: 'snow', n: 1400, fall: 6.2, wind: [2.3, 0, 0.55], top: 34, color: 0xF7FBFF, size: 0.15, roofs },
+    ...fin(boxes), props,
+    spawns: [[-6, 50], [2, 52], [20, 48], [-8, 42], [4, 40], [12, 38], [-8, -52], [0, -56], [8, -50], [-4, -58], [6, -44], [-14, -50]],
+    pickups: [['health', 8, 14], ['health', -5, 42.6], ['health', 4, -24], ['health', 6, 50.5], ['health', -18, 39, 8.15],
+      ['ammo', -22.9, 4], ['ammo', 23, 14], ['ammo', -6, 40.5, H], ['ammo', 0, -38, 3.6],
+      ['grenade', 13, 37], ['grenade', -4, -22], ['grenade', 13.2, 23.4, H]],
+    showcase: [4, 0, 30.5], view: [-16, 1.6, 2, -0.35, -0.04],
+    test: { stairs: { from: [0.6, 0, 22.85], to: [11.4, H, 22.85], level: H }, roof: { from: [0, 0, -56.2], to: [0, 3.6, -38], level: 3.6 }, under: { from: [17.3, 0, 9.5], to: [17.3, 0, 16.5], ceil: 3.1 } },
+  });
+}
+
 export const getMap = (id) => MAPS.find((m) => m.id === id) || MAPS[0];

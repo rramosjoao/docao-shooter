@@ -29,7 +29,10 @@ export function mapSolids(map) {
       case 'stall': add(p.x - 1.2, y, p.z - 0.6, p.x + 1.2, y + 1.0, p.z + 0.6); add(p.x - 1.6, y + 2.6, p.z - 1.1, p.x + 1.6, y + 2.72, p.z + 1.1); break;
       case 'awning': add(p.x0, p.y, p.z0, p.x1, p.y + 0.12, p.z1); break;
       case 'jar': add(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 1.1, p.z + 0.4); break;
-      default: break; // placas, neon, rua, água, estandarte: sem colisão
+      case 'pine': add(p.x - 0.4, y, p.z - 0.4, p.x + 0.4, y + 3.1, p.z + 0.4); break;
+      case 'dome': { const r = p.r || 2.2, h = (p.h || 1.3) + r * 0.55; add(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break; }
+      case 'tank': { const r = p.r || 1.15, h = p.h || 2.5; add(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break; }
+      default: break; // placas, neon, rua, água, estandarte, vidro: sem colisão
     }
   }
   return out;
