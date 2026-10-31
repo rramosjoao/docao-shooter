@@ -199,6 +199,25 @@ function buildProp(p, ctx) {
   }
 }
 
+function punchRect(rects, hole) {
+  const [hx0, hz0, hx1, hz1] = hole, next = [];
+  for (const [a0, b0, a1, b1] of rects) {
+    if (hx1 <= a0 || hx0 >= a1 || hz1 <= b0 || hz0 >= b1) { next.push([a0, b0, a1, b1]); continue; }
+    const cx0 = Math.max(a0, hx0), cx1 = Math.min(a1, hx1);
+    if (hz0 > b0) next.push([a0, b0, a1, hz0]);
+    if (hz1 < b1) next.push([a0, hz1, a1, b1]);
+    if (cx0 > a0) next.push([a0, Math.max(b0, hz0), cx0, Math.min(b1, hz1)]);
+    if (cx1 < a1) next.push([cx1, Math.max(b0, hz0), a1, Math.min(b1, hz1)]);
+  }
+  return next;
+}
+function fallRectsOf(map) {
+  const f = map.fall; if (!f) return [];
+  const [hx, hz] = map.size, r = (f.rects || []).map((q) => q.slice());
+  if (f.margin) { const m = f.margin; r.push([-hx, hz - m, hx, hz], [-hx, -hz, hx, -hz + m], [-hx, -hz + m, -hx + m, hz - m], [hx - m, -hz + m, hx, hz - m]); }
+  return r;
+}
+
 // ---------- mundo ----------
 export function buildWorld(map) {
   const group = new THREE.Group(); group.name = 'world:' + map.id;
@@ -214,9 +233,21 @@ export function buildWorld(map) {
   };
   const solid = (x0, y0, z0, x1, y1, z1) => { solids.push({ min: new V3(x0, y0, z0), max: new V3(x1, y1, z1), ramp: null }); proxies.push(boxGeo(x0, y0, z0, x1, y1, z1)); };
 
-  // chão
+  // chão. Com map.fall, a faixa do abismo vira um plano escuro lá embaixo (o corpo morre antes de chegar).
   const ext = Math.max(hx, hz);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(ext * 2 + 260, ext * 2 + 260), toon(pal.ground)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; group.add(ground); meshes.push(ground);
+  const R = ext + 130;
+  let groundRects = [[-R, -R, R, R]];
+  const voids = fallRectsOf(map);
+  for (const v of voids) groundRects = punchRect(groundRects, v);
+  for (const [x0, z0, x1, z1] of groundRects) {
+    if (x1 - x0 < 0.2 || z1 - z0 < 0.2) continue;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), toon(pal.ground));
+    ground.rotation.x = -Math.PI / 2; ground.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2); ground.receiveShadow = true; group.add(ground); meshes.push(ground);
+  }
+  if (map.fall) for (const [x0, z0, x1, z1] of voids) {
+    const pit = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.4, x1 - x0), Math.max(0.4, z1 - z0)), toon(map.fall.pit || '#1a2228'));
+    pit.rotation.x = -Math.PI / 2; pit.position.set((x0 + x1) / 2, map.fall.y - 6, (z0 + z1) / 2); pit.receiveShadow = true; group.add(pit);
+  }
   if (pal.tiles) {
     const [c1, c2, size, count] = pal.tiles, cell = size / count;
     const tex = canvasTex(64, 64, (x) => { x.fillStyle = c1; x.fillRect(0, 0, 64, 64); x.fillStyle = c2; x.fillRect(0, 0, 32, 32); x.fillRect(32, 32, 32, 32); });

@@ -7,6 +7,15 @@
 import { GRAV, STEP, RADIUS, HEIGHT, NADE } from './rules.js';
 
 export const WALL_COLLIDE_H = 40;
+export const FALL_FLOOR = -40; // chão fantasma do abismo; a morte acontece bem antes (map.fall.y)
+// map.fall = { y: -8, margin?: metros da borda sem chão, rects?: [[x0,z0,x1,z1]] }
+export function baselineY(fall, x, z, hx, hz) {
+  if (!fall) return 0;
+  if (fall.margin && (Math.abs(x) > hx - fall.margin || Math.abs(z) > hz - fall.margin)) return FALL_FLOOR;
+  if (fall.rects) for (const r of fall.rects) if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return FALL_FLOOR;
+  return 0;
+}
+export function fellOff(fall, y) { return !!(fall && y < fall.y); }
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const box = (x0, y0, z0, x1, y1, z1, ramp = null) => ({ min: { x: x0, y: y0, z: z0 }, max: { x: x1, y: y1, z: z1 }, ramp });
 
@@ -38,7 +47,8 @@ export function mapSolids(map) {
   return out;
 }
 
-export function createPhysics(solids, size) {
+export function createPhysics(solids, size, fall = null) {
+  const [hx, hz] = size;
   const GRID = 4, grid = new Map(), NONE = [];
   const key = (ix, iz) => ix * 100003 + iz;
   for (const s of solids) for (let ix = Math.floor((s.min.x - 1) / GRID); ix <= Math.floor((s.max.x + 1) / GRID); ix++)
@@ -57,7 +67,7 @@ export function createPhysics(solids, size) {
     return false;
   }
   function groundAt(x, z, y) {
-    let g = 0; const m = RADIUS * 0.6;
+    let g = baselineY(fall, x, z, hx, hz); const m = RADIUS * 0.6;
     for (const s of solidsAt(x, z)) if (x > s.min.x - m && x < s.max.x + m && z > s.min.z - m && z < s.max.z + m) {
       const top = topAt(s, clamp(x, s.min.x, s.max.x), clamp(z, s.min.z, s.max.z)); if (top <= y + STEP && top > g) g = top;
     }
@@ -68,7 +78,6 @@ export function createPhysics(solids, size) {
     for (const s of solidsAt(x, z)) if (x + r > s.min.x && x - r < s.max.x && z + r > s.min.z && z - r < s.max.z && s.min.y >= headY - 0.25 && s.min.y < c) c = s.min.y;
     return c;
   }
-  const [hx, hz] = size;
   function moveEntity(e, dt) { // mesmo algoritmo do cliente (main.js)
     let blocked = false;
     const nx = e.pos.x + e.vel.x * dt; if (!collides(nx, e.pos.y, e.pos.z)) e.pos.x = nx; else { blocked = true; e.vel.x = 0; }
@@ -85,7 +94,10 @@ export function createPhysics(solids, size) {
   // raio contra o mundo: chão (y=0) + caixas; rampas são cunhas (resolve a interseção com o plano inclinado)
   function rayWorld(o, d, far) {
     let best = far, hit = false;
-    if (d.y < -1e-6) { const t = -o.y / d.y; if (t > 0 && t < best) { best = t; hit = true; } }
+    if (d.y < -1e-6) for (const fy of [0, FALL_FLOOR]) {
+      const t = (fy - o.y) / d.y; if (t <= 0 || t >= best) continue;
+      if (baselineY(fall, o.x + d.x * t, o.z + d.z * t, hx, hz) === fy) { best = t; hit = true; }
+    }
     // percorre as células da grade ao longo do raio (passos de meia célula) coletando caixas candidatas
     const seen = new Set(); const n = Math.ceil(far / (GRID * 0.5)) + 1;
     for (let i = 0; i <= n; i++) {

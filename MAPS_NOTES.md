@@ -20,7 +20,15 @@ O código trata a unidade como metro o tempo todo (raios de explosão de 5 m e 6
 
 Uma porta real de 2,1 m bateria na cabeça. Por isso as portas daqui são mais altas e mais largas que as do CoD, e os corredores apertados ficam perto de 2,5–3,5 m em vez de 1,5 m: abaixo disso o corpo trava.
 
-O chão global é y = 0. Não existe volume de morte. O limite do mapa é uma parede com colisão de 40 m (`WALL_COLLIDE_H`). Queda fatal de penhasco, no motor atual, vira parede de rocha: dá para ver o abismo, não dá para cair nele nem ficar preso no fundo.
+O chão padrão é y = 0. O limite do mapa continua sendo uma parede com colisão de 40 m (`WALL_COLLIDE_H`).
+
+Queda fatal é opt-in, em `map.fall`:
+
+- `y`: se o corpo fica abaixo disso, morre (sem atacante; o feed diz que despencou).
+- `margin`: faixa interna da borda, em metros, sem chão.
+- `rects`: retângulos extras `[x0, z0, x1, z1]` sem chão.
+- Onde não há chão, a física usa um piso fantasma em y = −40. A morte acontece em `fall.y` (nos mapas atuais, −8), antes de encostar nesse piso.
+- O servidor valida: aceita a queda (não devolve o jogador pra cima) e mata. O mesmo vale para bot. Offline o cliente mata na hora; online espera o evento do servidor pra não contar duas vezes.
 
 ## Posto Nevasca (rodada 1) — referência Summit (BO1)
 
@@ -50,6 +58,37 @@ Eixo longo no Z. Norte (+Z) = lab / spawn 1. Sul (−Z) = galpão e estrada / sp
 
 Spawns: 6 no norte (z 38…52) e 6 no sul (z −58…−44), distância mínima 4,5 m. O jogo não tem lista separada por time: na Dominação o renascimento ignora aliado e foge da linha de visão inimiga, então as duas pontas funcionam como os spawns dos times. Travessia reta das pontas ≈ 100 m / 6,8 m/s ≈ 15 s; com o miolo, perto dos 18–22 s do dossiê.
 
-Linha longa medida na auditoria: 112 m (a passarela e o flanco oeste ainda estão retos demais; a meta do dossiê é 40–60 m). Visão quebrada: 21% dos pares a ≥ 10 m se enxergam (teto do teste: 30%). Ponto mais aberto: 7,2 m.
+Linha longa medida na auditoria: cerca de 100 m (a passarela ainda está reta demais; a meta do dossiê é 40–60 m). Visão quebrada: ~22% dos pares a ≥ 10 m se enxergam (teto do teste: 30%). Ponto mais aberto: 7,2 m.
 
-Rodada 2, quando chegar print de comparação: quebrar a reta de 112 m no meio da passarela, e decidir se o penhasco ganha volume de morte de verdade.
+O penhasco oeste é um retângulo sem chão (`fall.rects` x ≤ −24,05). Um lábio de rocha de 0,4 m marca a borda; passar dele derruba, e y < −8 mata. O teleférico continua com piso próprio em cima do buraco.
+
+Rodada 2, quando chegar print de comparação: quebrar a reta de ~100 m no meio da passarela.
+
+## Morro do Leitão (rodada 1) — referência Favela (MW2)
+
+Nome original. Planta do guia `Favela.png` (dossiê): eixo leste–oeste ~130 m, norte–sul ~110 m. Aqui o retângulo é **132 × 112 m** (`size` [66, 56]), com **5 m de borda sem chão** (`fall.margin`). A faixa jogável fica perto de 122 × 102 m.
+
+| Área | Caixa (m) | Notas |
+|---|---|---|
+| Rua principal | z −36…−26, x −52…54, asfalto | ~10 m de largura. Carros e caixotes nas calçadas; o miolo fica livre. Dossiê pedia 8–10 m e ~90 m de comprimento |
+| Casa de tijolo | x −22…6, z −50…−39 | 2 andares de 3 m, telhado |
+| Sorvete (azulejo) | x −10…8, z −24…−8 | 2 andares |
+| Bar | x 10…26, z −8…12 | 3 andares (0 / +3 / +6), telhado a +9 m |
+| Casa verde | x 16…36, z −24…−8 | 3 andares |
+| Barbeiro | x 38…54, z −24…−12 | 2 andares, reboco |
+| Lavanderia | x 40…58, z −6…10 | 3 andares, caixa d'água no teto |
+| Prédio amarelo | x −34…−16, z 2…20 | 2 andares |
+| Crackhouse | x −36…−18, z −22…−2 | 2 andares, tijolo |
+| Campinho | x 28…52, z 14…34 (24 × 20) | dossiê ~25 × 20. Traves de 2,3 m |
+| Platô norte | x −40…24, z 26…46, topo a **+4 m** | a vala de cima. Três rampas de 8,5 m sobem 4 m |
+| Jardim da laje | x −18…2, z 30…44, em cima do platô | 2 andares (pisos +4 e +7) |
+| Barracos | x 6…22, z 32…44, no platô | 1 andar + rampa pro teto |
+| Cemitério | x 46…58, z −42…−30 | mureta e túmulos |
+| Vielas | ≥ 3,2 m entre prédios | o dossiê pede 1,5–2,5 m; abaixo de ~2,6 m o Docão (0,84 m) trava |
+| Pé-direito | 3,0 m por andar | laje de 0,3 m; vão livre 2,7 m. L2 = +3 m, L3 = +6 m, como no dossiê |
+
+Spawns: 6 na rua sul (z ≈ −31) e 6 no platô norte (y = 4). Distância mínima 8,9 m. Times nas duas pontas, do mesmo jeito do Posto Nevasca.
+
+Auditoria: ponto mais aberto a 7,9 m; linha longa de 110 m (os flancos do dossiê são longos de propósito; dá para quebrar na rodada 2); 9% dos pares a ≥ 10 m se enxergam; os 7 bots sobem. Queda na borda: y < −8.
+
+Manhã clara: céu `#9ec4ea`, sol forte, neblina só a 210 m. Cores de tijolo `#a0503a`, azulejo `#8fc4b8`, reboco `#e6d7b8`, grama do campo `#7a8a45`.

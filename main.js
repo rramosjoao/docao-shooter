@@ -12,7 +12,8 @@ import { SEND_HZ, INTERP_DELAY } from './config.js';
 import { cleanName, NAME_MAX } from './shared/names.js';
 import { explosionHits, rayCapsule, ROCKET_PAD, sniperSpread } from './shared/combat.js';
 import { DOM, TEAM_NAMES, TEAM_COLORS, TEAM_HEX, TEAM_DARK, pickZone, newZoneState, zoneCounts, stepZone, inZone, smallerTeam } from './shared/domination.js';
-import { KILL_LIMIT, TIME_LIMIT, RESPAWN_TIME, INVULN, GRAV, JUMP, SPEED, BOT_SPEED, STEP, RADIUS, HEIGHT, EYE, WEAPONS, PRIMARIES, PISTOL, W_NADE, NADE, WEAPON_SHORT, BOT_DEFS, BOT_RANGE, TAG_COLORS } from './shared/rules.js';
+import { KILL_LIMIT, TIME_LIMIT, RESPAWN_TIME, INVULN, GRAV, JUMP, SPEED, BOT_SPEED, STEP, RADIUS, HEIGHT, EYE, WEAPONS, PRIMARIES, PISTOL, W_NADE, W_FALL, NADE, WEAPON_SHORT, BOT_DEFS, BOT_RANGE, TAG_COLORS } from './shared/rules.js';
+import { baselineY, fellOff } from './shared/physics.js';
 
 const V3 = THREE.Vector3;
 const $ = (id) => document.getElementById(id);
@@ -106,7 +107,8 @@ function collides(x, y, z) {
   return false;
 }
 function groundAt(x, z, y) {
-  let g = 0; const m = RADIUS * 0.6;
+  const [hx, hz] = mapBounds;
+  let g = baselineY(currentMap && currentMap.fall, x, z, hx, hz); const m = RADIUS * 0.6;
   for (const s of solidsAt(x, z)) {
     if (x > s.min.x - m && x < s.max.x + m && z > s.min.z - m && z < s.max.z + m) {
       const top = topAt(s, clamp(x, s.min.x, s.max.x), clamp(z, s.min.z, s.max.z));
@@ -137,6 +139,11 @@ function moveEntity(e, dt) {
   // segurança: nunca sai dos limites do mapa
   const [hx, hz] = mapBounds; e.pos.x = clamp(e.pos.x, -hx + RADIUS, hx - RADIUS); e.pos.z = clamp(e.pos.z, -hz + RADIUS, hz - RADIUS);
   return blocked;
+}
+function checkFall(e) {
+  if (!e.alive || !currentMap || !fellOff(currentMap.fall, e.pos.y)) return;
+  if (online && e.isPlayer) return; // online quem mata é o servidor, pra não contar duas vezes
+  kill(e, null, W_FALL, false);
 }
 
 const raycaster = new THREE.Raycaster();
@@ -636,6 +643,8 @@ const KILL_PHRASES = [
 const SELF_PHRASES = [(t) => `${t} se pururucou`, (t) => `${t} virou bacon sozinho`, (t) => `${t} se jogou na frigideira`, (t) => `${t} fritou no próprio óleo`];
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
 function addKillFeed(a, t, wIdx, head) {
+  if (wIdx === W_FALL) { const div = document.createElement('div'); div.className = 'kf'; div.innerHTML = `${escapeHtml(t.name)} despencou do penhasco`; $('killfeed').prepend(div); setTimeout(() => div.remove(), 4200);
+    const L = (window.__feedLog ||= []); L.push(`${t.name} despencou`); if (L.length > 20) L.shift(); return; }
   const div = document.createElement('div'); div.className = 'kf';
   const nm = (e) => `<b class="${e.isPlayer ? 'me' : ''}">${escapeHtml(e.name)}</b>`;
   div.innerHTML = a && a !== t ? `${pick(KILL_PHRASES)(nm(a), nm(t))} <i>[${WEAPON_SHORT(wIdx)}${head ? ' · direto no focinho!' : ''}]</i>` : pick(SELF_PHRASES)(nm(t));
@@ -824,7 +833,7 @@ function updatePlayer(dt) {
   const acc = p.onGround ? 14 : 4;
   p.vel.x += (wish.x - p.vel.x) * Math.min(1, acc * dt); p.vel.z += (wish.z - p.vel.z) * Math.min(1, acc * dt);
   if (keys.Space && p.onGround) { p.vel.y = JUMP; p.onGround = false; sfx.jump(); }
-  moveEntity(p, dt);
+  moveEntity(p, dt); checkFall(p); if (!p.alive) return;
   const bob = p.onGround ? Math.abs(Math.sin(fp.bob)) * 0.05 : 0;
   camera.position.set(p.pos.x, p.pos.y + EYE + bob, p.pos.z); camera.rotation.set(p.pitch, p.yaw, 0);
   if (shake > 0) { camera.position.add(new V3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(shake * 0.25)); camera.rotation.z += rand(-1, 1) * shake * 0.05; shake = Math.max(0, shake - dt * 1.8); }
@@ -925,7 +934,7 @@ function updateBot(b, dt) {
   if (move.lengthSq()) move.normalize().multiplyScalar(BOT_SPEED);
   const acc = b.onGround ? 10 : 3;
   b.vel.x += (move.x - b.vel.x) * Math.min(1, acc * dt); b.vel.z += (move.z - b.vel.z) * Math.min(1, acc * dt);
-  const blocked = moveEntity(b, dt);
+  const blocked = moveEntity(b, dt); checkFall(b); if (!b.alive) return;
   if (blocked) { b.stuck += dt; if (b.onGround) b.vel.y = JUMP; if (b.stuck > 1.2) { b.wp = randomWaypoint(); b.path = null; b.lastSeenAt = -99; b.strafeDir *= -1; b.stuck = 0; b.stuckCount = (b.stuckCount || 0) + 1; } }
   else b.stuck = Math.max(0, b.stuck - dt);
   let d = desiredYaw - b.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); b.yaw += d * Math.min(1, dt * 9);

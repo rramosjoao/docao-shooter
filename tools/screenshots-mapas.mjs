@@ -18,6 +18,14 @@ const V = { // [câmera x,y,z, alvo x,y,z]
     'patio-sul': [10, 7, -6, 0, 1.2, -22],
     'spawn-norte': [2, 9, 34, 0, 2, 52],
   },
+  'morro-leitao': {
+    'visao-geral': [0, 150, 18, 0, 0, -6],
+    rua: [-30, 9, -18, 20, 1.2, -31],
+    campinho: [18, 12, 6, 40, 1.4, 24],
+    plato: [-28, 14, 16, -8, 5, 38],
+    lajes: [-4, 6, -2, 16, 5, 6],
+    viela: [-40, 6, -12, -22, 2, 8],
+  },
 };
 const ids = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(V);
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

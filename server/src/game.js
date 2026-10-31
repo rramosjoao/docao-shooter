@@ -9,8 +9,8 @@ import { MAPS, getMap } from '../../maps.js';
 import { buildNav } from '../../nav.js';
 import { SKINS } from '../../skins.js';
 import { cleanName, uniqueName } from '../../shared/names.js';
-import { KILL_LIMIT, TIME_LIMIT, RESPAWN_TIME, INVULN, JUMP, SPEED, BOT_SPEED, EYE, WEAPONS, PRIMARIES, PISTOL, W_NADE, NADE, BOT_DEFS, BOT_RANGE, TAG_COLORS } from '../../shared/rules.js';
-import { mapSolids, createPhysics, raySphere, HITBOXES } from '../../shared/physics.js';
+import { KILL_LIMIT, TIME_LIMIT, RESPAWN_TIME, INVULN, JUMP, SPEED, BOT_SPEED, EYE, WEAPONS, PRIMARIES, PISTOL, W_NADE, W_FALL, NADE, BOT_DEFS, BOT_RANGE, TAG_COLORS } from '../../shared/rules.js';
+import { mapSolids, createPhysics, raySphere, HITBOXES, fellOff, FALL_FLOOR } from '../../shared/physics.js';
 import { explosionHits, rayCapsule, ROCKET_PAD } from '../../shared/combat.js';
 import { DOM, pickZone, newZoneState, zoneCounts, stepZone, canJoinTeam, smallerTeam, inZone } from '../../shared/domination.js';
 
@@ -135,7 +135,7 @@ export class Game {
   startMatch(mapId) {
     const id = mapId === 'random' || !MAPS.some((m) => m.id === mapId) ? pick(MAPS.filter((m) => m.id !== this.mapId)).id : mapId;
     const map = getMap(id); this.mapId = id; this.map = map;
-    const solids = mapSolids(map); this.P = createPhysics(solids, map.size);
+    const solids = mapSolids(map); this.P = createPhysics(solids, map.size, map.fall || null); this.fall = map.fall || null;
     this.spawns = map.spawns.map(([x, z, y = 0]) => ({ x, y: this.P.groundAt(x, z, y + 0.3), z }));
     this.nav = buildNav({ hx: map.size[0], hz: map.size[1], spacing: map.navSpacing || 2, collides: this.P.collides, groundAt: this.P.groundAt, solids, topAt: this.P.topAt, seeds: this.spawns.map((s) => [s.x, s.y, s.z]), extra: map.waypoints || [] });
     this.pickups = map.pickups.map(([type, x, z, y]) => ({ type, pos: { x, y: this.P.groundAt(x, z, (y || 0) + 0.3), z }, active: true, respawnAt: 0 }));
@@ -211,11 +211,11 @@ export class Game {
         const knocked = this.T - e.lastKnock < 2.5;
         const maxH = (SPEED * 1.35 + (knocked ? 22 : 0)) * dt + 0.6;
         const [hx, hz] = this.map.size;
-        const inside = Math.abs(p.x) <= hx && Math.abs(p.z) <= hz && p.y >= -0.5 && p.y < 45;
+        const inside = Math.abs(p.x) <= hx && Math.abs(p.z) <= hz && p.y >= (this.fall ? FALL_FLOOR : -0.5) && p.y < 45;
         if (this.test && m.tp) { e.pos = p; e.lastKnock = this.T; }
         else if (horiz > maxH || !inside || this.P.collides(p.x, p.y + 0.05, p.z) || (p.y - e.pos.y > (knocked ? 12 : 3.2) * Math.max(dt, 0.25) + 1)) {
           e.badMoves = (e.badMoves || 0) + 1; this.toMe(e, ['pos', arr3(e.pos)]); // anti-cheat: devolve pra última posição válida
-        } else { e.pos = p; if (v) e.vel = { x: clamp(v.x, -40, 40), y: clamp(v.y, -60, 40), z: clamp(v.z, -40, 40) }; }
+        } else { e.pos = p; if (v) e.vel = { x: clamp(v.x, -40, 40), y: clamp(v.y, -60, 40), z: clamp(v.z, -40, 40) }; if (e.alive && fellOff(this.fall, e.pos.y)) this.kill(e, null, W_FALL, false); }
         e.lastUpd = t;
       }
       if (Number.isFinite(m.y)) e.yaw = m.y + Math.PI; // câmera → modelo
@@ -495,6 +495,7 @@ export class Game {
     const ml = Math.hypot(mx, mz); if (ml > 0) { mx = mx / ml * BOT_SPEED; mz = mz / ml * BOT_SPEED; }
     const acc = b.onGround ? 10 : 3; b.vel.x += (mx - b.vel.x) * Math.min(1, acc * dt); b.vel.z += (mz - b.vel.z) * Math.min(1, acc * dt);
     const blocked = this.P.moveEntity(b, dt);
+    if (b.alive && fellOff(this.fall, b.pos.y)) { this.kill(b, null, W_FALL, false); return; }
     if (blocked) { b.stuck += dt; if (b.onGround) b.vel.y = JUMP; if (b.stuck > 1.2) { b.wp = this.randomWaypoint(); b.path = null; b.lastSeenAt = -99; b.strafeDir *= -1; b.stuck = 0; b.stuckCount = (b.stuckCount || 0) + 1; } }
     else b.stuck = Math.max(0, b.stuck - dt);
     let d = desiredYaw - b.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); b.yaw += d * Math.min(1, dt * 9);
