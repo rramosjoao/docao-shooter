@@ -1,0 +1,245 @@
+/* Docão Minado: o papel e a madeira da quermesse, grade de campo minado. */
+@font-face{font-family:'Fredoka';src:url('assets/fonts/Fredoka.woff2') format('woff2');font-weight:300 700;font-style:normal;font-display:swap}
+:root{
+  --ink:#34402e;
+  --paper:#f6e4bd;
+  --cream:#fff0cc;
+  --brick:#b73c28;
+  --brick-deep:#722e20;
+  --wood:#70482d;
+  --shadow:#291e18;
+  --font:'Fredoka',"Trebuchet MS","Segoe UI",Arial,sans-serif;
+  --cell:32px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:var(--font);
+  color:var(--ink);
+  background:#24180f;
+}
+[hidden]{display:none !important}
+#lobby{
+  position:relative;
+  min-height:100dvh;
+  padding:28px 16px 48px;
+}
+#lobby::before{
+  content:"";
+  position:fixed;inset:0;z-index:0;
+  background:
+    linear-gradient(90deg,#1a120c99 0%,#1a120c44 34%,#1a120c66 100%),
+    url("./assets/hub/minado.jpg") center/cover no-repeat;
+}
+#comanda{
+  position:relative;z-index:1;
+  width:min(760px,100%);
+  margin:0 auto;
+  padding:22px 22px 18px;
+  background:
+    radial-gradient(ellipse at 8% 0,#fff6da66,transparent 55%),
+    var(--paper);
+  border:3px solid var(--ink);
+  border-radius:10px;
+  box-shadow:6px 8px 0 var(--shadow);
+}
+.eyebrow{
+  margin:0;
+  font:700 12px/1 var(--font);
+  letter-spacing:2px;text-transform:uppercase;color:var(--brick);
+}
+h1{
+  margin:6px 0 0;
+  font:700 clamp(40px,6vw,64px)/.9 var(--font);
+  color:#8b3223;
+}
+.lead{margin:8px 0 0;font:600 16px/1.35 var(--font);color:#5c4a34}
+fieldset{
+  margin:16px 0 0;padding:0;border:0;
+}
+legend{
+  margin-bottom:8px;
+  font:700 13px/1 var(--font);
+  letter-spacing:.8px;text-transform:uppercase;color:var(--wood);
+}
+.picks{display:flex;flex-wrap:wrap;gap:8px}
+.pick{
+  position:relative;
+  display:flex;flex-direction:column;gap:2px;
+  min-width:132px;flex:1 1 140px;
+  padding:8px 10px 9px;
+  background:#fff6da;
+  border:2px solid var(--ink);border-radius:8px;
+  cursor:pointer;
+}
+.pick input{
+  position:absolute;opacity:0;pointer-events:none;
+}
+.pick-from{
+  font:700 10px/1 var(--font);
+  letter-spacing:.8px;text-transform:uppercase;color:var(--brick);
+}
+.pick-name{font:700 16px/1.15 var(--font)}
+.pick-note{font:600 12px/1.3 var(--font);color:#6d5a40}
+.pick:has(input:checked){
+  background:var(--brick);color:var(--cream);border-color:var(--brick-deep);
+}
+.pick:has(input:checked) .pick-from,
+.pick:has(input:checked) .pick-note{color:#f8e7c4}
+.pick:has(input:focus-visible){outline:3px solid #c33b28;outline-offset:3px}
+.preview-wrap{margin-top:16px}
+#preview-nome{margin:0 0 8px;font:700 14px/1.3 var(--font);color:#5c4a34}
+#preview{
+  display:grid;gap:1px;
+  width:min(100%,460px);
+  padding:6px;
+  background:#5f8a3e;
+  border:3px solid var(--ink);border-radius:8px;
+}
+#preview i{display:block;background:transparent;border-radius:1px}
+#preview i.on{background:#e7c48a}
+.go{
+  display:block;width:100%;
+  margin-top:16px;padding:12px 16px;
+  font:700 22px/1 var(--font);letter-spacing:.4px;color:var(--cream);
+  background:var(--brick);border:2px solid var(--brick-deep);border-radius:8px;
+  box-shadow:inset 0 2px #e76a45,0 3px var(--brick-deep);
+  cursor:pointer;
+}
+.go:hover{background:#c64b30}
+.quiet{
+  display:block;margin-top:12px;
+  color:#6d5a40;font:700 14px/1 var(--font);text-align:center;
+}
+#mesa{
+  min-height:100dvh;
+  display:flex;flex-direction:column;align-items:center;
+  gap:10px;
+  padding:12px 12px 28px;
+  background:
+    linear-gradient(#1a120ccc,#1a120ccc),
+    url("./assets/menu/fazendinha-entardecer.webp") center/cover no-repeat;
+}
+.hud{
+  width:min(100%,920px);
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  padding:8px 10px;
+  background:var(--paper);
+  border:3px solid var(--ink);border-radius:8px;
+}
+.back{
+  color:var(--cream);background:var(--ink);
+  text-decoration:none;
+  padding:6px 10px;border-radius:6px;
+  font:700 14px/1 var(--font);
+}
+#miolo{margin:0;flex:1;min-width:140px;font:700 14px/1.3 var(--font)}
+.lcd{
+  min-width:64px;padding:6px 8px;
+  font:700 22px/1 ui-monospace,monospace;letter-spacing:1px;text-align:center;
+  color:#ffb3a8;background:#2a120f;
+  border:2px solid var(--ink);border-radius:6px;
+}
+button.lcd{cursor:default}
+#cara{
+  width:46px;height:40px;
+  font-size:22px;line-height:1;
+  background:var(--cream);
+  border:2px solid var(--ink);border-radius:8px;
+  cursor:pointer;
+}
+#marcar{
+  padding:6px 10px;
+  font:700 14px/1 var(--font);
+  color:var(--ink);background:#fff6da;
+  border:2px solid var(--ink);border-radius:6px;
+  cursor:pointer;
+}
+#marcar[aria-pressed="true"]{background:var(--brick);color:var(--cream)}
+#dica{
+  margin:0;width:min(100%,920px);
+  font:600 13px/1.35 var(--font);color:#f8e7c4;
+}
+#tabuleiro{
+  display:grid;gap:2px;
+  padding:8px;
+  background:#5f8a3e;
+  border:4px solid #3d2b20;border-radius:8px;
+  touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
+.cell,.gap{width:var(--cell);height:var(--cell)}
+.gap{background:transparent}
+.cell{
+  display:grid;place-items:center;
+  padding:0;margin:0;
+  font:700 calc(var(--cell) * .52)/1 var(--font);
+  border:0;border-radius:3px;
+  cursor:pointer;
+}
+.cell.hidden{
+  background:linear-gradient(#f0d7a4,#c4924e);
+  box-shadow:inset 0 2px #f8e7c4,inset 0 -3px #8a6233;
+}
+.cell.open{background:#f4e6c4;box-shadow:inset 0 0 0 1px #e2cfa6;cursor:default}
+.cell.n1{color:#2a4f9a}
+.cell.n2{color:#2f7a3a}
+.cell.n3{color:#b73c28}
+.cell.n4{color:#5a3480}
+.cell.n5{color:#7a2e2a}
+.cell.n6{color:#1f6e78}
+.cell.n7{color:#2a241c}
+.cell.n8{color:#6d5a40}
+.cell.flag{background:linear-gradient(#f0d7a4,#c4924e)}
+.cell.flag::before{
+  content:"";
+  width:0;height:0;
+  border-top:calc(var(--cell) * .16) solid transparent;
+  border-bottom:calc(var(--cell) * .16) solid transparent;
+  border-left:calc(var(--cell) * .26) solid var(--brick);
+  filter:drop-shadow(1px 6px 0 #5c3a22);
+}
+.cell.boom{background:#b73c28}
+.cell.bad-flag{background:#f4e6c4;color:var(--brick)}
+.cell.cursor{outline:3px solid #fff0cc;outline-offset:-3px}
+.cell svg{width:74%;height:74%;display:block}
+#derrota,#vitoria{
+  position:fixed;inset:0;z-index:5;
+  display:grid;place-items:center;
+  padding:16px;
+  background:#1a120ce0;
+}
+.sheet{
+  width:min(420px,100%);
+  max-height:min(96dvh,760px);
+  overflow:auto;
+  padding:16px 16px 18px;
+  text-align:center;
+  background:var(--paper);
+  border:3px solid var(--ink);border-radius:12px;
+  box-shadow:6px 8px 0 var(--shadow);
+}
+.sheet h2{
+  margin:0;
+  font:700 clamp(28px,5vw,40px)/1 var(--font);
+  color:#8b3223;
+}
+.sheet p{margin:8px 0 0;font:600 15px/1.35 var(--font);color:#5c4a34}
+.barriga{display:block;width:min(190px,52vw);height:auto;margin:8px auto 0}
+.barriga .tela{fill:#d7ecf7;stroke:#8fb4c9;stroke-width:3}
+.barriga .xixi{fill:#f0d34a;stroke:#e2c33a;stroke-width:1}
+.acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
+.acts button{
+  padding:10px 14px;
+  font:700 16px/1 var(--font);color:var(--cream);
+  background:var(--brick);border:2px solid var(--brick-deep);border-radius:8px;
+  cursor:pointer;
+}
+.acts button:last-child{color:var(--ink);background:#fff6da;border-color:var(--ink)}
+@media(prefers-reduced-motion:reduce){
+  .barriga .xixi{animation:none}
+}
+@media(max-width:640px){
+  .pick{min-width:0;flex-basis:calc(50% - 8px)}
+  #dica{font-size:12px}
+}

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<base href="/modo/zumbi/">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Docão Shooter · TESTE Infecção 🧟</title>
+<link rel="preload" href="assets/fonts/Fredoka.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="hud-death.css">
+<link rel="stylesheet" href="acessorios.css">
+<link rel="stylesheet" href="truco.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="crosshair"></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="points"></div>
+  <div id="medals"></div>
+  <div id="streak"></div>
+  <div id="vignette"></div>
+  <div id="eggsplat"><canvas id="eggcanvas" width="480" height="270"></canvas></div>
+  <div id="adsvig"></div>
+  <div id="scope" class="hidden"><div class="lens"></div><div class="hair h"></div><div class="hair v"></div><div class="dot"></div></div>
+  <div id="topbar">
+    <div id="timer">5:00</div>
+    <div id="leader"></div>
+    <div id="trainInfo" class="hidden"></div>
+  </div>
+  <div id="tl"><div id="lb"></div><div id="netbar" class="hidden"><span id="netRoom"></span> · <span id="netPing">-- ms</span><span id="netStatus"></span></div></div>
+  <div id="infhud" class="hidden"><div id="infScore"><span class="is">🐷 <b id="infSurv">0</b></span><span id="infClock">SURTO EM 15 s</span><span class="iz"><b id="infZomb">0</b> 🧟</span></div><div id="infRole"></div><div id="infKnife" class="hidden">🔪 Q pronta</div></div>
+  <div id="domhud" class="hidden"><div id="domScore"><span class="tr">VERMELHO <b id="ts0">0</b></span><span class="vs">×</span><span class="tb"><b id="ts1">0</b> AZUL</span></div>
+    <div id="zoneBar"><div id="zoneFill"></div><span id="zoneText">Zona neutra</span></div><div id="myTeam"></div></div>
+  <div id="zoneMark" class="hidden"><div class="zarrow">▲</div><div class="zlbl">ZONA <span id="zoneDist"></span></div></div>
+  <div id="bombhud" class="hidden"><div id="bScore"><span class="ba">ATAQUE <b id="bs0">0</b></span><span class="vs">×</span><span class="bd"><b id="bs1">0</b> DEFESA</span></div>
+    <div id="bCarrier"></div><div id="bSide"></div></div>
+  <div id="bProg" class="hidden"><div id="bProgFill"></div><span id="bProgText"></span></div>
+  <div id="bLoad" class="cls-screen hidden">
+    <header class="cls-top">
+      <div class="cls-clock" id="bLoadClock"><span id="bLoadT">rodada começa em 20 s</span><i id="bLoadFill"></i></div>
+      <div class="cls-headline"><h2>Preparação do botijão</h2><p>A classe entra agora. O arsenal troca a arma e o pente não enche sozinho.</p></div>
+      <button type="button" id="bLoadClose" class="cls-back">Fechar · B</button>
+    </header>
+    <div class="cls-pig" aria-hidden="true"></div>
+    <div class="cls-sheet"><div id="bLoadList" class="cls-list"></div><div id="bLoadGun" class="cls-gun"></div><div id="bLoadArms" class="cls-arms" aria-label="Arsenal"></div></div>
+  </div>
+  <div id="bPrompt" class="hidden"><div class="bp1"></div><div class="bp2"></div></div>
+  <div id="bombBanner" class="hidden"><div class="b1"></div><div class="b2"></div></div>
+  <div id="siteMark0" class="bmark hidden"><div class="zarrow">▲</div><div class="zlbl"><b>A</b> <span></span></div></div>
+  <div id="siteMark1" class="bmark hidden"><div class="zarrow">▲</div><div class="zlbl"><b>B</b> <span></span></div></div>
+  <div id="bombMark" class="bmark hidden"><div class="zarrow">▲</div><div class="zlbl">BOTIJÃO <span></span></div></div>
+  <div id="teamPick" class="hidden"><div class="tpt">Escolha seu time</div><div class="teamrow" id="teamPickBtns"></div><div class="tpe" id="teamPickErr"></div></div>
+  <div id="teamPick" class="hidden"><div class="tpt">Escolha seu time</div><div class="teamrow" id="teamPickBtns"></div><div class="tpe" id="teamPickErr"></div></div>
+  <div id="score">Abates: 0 · Mortes: 0 · K/D: 0.00</div>
+  <div id="killfeed"></div>
+  <div id="centermsg"></div>
+  <!-- Modo Invasão 🎃 -->
+  <div id="invhud" class="hidden"><b id="invWaveN">WAVE 1/20</b><small id="invWaveSub"></small><div id="invLives" title="vidas"></div></div>
+  <div id="invBoss" class="hidden"><span>🎃 DOCÃO ABÓBORA</span><div class="ibar"><i id="invBossFill"></i></div></div>
+  <div id="invBanner" class="hidden"></div>
+  <div id="invPowers" class="hidden"><div id="invSlots"></div><div class="ikeys"><kbd>G</kbd> usa · <kbd>X</kbd> troca</div></div>
+  <div id="invFogArrow" class="hidden"><i>⬆</i><span>Fora da área segura! <b id="invFogDist"></b></span></div>
+  <div id="invOut" class="hidden"><b>SEM VIDAS 💀</b><span id="invOutTxt"></span></div>
+  <div id="iLoad" class="cls-screen hidden">
+    <header class="cls-top">
+      <div class="cls-clock" id="iLoadClock"><span id="iLoadT">wave 1 em 20 s</span><i id="iLoadFill"></i></div>
+      <div class="cls-headline"><h2>Pausa entre as waves</h2><p>A classe entra agora. O arsenal troca a arma e o pente não enche sozinho.</p></div>
+      <button type="button" id="iLoadClose" class="cls-back">Fechar · B</button>
+    </header>
+    <div class="cls-pig" aria-hidden="true"></div>
+    <div class="cls-sheet"><div id="iLoadList" class="cls-list"></div><div id="iLoadGun" class="cls-gun"></div><div id="iLoadArms" class="cls-arms" aria-label="Arsenal"></div></div>
+  </div>
+  <div id="inspect" class="hidden"><div id="inspName"></div><div id="inspCamo"></div><div id="inspKills"></div><div id="inspBar"><div id="inspFill"></div></div></div>
+  <div id="stamp">PURURUCADO!</div>
+  <div id="bottomleft">
+    <div class="label">VIDA</div>
+    <div id="hpbar"><div id="hpfill"></div><span id="hptext">100</span><span id="hpregen">+</span></div>
+    <div id="shieldbox" class="hidden"><div id="shieldbar"><div id="shieldfill"></div><span id="shieldtext">720</span></div><div id="shieldcd"></div></div>
+  </div>
+  <div id="bottomright">
+    <div id="ammo">
+      <span id="mag">30</span><span id="reserve"> / 120</span>
+    </div>
+    <div id="wname">
+      <span id="wlead"><b id="wtitle">Fuzil Pururuca</b><span id="wmeta"></span></span>
+      <span id="wmode"></span>
+    </div>
+    <div id="saberhud" class="hidden" title="Botão direito bloqueia · C investida · Z especial">
+      <div id="saberstam"><div id="saberstamfill"></div></div>
+      <div id="saberpips"><i></i><i></i><i></i></div>
+      <span id="saberc"></span><span id="saberz"></span>
+    </div>
+    <div id="protmsg" class="hidden"></div>
+    <div id="gear">
+      <div id="slots"><span id="slot1" class="slot active"><b>1</b></span><span id="slot2" class="slot"><b>2</b></span><span id="slot3" class="slot"><b>3</b></span></div>
+      <span class="gsep" aria-hidden="true"></span>
+      <div id="tac"><span class="gitem" title="Fumaça">4<svg class="tico smoke" viewBox="0 0 16 12" aria-hidden="true"><circle cx="4.5" cy="7.5" r="2.6"/><circle cx="8.2" cy="6.2" r="3.2"/><circle cx="12" cy="7.8" r="2.3"/></svg><b id="smokeN">0</b></span><span class="gitem" title="Pau de choque">5<svg class="tico stun" viewBox="0 0 12 14" aria-hidden="true"><path d="M7.2 0 2.4 8h3.2L4.6 14 10.4 5.2H7z"/></svg><b id="stunN">0</b></span></div>
+      <span class="gsep" aria-hidden="true"></span>
+      <div id="nades"><span class="nlabel">Q</span><span id="nade0" class="cupicon"></span><span id="nade1" class="cupicon"></span><span id="nade2" class="cupicon"></span></div>
+    </div>
+    <div id="reloadmsg"></div>
+  </div>
+  <div id="powermeter" class="hidden"><div id="powertext">Força do arremesso</div><div id="powerbar"><div id="powerfill"></div></div></div>
+    <div id="deathpick" class="cls-screen hidden">
+      <header class="cls-top">
+        <div id="classClock" class="cls-clock" aria-hidden="true"><span id="classClockTxt">Renasce em 5,0s</span><i id="classClockBar"></i></div>
+        <div class="cls-headline">
+          <h2 id="deathWho">Você foi pururucado</h2>
+          <p>1–5 a classe · o arsenal grava a arma nela · U volta na última</p>
+        </div>
+      </header>
+      <div class="cls-pig" aria-hidden="true"></div>
+      <div class="cls-sheet">
+        <div id="deathList" class="cls-list" role="listbox" aria-label="Classes"></div>
+        <div class="cls-main">
+          <div id="classGun" class="cls-gun"></div>
+          <button id="respawnBtn" disabled><b>Nascer em 5,0s</b><small>Espaço</small></button>
+        </div>
+        <div id="deathArms" class="cls-arms" aria-label="Arsenal"></div>
+      </div>
+    </div>
+  <div id="tabboard" class="board hidden"></div>
+  <div id="socialHud" class="hidden">
+    <div id="chat" class="chathud">
+      <div id="chatLog" class="chatlog" data-chat="fade"></div>
+      <form id="chatForm" class="chatform hidden">
+        <span id="chatScopeLabel">Todos</span>
+        <input id="chatInput" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Mensagem…">
+      </form>
+    </div>
+    <div class="voicebox" data-voicebox id="voiceHud">
+      <button type="button" class="small" data-voice="off">Mudo</button>
+      <button type="button" class="small" data-voice="all">Todos</button>
+      <button type="button" class="small" data-voice="team">Time</button>
+      <button type="button" class="small" data-mic="hold">Apertar</button>
+      <button type="button" class="small" data-mic="open">Aberto</button>
+      <span class="voicehint">J troca a voz · segure K para falar</span>
+    </div>
+  </div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="panel menu-panel">
+    <header class="menu-header">
+      <div class="menu-logo"><h1><img src="./assets/menu/logo-madeira-cartoon.webp" alt="Docão Shooter — Tiroteio na Fazendinha Cheers" width="760" height="380" fetchpriority="high" decoding="async"></h1></div>
+      <a class="hub-link" href="./hub.html">Ver outros jogos</a>
+    </header>
+    <div class="ticket-board">
+    <button type="button" id="menuBack" class="ticket-back" hidden>← VOLTAR À PARTIDA</button>
+    <div class="menu-content">
+      <div id="gameSwitch" role="tablist" aria-label="Jogo">
+        <button type="button" id="modeShoot" class="on">Tiroteio</button>
+        <button type="button" id="modeTruco">Truco</button>
+      </div>
+      <section id="menu-match" aria-label="Preparar partida" tabindex="0">
+        <div class="section-heading"><span class="ticket-stamp" aria-hidden="true"><svg viewBox="0 0 96 96">
+          <circle cx="48" cy="48" r="43" fill="none" stroke="currentColor" stroke-width="3"/>
+          <circle cx="48" cy="48" r="37" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 4"/>
+          <path d="m33 24-3-10 13 7m12 0 12-7-3 11" fill="currentColor"/>
+          <ellipse cx="48" cy="30" rx="20" ry="15" fill="currentColor"/>
+          <ellipse cx="48" cy="34" rx="11" ry="7" fill="#f6e4bd"/>
+          <circle cx="44" cy="34" r="2" fill="currentColor"/><circle cx="52" cy="34" r="2" fill="currentColor"/>
+          <circle cx="39" cy="26" r="1.8" fill="#f6e4bd"/><circle cx="57" cy="26" r="1.8" fill="#f6e4bd"/>
+          <text x="48" y="62" text-anchor="middle" fill="currentColor" font-family="Fredoka,Arial Black,Arial,sans-serif" font-size="19" font-weight="900">100%</text>
+          <text x="48" y="77" text-anchor="middle" fill="currentColor" font-family="Fredoka,Trebuchet MS,Arial,sans-serif" font-size="13" font-weight="900" letter-spacing="1">SUÍNO</text>
+        </svg></span><h2><svg class="chapa-flame" viewBox="0 0 32 44" aria-hidden="true">
+          <path class="flame-body" d="M16 1c3 13 12 12 10 25 9-9 7 17-10 17C-1 43-4 29 6 17c-1 8 4 10 4 10C5 17 15 15 16 1Z"/>
+          <path class="flame-heart" d="M17 23c0 6 6 8 5 13-1 7-12 7-13 0-1-4 3-7 4-10 0 5 3 6 3 6-2-4 1-6 1-9Z"/>
+        </svg><img class="menu-lettering heading-lettering" src="./assets/menu/lettering-bora-pra-chapa.webp" alt="Bora pra chapa"></h2></div>
+    <label class="name-ticket"><span class="field-caption">Seu nome</span><input id="nameInput" class="nameField" maxlength="16" value="Docão" autocomplete="nickname" spellcheck="false"></label>
+    <div id="acctStrip" class="acct-strip" role="group" aria-label="Conta e ranking">
+      <span id="acctTxt" class="acct-txt">Convidado · crie uma conta para ter apelido só seu, skin guardada e ranking</span>
+      <span class="acct-btns"><button type="button" id="acctBtn">ENTRAR</button><button type="button" id="closetBtn">🧺 BRECHÓ</button><button type="button" id="rankBtn">RANKING</button></span>
+    </div>
+    <div id="dailyPanel" class="daily-panel" aria-label="Desafios do dia"></div>
+    <div class="mappick">
+      <div class="label2">Mapa</div>
+      <button id="mapBtn" class="mapcard current" title="Escolher mapa"><span class="thumb"></span><span class="mtxt"><b id="mapName">Arena da Fazendinha</b><small id="mapDesc"></small></span><span class="mchange">↻ TROCAR</span></button>
+    </div>
+    <div class="row match-options">
+      <label><span class="field-caption">Modo de jogo</span><select id="modeSel"><option value="dm">Mata-mata</option><option value="dom">Dominação (times)</option><option value="explore">Exploração</option><option value="treino">Treino · Estande do Docão</option><option value="inv">Invasão 🎃 (co-op zumbi)</option><option value="bomb">Bomba · Planta o Botijão (protótipo)</option></select></label>
+      <label><span class="field-caption">Bots</span>
+        <select aria-label="Bots" id="botCount"><option>4</option><option selected>5</option><option>6</option></select>
+      </label>
+      <label><span class="field-caption">Tempo</span><select id="timeSel"><option value="0">Padrão</option><option value="3">3 min</option><option value="5">5 min</option><option value="7">7 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option></select></label>
+      <label id="botDiffLabel"><span class="field-caption">Dificuldade</span>
+        <select aria-label="Dificuldade dos bots" id="botDiff">
+          <option value="leitao">Leitão · fácil</option>
+          <option value="ceva" selected>Ceva · normal</option>
+          <option value="javali">Javali · difícil</option>
+          <option value="cachaco">Cachaço · pesadelo</option>
+        </select>
+      </label>
+    </div>
+    <p id="botDiffNote" class="diffnote">Ceva: o Docão de sempre. A mira, a reação e o jeito de jogar mudam — a vida não.</p>
+    <div id="menuTrain" class="trainnote hidden">Treino: abre sempre no <b>Estande do Docão</b>. Os alvos não atacam e voltam em 2 s · B/N/M trocam a arma na hora · munição infinita · sem tempo.</div>
+    <div id="menuTeam" class="teampick hidden"><div class="label2">Seu time</div><div class="teamrow" id="menuTeamBtns"></div></div>
+        <section id="trucoPanel" hidden aria-label="Truco Paulista">
+          <img class="truco-cover" src="./assets/menu/docao-truco-capa.jpg" alt="Docão Truco, truco paulista na fazendinha">
+          <label><span class="field-caption">Mesa</span>
+            <select id="trucoSeatsSel"><option value="4" selected>2v2 · quatro cadeiras</option><option value="2">1v1 · duelo</option></select>
+          </label>
+          <div class="truco-actions">
+            <button type="button" id="trucoBots">Jogar com bots</button>
+            <button type="button" id="trucoCreate" class="alt">Criar sala</button>
+          </div>
+          <div id="trucoJoinRow"><input id="trucoCode" maxlength="4" placeholder="CÓDIGO" autocomplete="off" spellcheck="false"><button type="button" id="trucoJoin">Entrar</button></div>
+          <p id="trucoMenuErr"></p>
+        </section>
+      </section>
+      <section id="menu-arsenal" aria-label="Arsenal" tabindex="0" hidden>
+        <div class="section-heading"><span>EQUIPAMENTO DA CASA</span><h2>Arsenal do chiqueiro</h2><p>Escolha uma primária, uma secundária e uma arma corpo a corpo. Temperar grava a peça na classe aberta.</p></div>
+        <button type="button" id="temperBtn">Temperar esta arma</button>
+        <div id="bench" class="bench" hidden>
+          <div class="bench-top">
+            <button type="button" id="benchBack">← Arsenal</button>
+            <div id="benchChips"></div>
+            <label class="bench-name">Nome <input id="benchName" maxlength="16" autocomplete="off" spellcheck="false" aria-label="Nome da classe"></label>
+          </div>
+          <div id="benchBody"></div>
+          <p id="benchLive" class="bench-live" aria-live="polite"></p>
+        </div>
+    <div class="primpick">
+      <div class="label2">Armas <span>escolha uma de cada categoria</span></div>
+      <div id="primList"></div>
+      <div id="saberRow">
+        <div class="label2">Cor do sabre</div>
+        <div id="saberColors"></div>
+      </div>
+    </div>
+      </section>
+      <section id="menu-operator" aria-label="Visual do personagem" tabindex="0" hidden>
+        <div class="section-heading"><span>VESTIDO PRA CONFUSÃO</span><h2>Seu Docão, seu estilo</h2><p>Escolha seu figurino e confira o Docão.</p></div>
+    <div class="skinpick">
+      <div class="label2">Skin do Docão <span id="skinIdx"></span></div>
+      <div class="skinrow"><button id="skinPrev" class="arrow">◀</button><div id="skinName">Clássico</div><button id="skinNext" class="arrow">▶</button></div>
+      <div id="skinList"></div>
+    </div>
+        <div id="wardrobePreview" class="wardrobe-preview" role="img" aria-label="Prévia do visual selecionado"><span>PRONTO PRA FAZER BAGUNÇA</span></div>
+      </section>
+      <section id="menu-settings" aria-label="Ajustes" tabindex="0" hidden>
+        <div class="section-heading"><span>ACERTE O TEMPERO</span><h2>Do seu jeito</h2><p>Ajuste a mira e conheça os controles.</p></div>
+        <div class="row">
+      <label for="sens" class="range-ticket"><span class="field-caption">Sensibilidade <output for="sens" id="sensValue">1,4</output></span>
+        <input id="sens" aria-label="Sensibilidade" type="range" min="0.5" max="3" step="0.1" value="1.4">
+      </label>
+      <label for="sensAds" class="range-ticket"><span class="field-caption">Mirando <output for="sensAds" id="sensAdsValue">1</output></span>
+        <input id="sensAds" aria-label="Sensibilidade mirando" type="range" min="0.2" max="2" step="0.05" value="1">
+      </label>
+        </div>
+    <div class="controls">
+      <b>Controles</b>
+      <div>WASD mover · Mouse mirar · Espaço pular · Segurar Shift: agachar · Botão direito: mirar/zoom (com a faca: estocada)</div>
+      <div>Clique atirar · R recarregar · 1 primária / 2 pistola / 3 faca (ou rodinha) · V faca rápida · I inspecionar · B dança (sem atirar até acabar)</div>
+      <div>Na morte, na Bomba e entre waves a lista de classes abre na tela cheia. Na pausa, Trocar classe abre a mesma lista. 1–5 escolhe, W/S ou setas andam, U volta pra última, Espaço nasce</div>
+      <div>Tampa do Tacho: clique dá a porrada · botão direito investe · no celular, um dedo golpeia e dois dedos investem</div>
+      <div>Sabre: botão direito guarda · C investida · Z arremesso (duplo: giro). Animações reduzidas: Ajustes, ou a preferência de menos movimento do sistema. O tempo de tiro e recarga não muda.</div>
+      <div>Segure Q: Copo Bomba · solte para arremessar · H liga/desliga as vozes da granada</div>
+      <div>4: fumaça · 5: atordoamento · F: usa o killstreak que estiver pronto (o de 5 abre o laptop do míssil)</div>
+      <div>Na Grelha (13 abates): clique atira · 1 Espeto / 2 Panela / 3 Caldeirão (rodinha ou botão direito também) · F sai do avião</div>
+      <label class="checkline"><input type="checkbox" data-nade-voice checked> Vozes da granada (&quot;granada!&quot; e &quot;banana!&quot;) · tecla H na partida</label>
+      <label class="checkline"><input type="checkbox" data-reduced-anim> Animações reduzidas</label>
+      <label class="checkline"><input type="checkbox" data-chat-toggle checked> Mostrar chat</label>
+      <div>T todos · Y time · Enter fala (vivo) · J troca a voz · Apertar = segure K, Aberto = microfone livre · Tab placar · Esc pausar</div>
+    </div>
+      </section>
+    </div>
+    <footer class="menu-footer">
+      <div class="rules" id="menuRules">Todos contra todos · vence quem fizer 20 abates ou liderar em 5 minutos</div>
+      <div class="playrow"><button id="playBtn"><span class="play-title"><img class="menu-lettering" src="./assets/menu/lettering-jogar.webp" alt="Jogar"></span><small>SOLO · CONTRA BOTS</small></button><button id="onlineBtn" class="online"><img class="menu-lettering" src="./assets/menu/lettering-juntar-porcada-creme.webp" alt="Juntar a porcada"><small>ONLINE</small></button></div>
+    </footer>
+    </div>
+  </div>
+  <nav class="menu-tools" aria-label="Preferências">
+    <button type="button" class="sound-toggle" id="menuSound" aria-label="Silenciar áudio" aria-pressed="false" title="Silenciar áudio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z"/><path class="sound-waves" d="M16 8q5 4 0 8M19 5q8 7 0 14"/></svg></button>
+    <button type="button" class="settings-cap" data-menu-view="settings" aria-controls="menu-settings" aria-expanded="false" aria-label="Ajustes" title="Ajustes"><span aria-hidden="true"><svg viewBox="0 0 32 32"><path d="m13 2-1 5-3 1-4-2-3 5 4 3v4l-4 3 3 5 4-2 3 1 1 5h6l1-5 3-1 4 2 3-5-4-3v-4l4-3-3-5-4 2-3-1-1-5Zm3 9a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg></span></button>
+  </nav>
+  <aside id="loadoutDock" class="loadout-dock" aria-label="Arma padrão">
+    <p class="dock-title">Arma padrão</p>
+  </aside>
+  <aside id="danceDock" class="dance-dock" aria-label="Dança da vitória">
+    <p class="dock-title">Dança da vitória</p>
+    <div class="dance-stage" id="danceStage">
+      <div class="dance-picks" id="dancePicks"></div>
+    </div>
+  </aside>
+  <nav class="showcase-actions" aria-label="Personagem e equipamento">
+    <button type="button" class="arsenal-crate" aria-label="Arsenal" data-menu-view="arsenal" aria-controls="menu-arsenal" aria-expanded="false"><span class="plaque-surface" aria-hidden="true"></span><svg class="crate-mark" viewBox="0 0 56 57" aria-hidden="true">
+      <defs>
+        <linearGradient id="ammo-paint" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffedc3"/><stop offset=".38" stop-color="#efd09b"/><stop offset="1" stop-color="#c9985e"/></linearGradient>
+        <path id="ammo-shape" d="m5 49 .3-32L11 3l5.7 13.7.3 32.3-3 .7-1.2-.6-4 .5Z"/>
+      </defs>
+      <g fill="#70502f" stroke="#543b27" stroke-width="1" stroke-linejoin="round"><use href="#ammo-shape" transform="translate(1.5 2)"/><use href="#ammo-shape" transform="translate(17.5 2)"/><use href="#ammo-shape" transform="translate(33.5 2)"/></g>
+      <g fill="url(#ammo-paint)" stroke="#9d7446" stroke-width=".7" stroke-linejoin="round"><use href="#ammo-shape"/><use href="#ammo-shape" x="16"/><use href="#ammo-shape" x="32"/></g>
+      <g fill="none" stroke="#fff2d2" stroke-width="1.3" opacity=".7"><path d="m6.8 46 .1-28L11 7m11.8 39 .1-28L27 7m11.8 39 .1-28L43 7"/></g>
+      <g fill="none" stroke="#a97c48" stroke-width=".8"><path d="M6 42h10m6 0h10m6 0h10M9 24l3-1m14 8 3-1m13-8 3-1M7 46h8m8 0h8m8 0h8"/></g>
+    </svg><img class="action-lettering" src="./assets/menu/lettering-arsenal.webp" alt="" decoding="async"></button>
+    <button type="button" class="wardrobe-sign" aria-label="Trocar visual" data-menu-view="operator" aria-controls="menu-operator" aria-expanded="false"><span class="plaque-surface" aria-hidden="true"></span><svg class="wardrobe-mark" viewBox="0 0 50 44" aria-hidden="true">
+      <defs>
+        <path id="shirt-shape" d="m15 3-12 9 7 10 6-4v18.5l7 .5 3-.6 6 .6V18l6 4 7-10-12-9q-9 10-18 0Z"/>
+      </defs>
+      <use href="#shirt-shape" x="1.5" y="2.5" fill="#172d22" stroke="#172d22" stroke-width="1.2" stroke-linejoin="round"/>
+      <use href="#shirt-shape" fill="#fff0cc" stroke="#172d22" stroke-width="1" stroke-linejoin="round"/>
+      <path d="m5 12 10-7m18 0 10 7M18 20v14h11" fill="none" stroke="#fff9e8" stroke-width="1.1" stroke-linecap="round" opacity=".7"/>
+      <path d="M15 4q9 13 18 0M8 18l3 2m26 0 3-2M18 33h11" fill="none" stroke="#c6a770" stroke-width="1"/>
+    </svg><img class="action-lettering" src="./assets/menu/lettering-trocar-visual-creme.webp" alt="" decoding="async"></button>
+  </nav>
+  <div class="menu-key-hints"><span><kbd>W A S D</kbd> mover</span><span><kbd>MOUSE</kbd> mirar</span><span><kbd>ESPAÇO</kbd> pular</span><button type="button" data-menu-view="settings">CONTROLES</button></div>
+</div>
+
+<div id="mapModal" class="overlay hidden">
+  <div class="panel wide">
+    <h2>Escolha o mapa</h2>
+    <div id="mapGrid"></div>
+    <button id="mapClose" class="secondary">VOLTAR</button>
+  </div>
+</div>
+
+<div id="onlineModal" class="overlay hidden">
+  <div class="panel">
+    <h2>Jogar online</h2>
+    <label>Seu nome<input id="onlineName" class="nameField" maxlength="16" autocomplete="nickname" spellcheck="false"></label>
+    <div class="otabs"><button id="tabCreate" class="otab active">Criar sala</button><button id="tabJoin" class="otab">Entrar na sala</button></div>
+    <div id="paneCreate">
+      <label>Mapa<select id="roomMap"></select></label>
+      <label>Modo<select id="roomMode"><option value="dm">Mata-mata</option><option value="dom">Dominação (times)</option><option value="treino">Treino · Estande do Docão</option><option value="inv">Invasão 🎃 (co-op zumbi)</option><option value="bomb">Bomba · Planta o Botijão (protótipo)</option><option value="inf">Infecção 🧟 (zumbis × sobreviventes, até 50)</option></select></label>
+      <div class="row">
+        <label>Máx. jogadores<select id="roomMax"><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
+        <label>Completar com bots<select id="roomBots"><option value="1" selected>Sim</option><option value="0">Não</option></select></label>
+        <label>Dificuldade<select id="roomDiff" aria-label="Dificuldade dos bots da sala"><option value="leitao">Leitão · fácil</option><option value="ceva" selected>Ceva · normal</option><option value="javali">Javali · difícil</option><option value="cachaco">Cachaço · pesadelo</option></select></label>
+        <label>Tempo<select id="roomTime"><option value="0">Padrão</option><option value="3">3 min</option><option value="5">5 min</option><option value="7">7 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option></select></label>
+      </div>
+      <div id="roomLimits" class="room-limits"></div>
+      <button id="createBtn">CRIAR SALA</button>
+    </div>
+    <div id="paneJoin" class="hidden">
+      <label>Código da sala<input id="joinCode" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false"></label>
+      <p class="sub">Se a partida já começou e ainda tem bot, você entra no lugar de um.</p>
+      <p class="diffnote" id="joinDiffNote">A dificuldade dos bots (Leitão, Ceva, Javali ou Cachaço) é a da sala. Quem cria escolhe, e a sala lembra.</p>
+      <button id="joinBtn">ENTRAR</button>
+    </div>
+    <div id="onlineErr" class="err"></div>
+    <button id="onlineClose" class="secondary">VOLTAR</button>
+  </div>
+</div>
+
+<div id="acctModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="acctTitle">
+  <div class="ticket-panel">
+    <h2 id="acctTitle">Comanda do Docão</h2>
+    <div id="acctGuest">
+      <div class="otabs"><button type="button" id="acctTabLogin" class="otab active">Entrar</button><button type="button" id="acctTabReg" class="otab">Criar conta</button></div>
+      <form id="acctForm" autocomplete="on" novalidate>
+        <label>Apelido<input id="acctNick" maxlength="16" autocomplete="username" spellcheck="false"></label>
+        <label>Senha<input id="acctPass" type="password" maxlength="128" autocomplete="current-password"></label>
+        <label id="acctPass2Row" class="hidden">Repita a senha<input id="acctPass2" type="password" maxlength="128" autocomplete="new-password"></label>
+        <p class="acct-help" id="acctHelp">Entre com o apelido e a senha da sua comanda.</p>
+        <div id="acctErr" class="acct-err" role="alert"></div>
+        <button type="submit" id="acctSubmit" class="ticket-btn">ENTRAR</button>
+      </form>
+      <p class="acct-note">Conta é <b>opcional</b>: como convidado você joga igual. Com conta, o apelido é só seu, a skin fica guardada e você aparece no ranking.</p>
+    </div>
+    <div id="acctUser" class="hidden">
+      <p class="acct-hello">🐷 <b id="acctNickView"></b></p>
+      <div id="acctStats" class="acct-stats"></div>
+      <button type="button" id="acctRank" class="ticket-btn">VER RANKING</button>
+      <button type="button" id="acctLogout" class="ticket-btn alt">SAIR DA CONTA</button>
+    </div>
+    <button type="button" id="acctClose" class="ticket-btn ghost">VOLTAR</button>
+  </div>
+</div>
+
+<div id="closetModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="closetTitle">
+  <div class="ticket-panel closet-panel">
+    <h2 id="closetTitle">Brechó da Porca Véia 🧺</h2>
+    <div id="closetGuest" class="hidden">
+      <p class="acct-note">O Brechó da Porca Véia é para quem tem <b>conta</b>: seu visual personalizado fica salvo e você compra partes de skin com <b>Docoins 🪙</b>, que se ganham jogando e completando os desafios do dia.</p>
+      <button type="button" id="closetLogin" class="ticket-btn">ENTRAR / CRIAR CONTA</button>
+    </div>
+    <div id="closetMain" class="closet-main hidden">
+      <div class="closet-left">
+        <canvas id="closetCanvas" width="260" height="330" aria-label="Prévia 3D do visual"></canvas>
+        <div class="closet-turn" aria-label="Girar a prévia"><button type="button" data-turn="-0.6" aria-label="Girar para a esquerda">◀</button><button type="button" data-turn="front">Frente</button><button type="button" data-turn="0.6" aria-label="Girar para a direita">▶</button></div>
+        <div id="closetWallet" class="closet-wallet"></div>
+      </div>
+      <div class="closet-right">
+        <div class="otabs"><button type="button" id="closetTabLook" class="otab active">Personalizar</button><button type="button" id="closetTabShop" class="otab">Loja</button><button type="button" id="closetTabChal" class="otab">🎯 Desafios</button></div>
+        <div id="closetLook"></div>
+        <div id="closetShop" class="hidden"></div>
+        <div id="closetChal" class="hidden"></div>
+        <div id="closetMsg" class="acct-err" role="status"></div>
+      </div>
+    </div>
+    <button type="button" id="closetClose" class="ticket-btn ghost">VOLTAR</button>
+  </div>
+</div>
+
+<div id="rankModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rankTitle">
+  <div class="ticket-panel wide">
+    <h2 id="rankTitle">Ranking do Chiqueiro</h2>
+    <div class="rank-tabs" id="rankModes"></div>
+    <div class="rank-sort"><span>Ordenar por</span><button type="button" data-sort="kills" class="active">Abates</button><button type="button" data-sort="wins">Vitórias</button></div>
+    <div id="rankBody" class="rank-body"></div>
+    <p class="acct-note">Só contam partidas online com conta (o Treino não vale). Atualiza ao fim de cada partida.</p>
+    <button type="button" id="rankClose" class="ticket-btn ghost">VOLTAR</button>
+  </div>
+</div>
+
+<div id="lobby" class="overlay hidden">
+  <div class="panel">
+    <h2>Sala <span id="lobbyCode" class="code">----</span></h2>
+    <div class="invite" id="lobbyInvite">
+      <input id="shareLink" class="invite-link" readonly>
+      <div class="invite-btns">
+        <button type="button" class="small" data-act="link">Copiar link</button>
+        <button type="button" class="small" data-act="code">Copiar código</button>
+        <button type="button" class="small" data-act="wa">WhatsApp</button>
+        <button type="button" class="small" data-act="tg">Telegram</button>
+        <button type="button" class="small" data-act="slack">Slack</button>
+        <button type="button" class="small hidden" data-act="native">Compartilhar</button>
+      </div>
+      <div class="invite-toast" data-toast></div>
+    </div>
+    <div id="lobbyInfo" class="sub"></div>
+    <div class="namerow"><label>Seu nome<input id="lobbyName" class="nameField" maxlength="16" autocomplete="nickname" spellcheck="false"></label><button id="lobbyNameBtn" class="small">Trocar</button></div><div id="lobbyNameMsg" class="sub"></div>
+    <div id="lobbyLoadout" class="loadout-box">
+      <div class="label2">Sua arma <span>vale nesta sala e nas próximas</span></div>
+      <div id="lobbyClasses" aria-label="Classes"></div>
+      <div class="row loadout-row" id="lobbyLoadoutRow"></div>
+    </div>
+    <div id="lobbyTeam" class="teampick hidden"><div class="label2">Seu time</div><div class="teamrow" id="lobbyTeamBtns"></div><div class="tpe" id="lobbyTeamErr"></div></div>
+    <div id="lobbyPlayers" class="board"></div>
+    <div id="lobbyChat" class="chatpanel">
+      <div class="chatlog" data-chat="keep"></div>
+      <form id="lobbyChatForm" class="chatform">
+        <button type="button" class="small" data-say="all">Todos</button>
+        <button type="button" class="small" data-say="team">Time</button>
+        <input id="lobbyChatInput" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Mensagem…">
+      </form>
+      <div id="lobbyChatOff" class="sub hidden">O anfitrião desligou o chat</div>
+    </div>
+    <div class="voicebox" data-voicebox id="lobbyVoice">
+      <button type="button" class="small" data-voice="off">Mudo</button>
+      <button type="button" class="small" data-voice="all">Todos</button>
+      <button type="button" class="small" data-voice="team">Time</button>
+      <button type="button" class="small" data-mic="hold">Apertar</button>
+      <button type="button" class="small" data-mic="open">Aberto</button>
+      <span class="voicehint">J troca a voz · segure K para falar</span>
+    </div>
+    <div id="hostCtl">
+      <div class="row">
+        <label>Mapa<select id="lobbyMap"></select></label>
+        <label>Máx.<select id="lobbyMax"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
+        <label>Bots<select id="lobbyBots"><option value="1">Sim</option><option value="0">Não</option></select></label>
+        <label>Dificuldade<select id="lobbyDiff" aria-label="Dificuldade dos bots da sala"><option value="leitao">Leitão · fácil</option><option value="ceva">Ceva · normal</option><option value="javali">Javali · difícil</option><option value="cachaco">Cachaço · pesadelo</option></select></label>
+        <label>Modo<select id="lobbyMode"><option value="dm">Mata-mata</option><option value="dom">Dominação</option><option value="treino">Treino (Estande)</option><option value="inv">Invasão 🎃</option><option value="bomb">Bomba (protótipo)</option><option value="inf">Infecção 🧟</option></select></label>
+        <label>Tempo<select id="lobbyTime"><option value="0">Padrão</option><option value="3">3 min</option><option value="5">5 min</option><option value="7">7 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option></select></label>
+        <label>Chat<select id="lobbyChatOn"><option value="1">Sim</option><option value="0">Não</option></select></label>
+      </div>
+      <div id="lobbyLimits" class="room-limits"></div>
+      <button id="startOnline">INICIAR PARTIDA</button>
+    </div>
+    <div id="lobbyWait" class="sub">Aguardando o anfitrião iniciar a partida…</div>
+    <div id="lobbyStatus" class="err"></div>
+    <button id="leaveLobby" class="secondary">SAIR DA SALA</button>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="panel small">
+    <h2>Pausa na chapa</h2>
+    <label class="checkline nade-voice-hl" id="pauseNadeVoice"><input type="checkbox" data-nade-voice checked> <span>🔊 Vozes da granada <small>(&quot;granada!&quot; e &quot;banana!&quot;) · tecla H</small></span></label>
+    <label class="checkline"><input type="checkbox" data-reduced-anim> Animações reduzidas</label>
+    <div class="invite hidden" id="pauseInvite">
+      <input class="invite-link" readonly>
+      <div class="invite-btns">
+        <button type="button" class="small" data-act="link">Copiar link</button>
+        <button type="button" class="small" data-act="code">Copiar código</button>
+        <button type="button" class="small" data-act="wa">WhatsApp</button>
+        <button type="button" class="small" data-act="tg">Telegram</button>
+        <button type="button" class="small" data-act="slack">Slack</button>
+        <button type="button" class="small hidden" data-act="native">Compartilhar</button>
+      </div>
+      <div class="invite-toast" data-toast></div>
+    </div>
+    <label class="checkline"><input type="checkbox" data-chat-toggle checked> Mostrar chat</label>
+    <div class="voicebox hidden" data-voicebox id="pauseVoice">
+      <button type="button" class="small" data-voice="off">Mudo</button>
+      <button type="button" class="small" data-voice="all">Todos</button>
+      <button type="button" class="small" data-voice="team">Time</button>
+      <button type="button" class="small" data-mic="hold">Apertar</button>
+      <button type="button" class="small" data-mic="open">Aberto</button>
+      <span class="voicehint">J troca a voz · segure K para falar</span>
+    </div>
+    <section id="pauseLoadout" aria-label="Trocar equipamento">
+      <p class="pause-note" id="pauseClassNote">A classe escolhida entra na próxima vida. Não derruba.</p>
+      <button type="button" id="pauseClassBtn">TROCAR CLASSE</button>
+    </section>
+    <section id="pauseDance" aria-label="Dança da vitória">
+      <p class="pause-note">Dança da vitória</p>
+      <div class="dance-picks" id="pauseDancePicks"></div>
+    </section>
+    <button id="resumeBtn">CONTINUAR</button>
+    <button id="quitBtn" class="secondary">SAIR PRO MENU</button>
+  </div>
+</div>
+
+<div id="pauseClass" class="cls-screen hidden">
+  <header class="cls-top">
+    <button type="button" id="pauseClassBack" class="cls-back">← Pausa</button>
+    <div class="cls-headline">
+      <h2>Trocar classe</h2>
+      <p id="pauseClassSub">A classe e a arma entram na próxima vida. Não derruba.</p>
+    </div>
+  </header>
+  <div class="cls-pig" aria-hidden="true"></div>
+  <div class="cls-sheet"><div id="pauseGuns" class="cls-list"></div><div id="pauseGun" class="cls-gun"></div><div id="pauseArms" class="cls-arms" aria-label="Arsenal"></div></div>
+</div>
+
+<div id="matchResult" class="hidden" role="status" aria-live="polite">
+  <div class="result-card">
+    <h2 id="resultTitle"></h2>
+    <p id="resultDetail"></p>
+  </div>
+</div>
+
+<div id="gameover" class="overlay hidden">
+  <div class="panel">
+    <h2 id="winner">Fim de jogo!</h2>
+    <div id="finalboard" class="board"></div>
+    <div id="overMap" class="overmap"></div>
+    <button id="againBtn">JOGAR DE NOVO</button>
+    <button id="nextMapBtn">PRÓXIMO MAPA ▸</button>
+    <div id="overWait" class="sub hidden">Aguardando o anfitrião…</div>
+    <div id="overChat" class="chatpanel hidden">
+      <div class="chatlog" data-chat="keep"></div>
+      <form id="overChatForm" class="chatform">
+        <button type="button" class="small" data-say="all">Todos</button>
+        <button type="button" class="small" data-say="team">Time</button>
+        <input id="overChatInput" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Mensagem…">
+      </form>
+    </div>
+    <button id="menuBtn" class="secondary">MENU</button>
+  </div>
+</div>
+
+<div id="trucoApp" aria-label="Mesa de truco">
+  <canvas id="trucoCanvas"></canvas>
+  <div id="trucoHud">
+    <div id="trucoScore"></div>
+    <div id="trucoBanner"></div>
+    <div id="trucoClock"><i></i></div>
+    <div id="trucoActs"></div>
+    <p id="trucoHint"></p>
+    <div id="trucoTop"><button type="button" id="trucoEmoteBtn">Sinais</button><button type="button" id="trucoLeave">Sair</button></div>
+    <div id="trucoChat">
+      <div id="trucoLog" class="chatlog" data-chat="keep"></div>
+      <form id="trucoSay" data-scope="all"><input id="trucoSayInput" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Mensagem da mesa"></form>
+    </div>
+    <div id="trucoVoice" class="voicebox" data-voicebox>
+      <button type="button" class="small" data-voice="off">Mudo</button>
+      <button type="button" class="small" data-voice="team">Dupla</button>
+      <button type="button" class="small" data-voice="all">Mesa</button>
+      <button type="button" class="small" data-mic="hold">Apertar</button>
+      <button type="button" class="small" data-mic="open">Aberto</button>
+    </div>
+    <div id="trucoEmotes"></div>
+    <div id="trucoToast" style="display:none"></div>
+    <div id="trucoLobby" class="box" style="display:none">
+      <h2>Boteco</h2>
+      <p id="trucoLobbyCode"></p>
+      <div id="trucoSeats"></div>
+      <label><input type="checkbox" id="trucoFill" checked> Completar com bots</label>
+      <div class="truco-actions"><button type="button" id="trucoStart">Iniciar partida</button><button type="button" id="trucoCopy" class="alt">Copiar link</button></div>
+    </div>
+    <div id="trucoOver" class="box" style="display:none">
+      <h2 id="trucoOverTitle">Fim de jogo</h2>
+      <button type="button" id="trucoAgain">Jogar de novo</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="main.js"></script>
+<script type="module" src="truco.js"></script>
+</body>
+</html>
