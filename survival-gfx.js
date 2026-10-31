@@ -5,7 +5,11 @@ import * as THREE from 'three';
 const flat = (hex, opacity = 1) => new THREE.MeshBasicMaterial({
   color: hex, transparent: opacity < 1, opacity, depthWrite: opacity >= 0.9, fog: false,
 });
+const basic = flat;
 const toon = (hex) => new THREE.MeshToonMaterial({ color: hex });
+function box(w, h, d, mat, x, y, z) {
+  return add(new THREE.Group(), new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+}
 
 function add(g, geo, mat, x, y, z) {
   const m = new THREE.Mesh(geo, mat);

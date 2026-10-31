@@ -440,6 +440,7 @@ body:has(#pause:not(.hidden)) #streakBar { display: none !important; }
 .bmark .zlbl b{font-family:var(--font);font-size:15px}
 .kf.bomb{border-left:4px solid #ffd27a}
 #bPrompt,#sPrompt{position:fixed;top:70%;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;padding:8px 18px;border-radius:12px;background:rgba(20,10,8,.62);border:2px solid rgba(255,210,122,.5);max-width:92vw;z-index:6}
+#sPrompt{top:56%}
 #bPrompt .bp1,#sPrompt .bp1{font-family:var(--font);font-size:22px;color:#fff;-webkit-text-stroke:1px #2a1410;text-shadow:0 2px 0 #000}
 #bPrompt .bp2,#sPrompt .bp2{font-size:14px;font-weight:bold;color:#ffd27a;text-shadow:0 1px 0 #000;margin-top:2px}
 #bPrompt kbd,#sPrompt kbd{display:inline-block;min-width:28px;padding:0 7px;margin:0 3px;border-radius:6px;background:#ffd27a;color:#2a1410;border:2px solid #2a1410;font-family:var(--font);-webkit-text-stroke:0;text-shadow:none}

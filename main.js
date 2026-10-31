@@ -7875,7 +7875,7 @@ function invApplyLook(on) {
   if (on) { applyHalloweenPalette(scene, hemi, sun, currentMap); fpHemi.intensity = 1.2; invGfx.hal = buildHalloween(currentMap, nav, groundAt); scene.add(invGfx.hal); }
   else { applyPalette(scene, hemi, sun, currentMap); fpHemi.intensity = currentMap.palette.stars ? 1.25 : 1.8; }
   document.body.classList.toggle('invmode', !!on); invMusicOn(!!on);
-  ['invhud', 'invPowers'].forEach((id) => $(id).classList.toggle('hidden', !on)); if (!on) document.body.classList.remove('invout', 'ghostfx'); if (!on) { $('invBoss').classList.add('hidden'); $('invOut').classList.add('hidden'); $('fogVeil').style.opacity = '0'; invClosePick(); }
+  ['invhud', 'invPowers'].forEach((id) => $(id).classList.toggle('hidden', !on)); if (!on) document.body.classList.remove('invout', 'ghostfx'); if (!on) { $('invBoss').classList.add('hidden'); $('invOut').classList.add('hidden'); $('invBanner').classList.add('hidden'); invBannerT = 0; $('fogVeil').style.opacity = '0'; invClosePick(); const sp = $('sPrompt'); if (sp) sp.classList.add('hidden'); for (const id of ['papMark', 'boxMark', 'papCard']) { const m = $(id); if (m) m.classList.add('hidden'); } }
   invGfx.inv = []; invGfx.sel = 0; invRenderSlots();
 }
 // ---------- por quadro ----------
@@ -8161,7 +8161,7 @@ function survBuild(layout) {
 function unstickSurvMarks() {
   const ids = ['papMark', 'boxMark'];
   const blocks = [];
-  for (const id of ['score', 'tl', 'invhud', 'bottomleft', 'ammo', 'wname', 'slots', 'sPrompt', 'papCard']) {
+  for (const id of ['score', 'tl', 'invhud', 'bottomleft', 'ammo', 'wname', 'slots', 'sPrompt', 'papCard', 'leader']) {
     const e = $(id);
     if (!e || e.classList.contains('hidden')) continue;
     const st = getComputedStyle(e);
@@ -8170,6 +8170,9 @@ function unstickSurvMarks() {
     if (r.width < 2 || r.height < 2) continue;
     blocks.push(r);
   }
+  // A munição e os slots ficam grudados no canto. O marcador da loja não pode sentar em cima.
+  blocks.push({ left: innerWidth - 500, right: innerWidth, top: innerHeight - 200, bottom: innerHeight });
+  blocks.push({ left: 0, right: 300, top: innerHeight - 240, bottom: innerHeight });
   const placed = [];
   const hit = (a, b) => !(a.right < b.left + 2 || a.left > b.right - 2 || a.bottom < b.top + 2 || a.top > b.bottom - 2);
   for (const id of ids) {

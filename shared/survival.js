@@ -597,20 +597,20 @@ function mountWall(phys, w) {
   const dirs = [{ nx: 1, nz: 0 }, { nx: -1, nz: 0 }, { nx: 0, nz: 1 }, { nx: 0, nz: -1 }];
   let best = null;
   for (const d of dirs) {
-    const from = { x: w.x - d.nx * 0.85, y: chest, z: w.z - d.nz * 0.85 };
-    const hit = phys.rayWorldN(from, { x: d.nx, y: 0, z: d.nz }, 1.5);
-    if (!hit || Math.abs(hit.n.y) > 0.45) continue;
-    if (!best || hit.t < best.t) best = { hit, from, d };
+    const hit = phys.rayWorldN({ x: w.x, y: chest, z: w.z }, { x: d.nx, y: 0, z: d.nz }, 4.2);
+    if (!hit || hit.t < 0.15 || Math.abs(hit.n.y) > 0.45) continue;
+    if (!best || hit.t < best.t) best = { hit, d };
   }
   if (!best) return { x: w.x, y: chest, z: w.z, yaw: w.yaw || 0 };
   const nl = Math.hypot(best.hit.n.x, best.hit.n.z) || 1;
   const nx = best.hit.n.x / nl, nz = best.hit.n.z / nl;
+  const t = Math.max(0.05, best.hit.t - 0.04);
   return {
-    x: best.from.x + best.d.nx * best.hit.t + nx * 0.02,
+    x: w.x + best.d.nx * t + nx * 0.03,
     y: chest,
-    z: best.from.z + best.d.nz * best.hit.t + nz * 0.02,
+    z: w.z + best.d.nz * t + nz * 0.03,
     nx, nz, yaw: Math.atan2(-nz, nx),
-    stand: { x: w.x, y: 0, z: w.z },
+    stand: { x: w.x + nx * 0.9, y: 0, z: w.z + nz * 0.9 },
   };
 }
 function layoutFromAnchors(map, phys) {
