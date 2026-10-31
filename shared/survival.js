@@ -20,7 +20,7 @@
 //  doors não é simulado aqui: fica no layout pra quem implementa a porta.
 // ============================================================
 import { INV_AMMO } from './invasion.js';
-import { WEAPONS, PISTOL, KNIFE, UZI, P90, NAIL, SEMI, BOW, CORN_W, TAMPA, PRIMARIES, SECONDARIES } from './rules.js';
+import { WEAPONS, PISTOL, KNIFE, UZI, P90, NAIL, SEMI, BOW, CORN_W, TAMPA, RAY, PRIMARIES, SECONDARIES } from './rules.js';
 
 export const PAPADA_NAME = 'Papada';
 export const BOX_NAME = 'Barraca da Sorte';
@@ -67,6 +67,12 @@ const PROFILE = {
     { dmg: 1.9, mag: 1, reserve: 2, rate: 0.9, reload: 0.75 },
     { dmg: 2.35, mag: 2, reserve: 2.5, rate: 0.85, reload: 0.65 },
   ],
+  // Ray Gun já é a mais forte sem upgrade. O tier sobe, mas o 3 ainda não mata o barrigão de um tiro.
+  ray: [
+    { dmg: 1.28, mag: 1.2, reserve: 1.25, rate: 0.92, reload: 0.88 },
+    { dmg: 1.55, mag: 1.35, reserve: 1.5, rate: 0.86, reload: 0.78 },
+    { dmg: 1.82, mag: 1.5, reserve: 1.75, rate: 0.8, reload: 0.7 },
+  ],
 };
 const SNIPER_KEYS = new Set(['sniper', 'canhao', 'carabina']);
 const SHOT_KEYS = new Set(['shotgun', 'semi']);
@@ -84,8 +90,12 @@ export const WALL_CATALOG = [
   { w: P90, price: 1500, ammo: 550 },
 ];
 
-const BOX_SKIP = new Set([TAMPA, KNIFE]);
-export const BOX_POOL = [...PRIMARIES, ...SECONDARIES].filter((w, i, a) => a.indexOf(w) === i && !BOX_SKIP.has(w) && papOk(WEAPONS[w]));
+const BOX_SKIP = new Set([TAMPA, KNIFE, RAY]);
+export const BOX_POOL = [...PRIMARIES, ...SECONDARIES].filter((w, i, a) => a.indexOf(w) === i && !BOX_SKIP.has(w) && papOk(WEAPONS[w]) && !(WEAPONS[w] && WEAPONS[w].ray));
+// 6,5%: um pouco acima de uma arma comum do pool (~1/20 ≈ 5%), ainda rara.
+// Em 15 giros (15 × 1.250 = 18.750 pts, entre o tier 1 e o tier 2 da Papada) a chance de ter visto a Ray Gun ao menos uma vez é ~63%.
+// 5% atrasaria demais o achado; 8% a deixaria tão comum quanto duas armas normais juntas.
+export const RAY_ODDS = 0.065;
 
 export function normSurv(v) { return v === SURV_ID ? SURV_ID : PADRAO_ID; }
 export function isSurvival(v) { return normSurv(v) === SURV_ID; }
@@ -105,6 +115,7 @@ export function papRefuse(w) {
 
 function profileOf(w) {
   if (!w) return PROFILE.bullet;
+  if (w.ray) return PROFILE.ray;
   if (SNIPER_KEYS.has(w.key)) return PROFILE.sniper;
   if (SHOT_KEYS.has(w.key)) return PROFILE.shotgun;
   if (BOOM_KEYS.has(w.key) || w.rocket || w.corn) return PROFILE.boom;
@@ -293,9 +304,16 @@ export function tryBoxPay(e) {
   return { ok: true, cost: SURV.boxPrice, pts: e.pts | 0 };
 }
 export function rollBox(rng, avoid = -1) {
-  const pool = BOX_POOL.filter((w) => w !== avoid);
+  const rnd = rng || Math.random;
+  const u = rnd();
+  const rareOn = !!(WEAPONS[RAY] && WEAPONS[RAY].ray) && RAY !== avoid;
+  if (rareOn && u < RAY_ODDS) return RAY;
+  const pool = BOX_POOL.filter((w) => w !== avoid && w !== RAY);
   const src = pool.length ? pool : BOX_POOL;
-  const i = Math.min(src.length - 1, Math.floor((rng ? rng() : Math.random()) * src.length));
+  const base = rareOn ? RAY_ODDS : 0;
+  const span = rareOn ? 1 - RAY_ODDS : 1;
+  const t = span > 0 ? (u - base) / span : u;
+  const i = Math.min(src.length - 1, Math.max(0, Math.floor(t * src.length)));
   return src[i];
 }
 export function takeBox(e, w, weapons = WEAPONS) {
@@ -307,6 +325,7 @@ export function tryWall(e, wall, weapons = WEAPONS) {
   ensurePurse(e);
   if (!wall) return { ok: false, reason: 'longe' };
   const w = wall.w | 0;
+  if (weapons[w] && weapons[w].ray) return { ok: false, reason: 'parede', weapon: w };
   const on = e.slotOn || [1, 1, 1];
   const owns = (on[0] && e.slots[0] === w) || (on[1] && e.slots[1] === w);
   if (owns) {

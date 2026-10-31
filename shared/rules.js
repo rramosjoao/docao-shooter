@@ -149,6 +149,13 @@ export const WEAPONS = [
 // Exclusiva da Corrida Armada: ID próprio, fora do arsenal e das classes.
 export const GOLD_KNIFE = WEAPONS.length;
 WEAPONS.push({ ...WEAPONS[7], key: 'faca-dourada', name: 'Faca Dourada', short: 'Faca Dourada', chip: 'Ouro', noAds: true, desc: 'Corrida Armada · uma eliminação válida vence a partida' });
+// 27 · Ray Gun: só a Barraca da Sorte no Survival. Fora de PRIMARIES, SECONDARIES, categorias, bots, parede e X1.
+// dmg é o centro do estouro (raio e auto-dano em shared/ray.js). Não é hitscan.
+export const RAY = WEAPONS.length;
+WEAPONS.push({
+  key: 'ray', name: 'Ray Gun', short: 'Ray Gun', chip: 'Ray', mag: 20, reserve: 160, dmg: 260, headMul: 1, rate: 0.22, auto: true, pellets: 0, spread: 0.006, reload: 1.7, range: 0, recoil: 0.028, adsFov: 58, adsSpread: 0.35, flashZ: -0.55,
+  ray: true, inspect: 'ray', desc: 'Survival · Barraca da Sorte · pulso que quica 3 vezes · estouro curto · 20/160',
+});
 export const isKnife = (i) => i === 7 || i === GOLD_KNIFE;
 
 // Penetração e collateral (regra em shared/penetration.js). pen = metros de parede fina por bala (caixote conta 45%);
@@ -212,5 +219,5 @@ export const BOT_DEFS = [
   { name: 'Farofa' }, { name: 'Pipoca' }, { name: 'Trufa' }, { name: 'Bolota' }, { name: 'Torresmo' }, { name: 'Paçoca' }, { name: 'Linguiça' }, { name: 'Quindim' }, { name: 'Coxinha' }, { name: 'Pururuca' },
 ];
 
-export const BOT_RANGE = [14, 4.5, 26, 14, 10, 34, 18, 1.2, 2.2, 8, 12, 6, 6, 16, 14, 20, 12, 2.2, 9, 14, 16, 16, 18, 10, 6, 4, 1.2]; // 23 revólver (como a pistola), 24 akimbo (cola), 25 tampa (chega perto pra porrada), 26 faca dourada (cola, igual a faca)
+export const BOT_RANGE = [14, 4.5, 26, 14, 10, 34, 18, 1.2, 2.2, 8, 12, 6, 6, 16, 14, 20, 12, 2.2, 9, 14, 16, 16, 18, 10, 6, 4, 1.2, 14]; // 23 revólver (como a pistola), 24 akimbo (cola), 25 tampa (chega perto pra porrada), 26 faca dourada (cola, igual a faca), 27 Ray Gun (não entra no sorteio dos bots)
 export const TAG_COLORS = ['#7DF9FF', '#ffd27a', '#ff9fb6', '#9be37a', '#c9a4ff', '#ffb36b', '#9fd0ff', '#ffa3d8', '#b8f2e6', '#ffe9a8'];

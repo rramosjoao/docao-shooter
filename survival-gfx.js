@@ -57,6 +57,22 @@ export function makeWallGun(name) {
   return g;
 }
 
+export function makeRayOffer() {
+  const g = new THREE.Group();
+  g.add(box(0.16, 0.14, 0.42, toon(0x24302a), 0, 1.45, 0));
+  g.add(box(0.18, 0.05, 0.16, toon(0xc45a2a), 0, 1.54, 0.02));
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), basic(0x39ff6a));
+  core.position.set(0, 1.48, -0.08); g.add(core);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.22, 10), toon(0x141a16));
+  barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 1.48, -0.28); g.add(barrel);
+  const dish = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.012, 8, 16), basic(0x7dff6a));
+  dish.position.set(0, 1.48, -0.4); g.add(dish);
+  const lamp = new THREE.PointLight(0x39ff6a, 1.2, 3.2);
+  lamp.position.set(0, 1.55, -0.2); g.add(lamp);
+  g.userData.kind = 'offer'; g.userData.ray = true;
+  return g;
+}
+
 export function makeOfferGun() {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.9), toon(0xf2c94c));

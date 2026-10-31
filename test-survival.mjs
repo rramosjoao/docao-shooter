@@ -3,15 +3,16 @@
 import { Game } from './server/src/game.js';
 import { getMap, INV_MAPS } from './maps.js';
 import { mapSolids, createPhysics } from './shared/physics.js';
+import { RAY as RAY_MOVE, stepRay, raySplash } from './shared/ray.js';
 import { buildNav } from './nav.js';
-import { WEAPONS, PISTOL, KNIFE, UZI } from './shared/rules.js';
+import { WEAPONS, PISTOL, KNIFE, UZI, RAY, PRIMARIES, SECONDARIES, CATEGORIES, BOT_PRIMARIES } from './shared/rules.js';
 import { waveSpec, ZOMBIES } from './shared/invasion.js';
 import {
   PAPADA_NAME, BOX_NAME, SURV, PAP_COST, SURV_ID, PADRAO_ID,
   isSurvival, normSurv, papOk, papRefuse, withPap, tryPap, tryBoxPay, rollBox, takeBox, tryWall,
   applySurvivalLoadout, grantHit, grantKill, killPoints, stationsFor, registerSurvivalMap,
   exclusiveSurvivalMap, SURVIVAL_LAYOUTS, settleLayout, statLine, shownDmg, WALL_CATALOG, BOX_POOL,
-  survRefill, fmtPts,
+  survRefill, fmtPts, papName, RAY_ODDS,
 } from './shared/survival.js';
 
 const fails = [];
@@ -68,8 +69,8 @@ ok(!isSurvival(PADRAO_ID) && isSurvival(SURV_ID), 'Padrão e Survival são varia
   const broke = tryBoxPay(e);
   ok(!broke.ok && broke.reason === 'pontos', 'sem ponto a barraca não gira');
   const seen = new Set();
-  for (let i = 0; i < BOX_POOL.length; i++) seen.add(rollBox(() => i / BOX_POOL.length));
-  ok(seen.size === BOX_POOL.length && ![...seen].some((w) => !papOk(WEAPONS[w])), `sorteio cobre o pool (${seen.size}) e não sai faca nem tampa`);
+  for (let i = 0; i < 500; i++) seen.add(rollBox(() => RAY_ODDS + (i / 500) * (1 - RAY_ODDS - 1e-6)));
+  ok(BOX_POOL.every((w) => seen.has(w)) && ![...seen].some((w) => w !== RAY && !papOk(WEAPONS[w])), `sorteio cobre o pool (${BOX_POOL.length}) e não sai faca nem tampa`);
   const rolled = UZI;
   const got = takeBox(e, rolled);
   ok(got.how === 'add' && e.slotOn[1] === 1 && e.slots[1] === UZI && e.weapon === UZI && e.slots[0] === PISTOL, 'primeira arma da barraca ocupa o segundo slot e a pistola fica');
@@ -223,7 +224,7 @@ function room(surv) {
   const boxBefore = a.pts; g.onEvent(a, ['sv', 'box']);
   ok(a.pts === boxBefore - SURV.boxPrice && g.boxState.phase === 'spin', 'servidor debita a barraca e trava o sorteio');
   g.boxState.until = g.T; g.tick();
-  ok(g.boxState.phase === 'offer' && BOX_POOL.includes(g.boxState.weapon), `oferta da barraca é arma do pool (${g.boxState.weapon})`);
+  ok(g.boxState.phase === 'offer' && (BOX_POOL.includes(g.boxState.weapon) || g.boxState.weapon === RAY), `oferta da barraca é do pool ou a Ray Gun (${g.boxState.weapon})`);
   const offered = g.boxState.weapon;
   g.onEvent(a, ['sv', 'take']);
   ok(a.slots.includes(offered) && g.boxState.phase === 'idle', 'pegar a oferta entrega a arma e fecha a barraca');
@@ -243,6 +244,122 @@ function room(surv) {
   g.onEvent(a, ['sv', 'pap']); g.onEvent(a, ['sv', 'box']); g.onEvent(a, ['sv', 'wall', 0]);
   ok(a.pts === 999999 && !(a.pap && a.pap[a.weapon]) && a.primary === prim, 'Padrão: servidor não debita e não mexe na arma');
   ok(a.slots[0] !== PISTOL || a.slotOn == null || a.slotOn[1] !== 0, 'Padrão não força pistola e faca');
+}
+
+// Ray Gun: só a barraca, no Survival, com ricochete e estouro. Não entra em parede, classe, loadout nem Padrão.
+{
+  const W = WEAPONS[RAY];
+  ok(RAY === 27 && W && W.key === 'ray' && W.ray && W.mag === 20 && W.reserve === 160 && W.dmg === 260 && Math.abs(W.rate - 0.22) < 1e-9, `Ray Gun no índice 27 · ${W.mag}/${W.reserve} · dano ${W.dmg} · tiro ${W.rate}s`);
+  ok(!PRIMARIES.includes(RAY) && !SECONDARIES.includes(RAY) && !BOT_PRIMARIES.includes(RAY) && !CATEGORIES.some((c) => (c.weapons || []).includes(RAY)) && !BOX_POOL.includes(RAY) && !WALL_CATALOG.some((w) => w.w === RAY), 'fora da parede, das classes, do loadout, dos bots e do pool uniforme');
+  ok(Math.abs(RAY_ODDS - 0.065) < 1e-9, `chance na barraca ${RAY_ODDS * 100}%`);
+  let k = 0; const seq = () => (k++) / 10000; let rays = 0;
+  for (let i = 0; i < 10000; i++) if (rollBox(seq) === RAY) rays++;
+  ok(rays === 650, `em 10.000 giros saem ${rays} Ray Guns (6,5% cravado)`);
+  const held = applySurvivalLoadout({ pts: 999999 });
+  held.weapon = RAY; held.slots[1] = RAY; held.slotOn[1] = 1;
+  ok(rollBox(() => 0, RAY) !== RAY, 'quem já está com a Ray Gun não tira outra no primeiro número');
+  const wallNo = tryWall(applySurvivalLoadout({ pts: 999999 }), { w: RAY, price: 1, ammo: 1, x: 0, z: 0 });
+  ok(!wallNo.ok && wallNo.reason === 'parede', 'parede recusa a Ray Gun mesmo com preço 1');
+  ok(papOk(W) && papName(W, 1) === 'Ray Gun na Brasa' && papName(W, 2) === 'Ray Gun Defumado' && papName(W, 3) === 'Ray Gun Pururuca', 'Papada: Ray Gun na Brasa, Defumado, Pururuca');
+  const line = statLine(W, 0, 1);
+  ok(line.text.includes('dano') && line.text.includes('→') && line.after.name === 'Ray Gun na Brasa', `prompt do tier 1: ${line.text}`);
+  const d0 = shownDmg(W, 0), d1 = shownDmg(W, 1), d2 = shownDmg(W, 2), d3 = shownDmg(W, 3);
+  ok(d1 > d0 && d2 > d1 && d3 > d2 && d3 < 520, `dano ${d0} → ${d1} → ${d2} → ${d3} (tier 3 não mata o barrigão de um tiro)`);
+  const ttk = (hp, dmg, rate) => (Math.ceil(hp / dmg) - 1) * rate;
+  const rayTank = ttk(520, d0, W.rate);
+  let slower = 0, compared = 0;
+  for (const o of WEAPONS) {
+    if (!o || o.ray || o.melee || o.shield || o.saber || o.key === 'faca-dourada') continue;
+    const dmg = o.rocket ? o.rocket.maxDmg : (o.pellets | 0) > 1 ? o.dmg * o.pellets : o.dmg;
+    if (!(dmg > 0) || !(o.rate > 0)) continue;
+    compared++;
+    if (rayTank < ttk(520, dmg, o.rate)) slower++;
+  }
+  ok(compared > 10 && slower === compared, `no barrigão (520) a Ray Gun mata em ${rayTank.toFixed(2)}s, mais rápido que as outras ${compared} armas sem upgrade`);
+  const splash = raySplash(W);
+  const selfCenter = splash.maxDmg * splash.selfMul;
+  ok(splash.radius > 1 && splash.radius < 2.2 && selfCenter > 8 && selfCenter < 30, `estouro ${splash.radius} m · auto-dano no centro ${selfCenter.toFixed(1)} (leve)`);
+  // ricochete: parede, chão e teto, pela normal. A mesma função que o servidor chama.
+  const P = createPhysics([
+    { min: { x: 2, y: 0, z: -2 }, max: { x: 2.4, y: 3, z: 2 } },
+    { min: { x: -1, y: 2.2, z: -1 }, max: { x: 1, y: 2.5, z: 1 } },
+  ], [20, 20]);
+  const unit = (x, y, z) => { const L = Math.hypot(x, y, z) || 1; return { x: x / L, y: y / L, z: z / L }; };
+  const wall = { pos: { x: 0, y: 1, z: 0 }, dir: { x: 1, y: 0, z: 0 }, bounces: 0, t: 0, traveled: 0 };
+  let wallBack = null;
+  for (let i = 0; i < 20 && !wall.dead && wallBack == null; i++) { const hs = stepRay(P, wall, 0.05); if (hs.some((h) => !h.dead)) wallBack = wall.dir.x; }
+  ok(wallBack != null && wallBack < -0.5, `parede: normal +x devolve o raio (dir.x ${wallBack == null ? '?' : wallBack.toFixed(2)})`);
+  const floor = { pos: { x: 0, y: 1.2, z: 0 }, dir: unit(0.1, -1, 0), bounces: 0, t: 0, traveled: 0 };
+  let floorHit = null;
+  for (let i = 0; i < 20 && !floor.dead; i++) { const hs = stepRay(P, floor, 0.05); if (!floorHit) floorHit = hs.find((h) => !h.dead); }
+  ok(floorHit && floorHit.n.y > 0.9 && floor.dir.y > 0.2, `chão: normal pra cima, raio sobe (dir.y ${floor.dir.y.toFixed(2)})`);
+  const ceil = { pos: { x: 0, y: 1, z: 0 }, dir: unit(0, 1, 0), bounces: 0, t: 0, traveled: 0 };
+  let ceilHit = null;
+  for (let i = 0; i < 20 && !ceil.dead; i++) { const hs = stepRay(P, ceil, 0.05); if (!ceilHit) ceilHit = hs.find((h) => !h.dead); }
+  ok(ceilHit && ceilHit.n.y < -0.5 && ceil.dir.y < -0.2, `teto: normal pra baixo, raio desce (dir.y ${ceil.dir.y.toFixed(2)})`);
+  const alley = createPhysics([
+    { min: { x: 1.2, y: 0, z: -1 }, max: { x: 1.5, y: 3, z: 1 } },
+    { min: { x: -1.5, y: 0, z: -1 }, max: { x: -1.2, y: 3, z: 1 } },
+  ], [20, 20]);
+  const hop = { pos: { x: 0, y: 1, z: 0 }, dir: { x: 1, y: 0, z: 0 }, bounces: 0, t: 0, traveled: 0 };
+  let bounces = 0;
+  for (let i = 0; i < 40 && !hop.dead; i++) bounces += stepRay(alley, hop, 0.05).filter((h) => !h.dead).length;
+  ok(hop.dead && bounces === RAY_MOVE.bounces, `para depois de ${bounces} ricochetes (limite ${RAY_MOVE.bounces})`);
+  const far = { pos: { x: 0, y: 1, z: 0 }, dir: { x: 0, y: 0, z: 1 }, bounces: 0, t: 0, traveled: 0 };
+  const open = createPhysics([], [80, 80]);
+  for (let i = 0; i < 40 && !far.dead; i++) stepRay(open, far, 0.05);
+  ok(far.dead && far.traveled <= RAY_MOVE.range + 0.2 && far.traveled > RAY_MOVE.range - RAY_MOVE.speed * 0.05, `alcance máximo ${far.traveled.toFixed(1)} m (teto ${RAY_MOVE.range})`);
+}
+{
+  const { g, a, step } = room(PADRAO_ID);
+  a.slots = [RAY, PISTOL, KNIFE]; a.slotOn = [1, 1, 1]; a.weapon = RAY; a.mag[RAY] = 20; a.alive = true;
+  const mag = a.mag[RAY], hp = a.hp;
+  g.onEvent(a, ['ry', [a.pos.x, a.pos.y + 1.6, a.pos.z], [1, 0, 0], g.now()]);
+  step(4);
+  ok((a.rejectedShots || 0) > 0 && g.rays.length === 0 && a.mag[RAY] === mag && a.hp === hp, 'Padrão: servidor recusa o disparo e não cria raio');
+  g.applyLoadout(a, RAY, PISTOL, KNIFE, true);
+  ok(a.slots[0] !== RAY && a.primary !== RAY, 'loadout do Padrão não aceita a Ray Gun');
+}
+{
+  const { g, a, step } = room(SURV_ID);
+  a.slots = [PISTOL, RAY, KNIFE]; a.slotOn = [1, 1, 1]; a.weapon = RAY;
+  a.mag[RAY] = 20; a.reserve[RAY] = 160; a.alive = true; a.invulnUntil = 0; a.lastShot[RAY] = -9; a.lastCt[RAY] = -9;
+  const y = a.pos.y;
+  const z = g.makeEnt({ name: 'Barrigao', bot: true, primary: 0 });
+  z.zt = 'tank'; z.alive = true; z.hp = 800; z.maxHp = 800; z.invulnUntil = 0; z.connected = true; z.size = 1;
+  let aim = null;
+  for (let ang = 0; ang < Math.PI * 2 && !aim; ang += 0.35) {
+    const d = { x: Math.cos(ang), y: 0, z: Math.sin(ang) };
+    const hit = g.P.rayWorldN({ x: a.pos.x, y: y + 1.5, z: a.pos.z }, d, 8);
+    if (hit == null || hit.t > 5) aim = d;
+  }
+  ok(!!aim, 'achou um corredor livre pra o raio');
+  z.pos = { x: a.pos.x + aim.x * 1.35, y, z: a.pos.z + aim.z * 1.35 };
+  const before = a.hp;
+  g.onEvent(a, ['ry', [a.pos.x, y + 1.5, a.pos.z], [aim.x, aim.y, aim.z], g.now()]);
+  ok(g.rays.length === 1 && a.mag[RAY] === 19, 'Survival: o servidor cria o raio e gasta uma bala');
+  let hurtZ = false, hurtSelf = false;
+  for (let i = 0; i < 12; i++) { step(1); if (z.hp < 800) hurtZ = true; if (a.hp < before) hurtSelf = true; }
+  const dealt = 800 - z.hp;
+  ok(hurtZ && dealt >= 200 && dealt <= 270, `zumbi levou o estouro cheio (${dealt} de dano, vida ${z.hp})`);
+  ok(hurtSelf && before - a.hp < 40 && before - a.hp > 0, `auto-dano leve no splash (${(before - a.hp).toFixed(1)})`);
+  z.alive = false; z.pos = { x: 999, y, z: 999 };
+  a.mag[RAY] = 20; a.lastCt[RAY] = -9; a.lastShot[RAY] = -9; a.alive = true; a.hp = Math.max(a.hp, 40);
+  let face = null;
+  for (let ang = 0; ang < Math.PI * 2 && !face; ang += 0.15) {
+    const d = { x: Math.cos(ang), y: 0, z: Math.sin(ang) };
+    const hit = g.P.rayWorldN({ x: a.pos.x, y: y + 1.2, z: a.pos.z }, d, 14);
+    if (hit && hit.t > 1.2 && hit.t < 10 && Math.abs(hit.n.y) < 0.2) face = d;
+  }
+  ok(!!face, 'achou uma parede pra ricochetear');
+  g.rays.length = 0;
+  g.onEvent(a, ['ry', [a.pos.x, y + 1.2, a.pos.z], [face.x, 0, face.z], g.now()]);
+  let bounced = g.events.some((ev) => ev[0] === 'yb');
+  for (let i = 0; i < 16 && g.rays.length && !bounced; i++) {
+    g.events.length = 0; g.stepRays(0.05); g.T += 0.05;
+    if (g.events.some((ev) => ev[0] === 'yb') || (g.rays[0] && g.rays[0].bounces > 0)) bounced = true;
+  }
+  ok(bounced, 'servidor ricocheteia o raio na parede');
 }
 
 console.log(fails.length ? '\nFALHOU ' + fails.length : '\nTUDO OK');
