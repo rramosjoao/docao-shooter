@@ -6,3 +6,10 @@ package-lock.json
 server/node_modules/
 server/dist/
 server/.wrangler/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example

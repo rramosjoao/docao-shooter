@@ -6,6 +6,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { toon, outline, makeCup, canvasTex, drawLogo } from './docao.js';
+import { visualOffsets } from './world-offsets.js';
+// camadas finas no chão (piso xadrez, asfalto, meio-fio, faixa) ficam a 1–2 cm do chão: de longe a profundidade não separa e pisca.
+// polygonOffset empurra cada camada pra frente no depth buffer (camada maior = mais na frente), sem mexer na posição.
+function decal(m, layer) { m.polygonOffset = true; m.polygonOffsetFactor = -1 * layer; m.polygonOffsetUnits = -4 * layer; return m; }
 
 const V3 = THREE.Vector3;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -135,6 +139,64 @@ function buildProp(p, ctx) {
       g.position.set(p.x, y, p.z); g.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); group.add(g);
       solid(p.x - 4, y, p.z - 1.25, p.x + 2, y + 3.2, p.z + 1.25); solid(p.x + 2, y, p.z - 1.2, p.x + 4.3, y + 2.6, p.z + 1.2); break;
     }
+    case 'log': { // tora alta (tronco em pé)
+      const h = p.h || 6, r = p.r || 0.46;
+      const g = new THREE.Group();
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.86, r, h, 12), toon('#6b3a22')); trunk.position.y = h / 2; outline(trunk, 0.025); g.add(trunk);
+      const cut = new THREE.Mesh(new THREE.CircleGeometry(r * 0.84, 12), toon('#d7b07a')); cut.rotation.x = -Math.PI / 2; cut.position.y = h + 0.01; g.add(cut);
+      for (const k of [0.22, 0.58]) { const ring = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.95, r * 0.95, 0.12, 12), toon('#4a2a16')); ring.position.y = h * k; g.add(ring); }
+      g.position.set(p.x, y, p.z); g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+      solid(p.x - r, y, p.z - r, p.x + r, y + h, p.z + r); break;
+    }
+    case 'bench': { // banco virado pra dentro: rot é o yaw do encosto (costas apontam no +Z local)
+      const g = new THREE.Group();
+      const wood = toon('#c4a574'), leg = toon('#5a3420');
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.1, 0.46), wood); seat.position.set(0, 0.46, -0.02); outline(seat, 0.02); g.add(seat);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 0.08), wood); back.position.set(0, 0.78, 0.26); outline(back, 0.02); g.add(back);
+      for (const sx of [-0.7, 0.7]) for (const sz of [-0.16, 0.14]) { const po = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.08), leg); po.position.set(sx, 0.21, sz); g.add(po); }
+      g.position.set(p.x, y, p.z); g.rotation.y = p.rot || 0; g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+      const c = Math.cos(p.rot || 0), s = Math.sin(p.rot || 0), hx = 0.85, z0 = -0.25, z1 = 0.32;
+      let x0 = Infinity, x1 = -Infinity, a0 = Infinity, a1 = -Infinity;
+      for (const lx of [-hx, hx]) for (const lz of [z0, z1]) {
+        const wx = p.x + lx * c + lz * s, wz = p.z - lx * s + lz * c;
+        x0 = Math.min(x0, wx); x1 = Math.max(x1, wx); a0 = Math.min(a0, wz); a1 = Math.max(a1, wz);
+      }
+      solid(x0, y, a0, x1, y + 0.95, a1); break;
+    }
+    case 'flowerbed': { // canteiro baixo com flores
+      const g = new THREE.Group(), r = 0.95;
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.05, 0.55, 16), toon('#cfc6b8')); rim.position.y = 0.28; outline(rim, 0.02); g.add(rim);
+      const soil = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.86, r * 0.86, 0.12, 16), toon('#4a3424')); soil.position.y = 0.52; g.add(soil);
+      const cols = ['#e23b3b', '#f2c94c', '#ff5fa2', '#ffffff', '#7cc95a', '#e23b3b', '#f2c94c', '#ff5fa2'];
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2, rad = i % 2 ? 0.38 : 0.62;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.38, 5), toon('#2f6b45')); stem.position.set(Math.cos(a) * rad, 0.74, Math.sin(a) * rad); g.add(stem);
+        const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), toon(cols[i])); bloom.position.set(Math.cos(a) * rad, 0.98, Math.sin(a) * rad); outline(bloom, 0.015); g.add(bloom);
+      }
+      g.position.set(p.x, y, p.z); g.traverse((o) => { if (o.isMesh) o.castShadow = true; }); group.add(g);
+      solid(p.x - r, y, p.z - r, p.x + r, y + 0.62, p.z + r); break;
+    }
+    case 'car': { // carro ao longo de Z (rot 0 olha pra +Z, PI olha pra −Z). Colisão em duas metades pra o teto não virar chão.
+      const g = new THREE.Group(), L = 4.05, W = 1.68, body = toon(p.c || '#f4f1ea'), glass = toon('#24324a'), black = toon('#1c1c1c');
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.48, L), body); chassis.position.y = 0.62; outline(chassis, 0.02); g.add(chassis);
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(W - 0.16, 0.46, 1.7), body); cab.position.set(0, 1.02, 0); outline(cab, 0.02); g.add(cab);
+      for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 1.35), glass); w.position.set(s * (W / 2 - 0.02), 1.04, 0); g.add(w); }
+      const wind = new THREE.Mesh(new THREE.BoxGeometry(W - 0.36, 0.32, 0.04), glass); wind.position.set(0, 1.05, 0.86); g.add(wind);
+      const rear = wind.clone(); rear.position.z = -0.86; g.add(rear);
+      for (const wz of [-1.28, 1.28]) for (const s of [-1, 1]) {
+        const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.2, 12), black); wh.rotation.z = Math.PI / 2; wh.position.set(s * (W / 2 - 0.02), 0.32, wz); g.add(wh);
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.22, 8), toon('#c0c7cc')); hub.rotation.z = Math.PI / 2; hub.position.set(s * (W / 2 + 0.02), 0.32, wz); g.add(hub);
+      }
+      for (const s of [-1, 1]) {
+        const hl = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.05), toon('#fff6d8')); hl.position.set(s * 0.48, 0.66, L / 2); g.add(hl);
+        const tl = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.05), toon('#e23b3b')); tl.position.set(s * 0.48, 0.7, -L / 2); g.add(tl);
+      }
+      g.position.set(p.x, y, p.z); g.rotation.y = p.rot || 0; g.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); group.add(g);
+      const seg = 1.9;
+      solid(p.x - W / 2, y + 0.08, p.z - L / 2, p.x + W / 2, y + 1.12, p.z - L / 2 + seg);
+      solid(p.x - W / 2, y + 0.08, p.z + L / 2 - seg, p.x + W / 2, y + 1.12, p.z + L / 2);
+      solid(p.x - 0.72, y + 0.9, p.z - 0.85, p.x + 0.72, y + 1.28, p.z + 0.85); break;
+    }
     case 'tree': {
       const g = new THREE.Group();
       const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 3, 10), toon('#8b5a2b')); tr.position.y = 1.5; outline(tr, 0.02); g.add(tr);
@@ -178,10 +240,10 @@ function buildProp(p, ctx) {
     }
     case 'street': { // asfalto + faixa tracejada
       const w = p.x1 - p.x0, d = p.z1 - p.z0;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), toon('#5a5f68')); m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, 0.015, (p.z0 + p.z1) / 2); m.receiveShadow = true; group.add(m);
-      const lm = new THREE.MeshBasicMaterial({ color: 0xf2c94c });
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), decal(toon('#5a5f68'), 2)); m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, 0.015, (p.z0 + p.z1) / 2); m.receiveShadow = true; group.add(m);
+      const lm = decal(new THREE.MeshBasicMaterial({ color: 0xf2c94c }), 4);
       for (let x = p.x0 + 1; x < p.x1 - 1; x += 3) { const l = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.2), lm); l.rotation.x = -Math.PI / 2; l.position.set(x + 0.8, 0.02, (p.z0 + p.z1) / 2); group.add(l); }
-      for (const z of [p.z0, p.z1]) { const c = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.5), toon('#d9d4cc')); c.rotation.x = -Math.PI / 2; c.position.set((p.x0 + p.x1) / 2, 0.018, z); group.add(c); }
+      for (const z of [p.z0, p.z1]) { const c = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.5), decal(toon('#d9d4cc'), 3)); c.rotation.x = -Math.PI / 2; c.position.set((p.x0 + p.x1) / 2, 0.018, z); group.add(c); }
       break;
     }
     case 'banner': { // estandarte da base (Torres)
@@ -270,8 +332,9 @@ export function buildWorld(map) {
     const k = new THREE.Color(color).getHexString(); if (!byColor.has(k)) byColor.set(k, []); byColor.get(k).push(geo);
     if (withEdges) { const e = new THREE.EdgesGeometry(geo, 20); edges.push(e.attributes.position.array); e.dispose(); }
   };
-  const add = (x0, y0, z0, x1, y1, z1, color, ramp = null, collideTop = null) => {
-    pushGeo(boxGeo(x0, y0, z0, x1, y1, z1, ramp), color);
+  const add = (x0, y0, z0, x1, y1, z1, color, ramp = null, collideTop = null, d = null) => {
+    // d: ajuste só visual (anti z-fighting, ver world-offsets.js); a caixa de colisão continua exata
+    pushGeo(d ? boxGeo(x0 - d[0], y0 - d[1], z0 - d[2], x1 + d[3], y1 + d[4], z1 + d[5], ramp) : boxGeo(x0, y0, z0, x1, y1, z1, ramp), color);
     solids.push({ min: new V3(x0, y0, z0), max: new V3(x1, collideTop ?? y1, z1), ramp });
   };
   const solid = (x0, y0, z0, x1, y1, z1) => { solids.push({ min: new V3(x0, y0, z0), max: new V3(x1, y1, z1), ramp: null }); proxies.push(boxGeo(x0, y0, z0, x1, y1, z1)); };
@@ -317,7 +380,7 @@ export function buildWorld(map) {
     const [c1, c2, size, count] = pal.tiles, cell = size / count;
     const tex = canvasTex(64, 64, (x) => { x.fillStyle = c1; x.fillRect(0, 0, 64, 64); x.fillStyle = c2; x.fillRect(0, 0, 32, 32); x.fillRect(32, 32, 32, 32); });
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.magFilter = THREE.NearestFilter; tex.repeat.set(hx * 2 / cell / 2, hz * 2 / cell / 2);
-    const t = new THREE.Mesh(new THREE.PlaneGeometry(hx * 2, hz * 2), toon(0xffffff, { map: tex })); t.rotation.x = -Math.PI / 2; t.position.y = 0.01; t.receiveShadow = true; group.add(t);
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(hx * 2, hz * 2), decal(toon(0xffffff, { map: tex }), 1)); t.rotation.x = -Math.PI / 2; t.position.y = 0.01; t.receiveShadow = true; group.add(t);
   }
   // limites do mapa (visual na altura wallH; colisão bem alta)
   const wh = map.wallH || 4, [wc1, wc2] = map.wallColor || ['#e86a5c', '#d85a4c'];
@@ -327,11 +390,13 @@ export function buildWorld(map) {
   if (map.fall && map.fall.openEast) solid(hx, 0, -hz, hx + 1, WALL_COLLIDE_H, hz);
   else add(hx, 0, -hz, hx + 1, wh, hz, wc2, null, WALL_COLLIDE_H);
   // caixas e rampas do mapa
-  for (const o of map.boxes) {
-    const [x0, y0, z0, x1, y1, z1] = o.b; if (x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01) continue;
-    if (o.hide) { solid(x0, y0, z0, x1, y1, z1); continue; } // colisor invisível (penhasco)
-    add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null);
-  }
+  // caixas e rampas do mapa. Pisos e paredes no mesmo plano saem uns milímetros pra fora só na malha.
+  // hide: colisor do penhasco, sem malha.
+  const vis = map.boxes.filter((o) => { const [x0, y0, z0, x1, y1, z1] = o.b; return !(x1 - x0 < 0.01 || y1 - y0 < 0.01 || z1 - z0 < 0.01); });
+  const shown = vis.filter((o) => !o.hide);
+  const voff = visualOffsets(shown);
+  for (const o of vis) if (o.hide) { const [x0, y0, z0, x1, y1, z1] = o.b; solid(x0, y0, z0, x1, y1, z1); }
+  shown.forEach((o, i) => { const [x0, y0, z0, x1, y1, z1] = o.b; add(x0, y0, z0, x1, y1, z1, o.c, o.ramp || null, null, voff[i]); });
   for (const p of map.props || []) buildProp(p, { group, solid, add });
   buildPines((map.props || []).filter((p) => p.t === 'pine'), group);
   if (map.weather) { const w = makeWeather(map); group.userData.weather = w; group.add(w.pts); }
