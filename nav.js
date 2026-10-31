@@ -25,6 +25,7 @@ export function buildNav(o) {
   // grade
   for (let x = -hx + 0.9; x <= hx - 0.9; x += spacing) for (let z = -hz + 0.9; z <= hz - 0.9; z += spacing) {
     const hs = new Set([0]);
+    const low = groundAt(x, z, -3); if (low < -0.05 && low > -8) hs.add(+low.toFixed(3));
     for (const s of solids) if (x >= s.min.x && x <= s.max.x && z >= s.min.z && z <= s.max.z && s.max.y < 30) hs.add(+topAt(s, x, z).toFixed(3));
     for (const h of hs) tryNode(x, z, h);
   }

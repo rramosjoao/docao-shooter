@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Docão Minado</title>
+<link rel="preload" href="assets/fonts/Fredoka.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="minado.css">
+</head>
+<body>
+<section id="lobby">
+  <form id="comanda">
+    <p class="eyebrow">Campo minado</p>
+    <h1>Docão Minado</h1>
+    <p class="lead">Escolhe o que está enterrado, o tamanho e o formato do chão.</p>
+
+    <fieldset>
+      <legend>O que está enterrado</legend>
+      <div class="picks" id="bombas"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Tamanho</legend>
+      <div class="picks" id="tamanhos"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Formato</legend>
+      <div class="picks picks-shape" id="formatos"></div>
+    </fieldset>
+
+    <div class="preview-wrap">
+      <p id="preview-nome"></p>
+      <div id="preview" aria-hidden="true"></div>
+    </div>
+    <button type="submit" class="go">Entrar no campo</button>
+    <a class="quiet" href="./hub.html">Voltar à quermesse</a>
+  </form>
+</section>
+
+<section id="mesa" hidden>
+  <header class="hud">
+    <a class="back" href="./hub.html">Quermesse</a>
+    <p id="miolo"></p>
+    <button type="button" id="contador" class="lcd" aria-label="Bombas restantes">000</button>
+    <button type="button" id="cara" aria-label="Começar de novo">🐽</button>
+    <span id="tempo" class="lcd" aria-label="Tempo">000</span>
+    <button type="button" id="marcar" aria-pressed="false">Marcar</button>
+  </header>
+  <p id="dica">Clique abre. Direito, ou segurar, planta a bandeirinha. Número já aberto limpa o resto se a conta fechar.</p>
+  <div id="tabuleiro" role="group" aria-label="Campo"></div>
+</section>
+
+<section id="derrota" hidden role="dialog" aria-labelledby="derrotaFrase">
+  <div class="sheet">
+    <h2 id="derrotaFrase">o Barriguinha te pegou</h2>
+    <p id="derrotaQual"></p>
+    <div class="acts">
+      <button type="button" id="derrota-de-novo">De novo</button>
+      <button type="button" id="derrota-outro">Outro campo</button>
+    </div>
+    <svg class="barriga" viewBox="0 0 320 480" role="img" aria-label="Porquinho de camisa arregaçada e barriga de fora, na pose de fazer xixi na tela, sem nada explícito">
+      <rect class="tela" x="36" y="404" width="248" height="56" rx="10"/>
+      <ellipse cx="210" cy="438" rx="52" ry="11" fill="#e6c63a"/>
+      <ellipse cx="124" cy="372" rx="22" ry="36" fill="#f3b1b6"/>
+      <ellipse cx="204" cy="364" rx="20" ry="32" fill="#f3b1b6" transform="rotate(12 204 364)"/>
+      <ellipse cx="112" cy="404" rx="22" ry="10" fill="#e8899a"/>
+      <ellipse cx="220" cy="392" rx="20" ry="10" fill="#e8899a"/>
+      <rect x="108" y="258" width="112" height="78" rx="18" fill="#2c5f92"/>
+      <rect x="108" y="258" width="112" height="14" rx="7" fill="#1d4068"/>
+      <path class="xixi" d="M166 228c26 24 62 70 52 206-14 4-24-4-26-10-8-62-22-120-46-148-8-8 2-36 20-48z"/>
+      <ellipse cx="160" cy="236" rx="66" ry="50" fill="#f8cfd2"/>
+      <ellipse cx="160" cy="248" rx="42" ry="30" fill="#f4bcc4"/>
+      <path d="M160 232c7 1 9 8 4 12-5 4-11 0-11-5 0-5 4-7 7-7z" fill="none" stroke="#d47b88" stroke-width="2.4"/>
+      <path d="M108 270c34 22 70 20 104-8" fill="#e59aa6"/>
+      <path d="M86 214c-16-8-18-26-6-30 10-3 16 8 8 16" fill="none" stroke="#e8899a" stroke-width="7" stroke-linecap="round"/>
+      <ellipse cx="160" cy="168" rx="28" ry="22" fill="#f6c2c6"/>
+      <path d="M88 156c46-16 112-14 156 8l6 26c-50 16-116 14-164-2z" fill="#b73c28"/>
+      <path d="M104 162c42-10 92-8 128 8" fill="none" stroke="#f6e4bd" stroke-width="6" stroke-linecap="round"/>
+      <path d="M98 178c48-12 104-8 140 8" fill="none" stroke="#f6e4bd" stroke-width="6" stroke-linecap="round"/>
+      <ellipse cx="164" cy="188" rx="78" ry="14" fill="#8e2c1e"/>
+      <ellipse cx="164" cy="184" rx="72" ry="10" fill="#c44b36"/>
+      <path d="M230 158c28-6 42 18 24 34-12-4-20 6-26 14-4-14-8-32 2-48z" fill="#f3b1b6"/>
+      <ellipse cx="236" cy="192" rx="13" ry="9" fill="#f3b1b6"/>
+      <path d="M96 164c-32 18-24 54-4 66 6-18 4-34 14-46 2-14 0-24-10-20z" fill="#f3b1b6"/>
+      <ellipse cx="160" cy="108" rx="50" ry="46" fill="#f6c2c6"/>
+      <ellipse cx="114" cy="78" rx="17" ry="21" fill="#f3b1b6"/>
+      <ellipse cx="206" cy="74" rx="15" ry="19" fill="#f3b1b6" transform="rotate(12 206 74)"/>
+      <ellipse cx="116" cy="82" rx="8" ry="11" fill="#f0a0ad"/>
+      <ellipse cx="204" cy="78" rx="7" ry="10" fill="#f0a0ad"/>
+      <ellipse cx="160" cy="122" rx="24" ry="16" fill="#f7a8b4"/>
+      <ellipse cx="151" cy="122" rx="3.5" ry="4.5" fill="#c46b7c"/>
+      <ellipse cx="169" cy="122" rx="3.5" ry="4.5" fill="#c46b7c"/>
+      <path d="M134 96c8 7 15 7 21 0" fill="none" stroke="#3a2a28" stroke-width="3" stroke-linecap="round"/>
+      <path d="M166 94c8 7 15 7 21 0" fill="none" stroke="#3a2a28" stroke-width="3" stroke-linecap="round"/>
+      <path d="M144 136c10 9 24 9 34 0" fill="none" stroke="#a85a68" stroke-width="2.6" stroke-linecap="round"/>
+      <circle cx="196" cy="360" r="3.5" fill="#f0d34a"/>
+      <circle cx="228" cy="418" r="3" fill="#ffe98a"/>
+    </svg>
+  </div>
+</section>
+
+<section id="vitoria" hidden role="dialog" aria-labelledby="vitoriaFrase">
+  <div class="sheet">
+    <h2 id="vitoriaFrase">O campo ficou limpo.</h2>
+    <p id="vitoriaQual"></p>
+    <div class="acts">
+      <button type="button" id="vitoria-de-novo">De novo</button>
+      <button type="button" id="vitoria-outro">Outro campo</button>
+    </div>
+  </div>
+</section>
+<script type="module" src="./minado/main.js"></script>
+</body>
+</html>
