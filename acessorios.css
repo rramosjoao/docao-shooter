@@ -342,10 +342,10 @@ button.clsrow:active{transform:none}
 #pauseClass.cls-screen{z-index:100}
 body.dead #stamp,body.dead #killfeed,body.dead #centermsg,body.dead #streakBar,body.dead #streakCount,
 body.dead #topbar,body.dead #score,body.dead #tl,body.dead #socialHud,body.dead #bottomleft,body.dead #bottomright,
-body.dead #medals,body.dead #points,body.dead #crosshair,body.dead #domhud,body.dead #bombhud,body.dead #inspect,
+body.dead #medals,body.dead #points,body.dead #crosshair,body.dead #reddot,body.dead #domhud,body.dead #bombhud,body.dead #inspect,
 body.cls-on #stamp,body.cls-on #killfeed,body.cls-on #centermsg,body.cls-on #streakBar,body.cls-on #streakCount,
 body.cls-on #topbar,body.cls-on #score,body.cls-on #tl,body.cls-on #socialHud,body.cls-on #bottomleft,body.cls-on #bottomright,
-body.cls-on #medals,body.cls-on #points,body.cls-on #crosshair,body.cls-on #domhud,body.cls-on #bombhud,
+body.cls-on #medals,body.cls-on #points,body.cls-on #crosshair,body.cls-on #reddot,body.cls-on #domhud,body.cls-on #bombhud,
 body.cls-on #bombBanner,body.cls-on #bPrompt,body.cls-on #invhud,body.cls-on #invBanner,body.cls-on #invBoss,
 body.cls-on #invPowers,body.cls-on #inspect,body.bombpick #bombBanner,body.invpick #invBanner{
   display:none!important

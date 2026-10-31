@@ -216,6 +216,9 @@ button.skinchip.active{outline:3px solid #7DF9FF;outline-offset:2px}
 /* mira com zoom (Shift) */
 #adsvig{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(20,8,4,0) 42%,rgba(20,8,4,.45) 72%,rgba(20,8,4,.9) 100%)}
 #crosshair.ads:before,#crosshair.ads:after{background:#ffe08a}
+#reddot{position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:6}
+#reddot .dot{position:absolute;left:0;top:0;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#ff1a1a}
+#reddot .ring{position:absolute;left:0;top:0;width:28px;height:28px;margin:-14px 0 0 -14px;border:1px solid rgba(255,255,255,.28);border-radius:50%;box-sizing:border-box}
 
 /* loadout: escolha da arma primária */
 .primpick{margin:4px 0 2px;padding:6px 8px;border-radius:14px;background:rgba(255,255,255,.06);border:2px dashed rgba(255,210,122,.4)}

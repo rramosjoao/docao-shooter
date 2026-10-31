@@ -3156,37 +3156,21 @@ function updateHud(dt) {
   if (!$('tabboard').classList.contains('hidden')) $('tabboard').innerHTML = boardHtml();
 }
 
-// Red dot: corpo no trilho, anel de frente pra câmera, lente com reflexo e ponto vermelho no eixo.
+// Red dot no trilho: base curta e anel fino, com um ponto pequeno. Sem vidro, reflexo, halo ou retículo extra.
+// No ADS fechado a mira de verdade é o HUD (#reddot); este modelo sai da frente pra não duplicar o ponto.
 // O círculo do Three nasce no plano XY (normal +Z), que é a face que a câmera de 1ª pessoa enxerga.
 function makeRedDot() {
   const g = new THREE.Group();
   g.name = 'red-dot';
-  const housing = toon(0x1a1d24);
-  const put = (geo, mat, x, y, z, ol) => {
-    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m);
-    if (ol) outline(m, ol);
-    return m;
-  };
-  put(new THREE.BoxGeometry(0.05, 0.012, 0.046), housing, 0, -0.032, 0, 0.003);
-  const win = 0.022, thick = 0.007;
-  put(new THREE.BoxGeometry(thick, win * 2 + thick, 0.018), housing, -win, 0, 0, 0.002);
-  put(new THREE.BoxGeometry(thick, win * 2 + thick, 0.018), housing, win, 0, 0, 0.002);
-  put(new THREE.BoxGeometry(win * 2 + thick, thick, 0.018), housing, 0, win, 0, 0.002);
-  put(new THREE.BoxGeometry(win * 2 + thick, thick, 0.018), housing, 0, -win, 0, 0.002);
-  const ring = put(new THREE.TorusGeometry(0.016, 0.0032, 8, 28), housing, 0, 0, 0.006, 0.002);
-  const glass = new THREE.Mesh(new THREE.CircleGeometry(0.0145, 24), new THREE.MeshStandardMaterial({
-    color: 0xd7ecff, metalness: 0.55, roughness: 0.08, transparent: true, opacity: 0.28,
-    emissive: 0x102030, emissiveIntensity: 0.35, depthWrite: false, side: THREE.DoubleSide,
-  }));
-  glass.position.set(0, 0, 0.004); glass.userData.noCamo = true; glass.renderOrder = 3; g.add(glass);
-  const glint = new THREE.Mesh(new THREE.PlaneGeometry(0.009, 0.0028), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
-  glint.position.set(0.003, 0.005, 0.007); glint.rotation.z = -0.5; glint.userData.noCamo = true; glint.renderOrder = 4; g.add(glint);
-  const glow = new THREE.Mesh(new THREE.CircleGeometry(0.008, 20), new THREE.MeshBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
-  glow.position.set(0, 0, 0.009); glow.userData.noCamo = true; glow.renderOrder = 5; g.add(glow);
-  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0046, 18), new THREE.MeshBasicMaterial({ color: 0xff1a1a, depthWrite: false, side: THREE.DoubleSide }));
-  dot.position.set(0, 0, 0.01); dot.userData.noCamo = true; dot.renderOrder = 6; g.add(dot);
-  g.userData.aim = dot; g.userData.glow = glow;
-  g.scale.setScalar(1.65);
+  const housing = toon(0x1c2028);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.005, 0.028), housing);
+  base.position.set(0, -0.011, 0); g.add(base);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.001, 8, 28), housing);
+  ring.position.z = 0.004; g.add(ring);
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0015, 16), new THREE.MeshBasicMaterial({ color: 0xff2020, depthWrite: false, side: THREE.DoubleSide }));
+  dot.position.z = 0.007; dot.userData.noCamo = true; dot.renderOrder = 6; g.add(dot);
+  g.userData.aim = dot;
+  g.scale.setScalar(1.15);
   return g;
 }
 // ---------------- Arma em 1ª pessoa (cascos segurando) ----------------
@@ -3834,10 +3818,11 @@ function updateFP(dt) {
   const dotGun = fp.guns[p.weapon];
   const dotRig = w.redDot && dotGun && dotGun.userData.redDot;
   const dotSteady = !!(dotRig && ads >= (w.redDotAds ?? RED_DOT.ads));
+  const dotHud = !!(dotRig && ads >= 0.45);
   for (const g of fp.guns) {
     if (!g.userData.redDot) continue;
     const on = !!(w.redDot && g === dotGun);
-    g.userData.redDot.visible = on;
+    g.userData.redDot.visible = on && !dotHud;
     if (g.userData.iron) g.userData.iron.visible = !on;
   }
   const swA = (1 - ads * 0.85) * (dotSteady ? 0 : 1);
@@ -4157,12 +4142,13 @@ function updateAds(dt, want) {
   const fov = BASE_FOV + (target - BASE_FOV) * e;
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   const sc = scoped(); const scopeEl = $('scope');
-  const throughDot = !!(held.redDot && ads >= 0.45);
+  const throughDot = !!(held.redDot && ads >= 0.45 && player && player.alive && !emote.on);
   scopeEl.classList.toggle('hidden', !sc || emote.on); crossEl.classList.toggle('hidden', !!sc || emote.on || throughDot);
+  const rd = $('reddot'); if (rd) rd.classList.toggle('hidden', !throughDot);
   scopeEl.classList.remove('torresmo', 'canhao', 'carabina');
   const scopeStyle = player && WEAPONS[player.weapon].scopeStyle;
   if (scopeStyle) scopeEl.classList.add(scopeStyle);
-  adsVig.style.opacity = emote.on || sc ? 0 : e.toFixed(3);
+  adsVig.style.opacity = emote.on || sc || held.redDot ? 0 : e.toFixed(3);
   crossEl.style.transform = `translate(-50%,-50%) scale(${(1 - 0.45 * e).toFixed(3)})`;
   crossEl.classList.toggle('ads', e > 0.5);
 }
@@ -4172,7 +4158,7 @@ function scopeGate() {
 }
 // sempre booleano: classList.toggle('hidden', undefined) vira toggle simples e a mira piscava a cada quadro (armas sem luneta)
 const scoped = () => !!(player && player.alive && WEAPONS[player.weapon].scope && ads >= scopeGate() && !(fp.actionT > 0 && WEAPONS[player.weapon].bolt));
-function resetAds() { $('scope').classList.add('hidden'); crossEl.classList.remove('hidden'); ads = 0; camera.fov = BASE_FOV; camera.updateProjectionMatrix(); adsVig.style.opacity = 0; crossEl.style.transform = ''; crossEl.classList.remove('ads'); }
+function resetAds() { $('scope').classList.add('hidden'); const rd = $('reddot'); if (rd) rd.classList.add('hidden'); crossEl.classList.remove('hidden'); ads = 0; camera.fov = BASE_FOV; camera.updateProjectionMatrix(); adsVig.style.opacity = 0; crossEl.style.transform = ''; crossEl.classList.remove('ads'); }
 
 // ---------------- Jogador ----------------
 const fwd = new V3(), right = new V3();
