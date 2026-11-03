@@ -3,6 +3,7 @@
 // Barato: geometria e materiais compartilhados, objetos em pool (nada é criado/descartado durante a partida).
 import * as THREE from 'three';
 import { toon, outline } from './docao.js';
+import { BACON_ITEM } from './shared/rules.js';
 
 const V3 = THREE.Vector3;
 const L = 1.25, W = 0.34, T = 0.05; // comprimento, largura, espessura da tira
@@ -10,7 +11,21 @@ const BACON_MAX = 14, SMOKE_MAX = 64, SPARK_MAX = 72;
 export const BACON = { POP: 0.12, MORPH: 0.3, LINGER: 3.0, FADE: 0.45 }; // tempos (s) desde a morte
 
 // ---------- geometria: fita ondulada com listras de carne e gordura (cores por vértice) ----------
-let baconGeo = null, baconMat = null;
+let baconGeo = null, baconMat = null, BOX = null;
+// quanto o ponto mais baixo da tira (8 cantos da caixa da geometria, com giro e escala atuais + contorno) fica abaixo do centro:
+// o centro fica essa altura acima do chão → a tira encosta no chão sem afundar (no chão, telhado ou andar de cima)
+// chão sob a tira: maior altura entre o centro e as duas pontas (degrau/meio-fio embaixo de uma ponta não engole a tira)
+function floorUnder(b, s) {
+  const h = 0.45 * L * s, dx = Math.cos(b.yaw) * h, dz = -Math.sin(b.yaw) * h, y = b.pos.y + 0.3;
+  const c = env.groundAt(b.pos.x, b.pos.z, y), up = (g) => (g > c && g - c <= 0.2 ? g : c); // ponta num degrau baixo levanta; caixa alta ao lado não
+  return Math.max(c, up(env.groundAt(b.pos.x + dx, b.pos.z + dz, y)), up(env.groundAt(b.pos.x - dx, b.pos.z - dz, y)));
+}
+const _c = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
+function lift(b, s, sy) {
+  if (!BOX) return 0.15 * sy; let lo = 0; _q.setFromEuler(_e.set(b.grp.rotation.x, b.yaw, b.grp.rotation.z));
+  for (let i = 0; i < 8; i++) { _c.set(i & 1 ? BOX.max.x : BOX.min.x, i & 2 ? BOX.max.y : BOX.min.y, i & 4 ? BOX.max.z : BOX.min.z).multiply(_c.clone().set(s, sy, s)).applyQuaternion(_q); lo = Math.min(lo, _c.y); }
+  return -lo + 0.02 * Math.max(s, 0.05);
+}
 function buildGeo() {
   const g = new THREE.BoxGeometry(L, T, W, 40, 1, 24);
   const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
@@ -28,6 +43,7 @@ function buildGeo() {
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
+  g.computeBoundingBox(); BOX = g.boundingBox.clone(); // a ondulação desce ~0,14 m abaixo do centro
   baconGeo = g; baconMat = toon(0xffffff, { vertexColors: true });
 }
 
@@ -75,7 +91,7 @@ export function spawnBacon(e, kind, vol = 1) {
   const b = take(bacons); if (b.ent && b.ent.bacon === b) b.ent.bacon = null;
   b.on = true; b.t = 0; b.rest = false; b.bounces = 0; b.ent = e; e.bacon = b; b.nextSpark = 0; b.vol = vol;
   b.pos.set(e.pos.x, e.pos.y + 0.9, e.pos.z);
-  const a = Math.random() * Math.PI * 2; b.vel.set(Math.cos(a) * 1.1, 4.6 + Math.random() * 0.8, Math.sin(a) * 1.1);
+  const a = Math.random() * Math.PI * 2; b.vel.set(Math.cos(a) * 0.45, 4.6 + Math.random() * 0.8, Math.sin(a) * 0.45);
   b.spin.set((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 9); b.yaw = Math.random() * Math.PI * 2;
   b.grp.position.copy(b.pos); b.grp.rotation.set(0, b.yaw, 0); b.grp.scale.setScalar(0.01); b.grp.visible = false; b.mesh.visible = true;
   baconStats.spawned++; baconStats.byKind[kind] = (baconStats.byKind[kind] || 0) + 1; baconStats.last = { kind, name: e.name, at: performance.now() };
@@ -96,13 +112,18 @@ export function updateBacon(dt) {
     if (!b.on) continue; act++; b.t += dt; const t = b.t;
     if (t < BACON.POP) continue; // ainda é o Docão achatando
     if (!b.grp.visible) { b.grp.visible = true; smoke(b.pos, 10); } // puf!
+    // escala: nasce com "overshoot", fica, depois encolhe (sem afundar no chão)
+    const k0 = Math.min(1, (t - BACON.POP) / (BACON.MORPH - BACON.POP + 0.08));
+    let s = easeBack(k0); const end = BACON.LINGER;
+    if (t > end) { const k = (t - end) / BACON.FADE; s *= Math.max(0, 1 - k); }
+    const sy = s * (b.rest ? 0.9 + 0.1 * Math.sin(t * 9) : 1);
     // física: gravidade, quique, sem atravessar parede
     if (!b.rest) {
       b.vel.y -= 14 * dt;
       const nx = b.pos.x + b.vel.x * dt, nz = b.pos.z + b.vel.z * dt;
       if (env.collides && env.collides(nx, b.pos.y, nz)) { b.vel.x *= -0.3; b.vel.z *= -0.3; } else { b.pos.x = nx; b.pos.z = nz; }
       b.pos.y += b.vel.y * dt;
-      const g = env.groundAt(b.pos.x, b.pos.z, b.pos.y + 0.3) + 0.06;
+      const g = floorUnder(b, s) + lift(b, s, sy);
       if (b.pos.y <= g && b.vel.y <= 0) {
         b.pos.y = g;
         if (b.vel.y < -1.6 && b.bounces < 3) { b.vel.y *= -0.36; b.vel.x *= 0.55; b.vel.z *= 0.55; b.spin.multiplyScalar(0.45); b.bounces++; if (env.sizzle) env.sizzle(b.vol * (b.bounces === 1 ? 1 : 0.4), b.bounces === 1 ? 1.6 : 0.3); for (let i = 0; i < 5; i++) spark(b.pos, 2.8); }
@@ -111,14 +132,10 @@ export function updateBacon(dt) {
       b.grp.rotation.x += b.spin.x * dt; b.grp.rotation.z += b.spin.z * dt; b.yaw += b.spin.y * dt;
     } else { // assenta deitado (a ondulação aparece), devagar
       const k = Math.min(1, dt * 14); b.grp.rotation.x += (0 - wrap(b.grp.rotation.x)) * k; b.grp.rotation.z += (0 - wrap(b.grp.rotation.z)) * k;
-      b.pos.y = env.groundAt(b.pos.x, b.pos.z, b.pos.y + 0.3) + 0.04 + Math.sin(t * 22) * 0.004; // tremidinha de fritura
+      b.pos.y = floorUnder(b, s) + lift(b, s, sy) + Math.abs(Math.sin(t * 22)) * 0.004; // tremidinha de fritura (só pra cima)
     }
     b.grp.rotation.y = b.yaw; b.grp.position.copy(b.pos);
-    // escala: nasce com "overshoot", fica, depois encolhe e afunda
-    const k0 = Math.min(1, (t - BACON.POP) / (BACON.MORPH - BACON.POP + 0.08));
-    let s = easeBack(k0); const end = BACON.LINGER;
-    if (t > end) { const k = (t - end) / BACON.FADE; s *= Math.max(0, 1 - k); b.grp.position.y -= k * 0.05; }
-    b.grp.scale.set(s, s * (b.rest ? 0.9 + 0.1 * Math.sin(t * 9) : 1), s);
+    b.grp.scale.set(s, sy, s);
     // gordura chiando
     if (t < end && t >= b.nextSpark && b.bounces > 0) { b.nextSpark = t + (t < 1.4 ? 0.07 : 0.18); tmp.set(b.pos.x + (Math.random() - 0.5) * 0.9, b.pos.y + 0.06, b.pos.z + (Math.random() - 0.5) * 0.9); spark(tmp, 1.8); }
     if (t > end + BACON.FADE) { b.on = false; b.grp.visible = false; if (b.ent && b.ent.bacon === b) b.ent.bacon = null; b.ent = null; }
@@ -142,3 +159,12 @@ export function clearBacon() {
   baconStats.active = 0;
 }
 export const activeBacons = () => bacons.filter((b) => b.on);
+// bacon que dá pra comer: já virou bacon e ainda não sumiu
+export const edibleBacons = () => bacons.filter((b) => b.on && b.t >= BACON_ITEM.from && b.t < BACON_ITEM.life);
+// alguém comeu: some na hora com uma nuvem rosada e faíscas subindo
+export function eatBacon(b) {
+  if (!b || !b.on) return; const p = b.pos.clone();
+  b.on = false; b.grp.visible = false; if (b.ent && b.ent.bacon === b) b.ent.bacon = null; b.ent = null;
+  smoke(p, 7, 0xffc0cc); for (let i = 0; i < 8; i++) spark(p, 3.2);
+  baconStats.eaten = (baconStats.eaten || 0) + 1;
+}

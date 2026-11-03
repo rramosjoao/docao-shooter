@@ -1,0 +1,3 @@
+Versão de TESTE do modo Infecção 🧟 (branch feature/modo-infeccao), servida em https://docao.mvalentim.dev/modo/zumbi
+Servidor: Worker separado docao-shooter-infeccao (D1 de teste docao-contas-infeccao). Não mexe no jogo principal.
+Para remover: apagar a pasta modo/zumbi na main (e o Worker/D1 de teste na Cloudflare).
