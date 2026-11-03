@@ -1,4 +1,5 @@
 // Zumbido, whoosh e estalo do sabre. Tudo sintetizado, sem arquivo de áudio.
+import { safeExpRamp, safeSet } from './audio.js';
 
 export function createSaberSfx() {
   let actx = null;
@@ -39,37 +40,45 @@ export function createSaberSfx() {
   }
 
   function burst(dur, fromHz, toHz, vol, filterType) {
-    const t = actx.currentTime;
-    const src = actx.createBufferSource();
-    src.buffer = noiseBuffer();
-    const filter = actx.createBiquadFilter();
-    filter.type = filterType;
-    filter.Q.value = 0.8;
-    filter.frequency.setValueAtTime(fromHz, t);
-    filter.frequency.exponentialRampToValueAtTime(Math.max(toHz, 1), t + dur);
-    const gain = actx.createGain();
-    gain.gain.setValueAtTime(vol, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    src.connect(filter);
-    filter.connect(gain);
-    gain.connect(master);
-    src.start(t);
-    src.stop(t + dur);
+    if (!actx || !master || !(vol > 0) || !(dur > 0)) return;
+    try {
+      const t = actx.currentTime;
+      const end = t + dur;
+      const src = actx.createBufferSource();
+      src.buffer = noiseBuffer();
+      const filter = actx.createBiquadFilter();
+      filter.type = filterType;
+      filter.Q.value = 0.8;
+      safeSet(filter.frequency, fromHz > 0 ? fromHz : 1, t);
+      safeExpRamp(filter.frequency, Math.max(toHz, 1), end);
+      const gain = actx.createGain();
+      safeSet(gain.gain, vol, t);
+      safeExpRamp(gain.gain, 0.001, end);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      src.start(t);
+      src.stop(end);
+    } catch (e) { /* um whoosh falho não cala o zumbido */ }
   }
 
   function glide(type, fromHz, toHz, dur, vol) {
-    const t = actx.currentTime;
-    const osc = actx.createOscillator();
-    osc.type = type;
-    osc.frequency.setValueAtTime(fromHz, t);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(toHz, 1), t + dur);
-    const gain = actx.createGain();
-    gain.gain.setValueAtTime(vol, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    osc.connect(gain);
-    gain.connect(master);
-    osc.start(t);
-    osc.stop(t + dur);
+    if (!actx || !master || !(vol > 0) || !(dur > 0) || !(fromHz > 0)) return;
+    try {
+      const t = actx.currentTime;
+      const end = t + dur;
+      const osc = actx.createOscillator();
+      osc.type = type;
+      safeSet(osc.frequency, fromHz, t);
+      safeExpRamp(osc.frequency, Math.max(toHz, 1), end);
+      const gain = actx.createGain();
+      safeSet(gain.gain, vol, t);
+      safeExpRamp(gain.gain, 0.001, end);
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(t);
+      osc.stop(end);
+    } catch (e) { /* um tom falho não cala o resto */ }
   }
 
   function ready() {
@@ -98,6 +107,7 @@ export function createSaberSfx() {
       }
       if (humSaw || humSine) return;
 
+      try {
       const sawGain = actx.createGain();
       sawGain.gain.value = 0.03;
       sawGain.connect(master);
@@ -120,6 +130,7 @@ export function createSaberSfx() {
       humGainSine = sineGain;
       saw.start();
       sine.start();
+      } catch (e) { stopHum(); }
     },
 
     // Tudo abaixo é oscilador e ruído gerado na hora. Nenhum sample, nenhuma faixa protegida.
@@ -173,12 +184,14 @@ export function createSaberSfx() {
 
     humDrive(k) {
       if (!ready() || !humGainSaw || !humSaw) return;
+      try {
       const hot = Math.max(0, Math.min(1, k || 0));
       const t = actx.currentTime;
       humGainSaw.gain.setTargetAtTime(0.02 + hot * 0.05, t, 0.06);
       if (humGainSine) humGainSine.gain.setTargetAtTime(0.01 + hot * 0.02, t, 0.06);
       humSaw.frequency.setTargetAtTime(62 + hot * 36, t, 0.08);
       if (humSine) humSine.frequency.setTargetAtTime(124 + hot * 70, t, 0.08);
+      } catch (e) { /* zumbido falho não trava o quadro */ }
     },
   };
 }
