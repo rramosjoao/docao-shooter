@@ -40,6 +40,7 @@ import { initBacon, spawnBacon, updateBacon, clearBacon, popModel, baconStats, a
 import { Net, createRoom, roomInfo } from './net.js';
 import { initChat, chatTyping, chatShown, chatRoomOn, chatConsumeUnlock, chatNoteLocked, openChat, closeChat, chatSeed, chatPush, chatSetRoom, chatSetTeam, chatClear, chatUseAll } from './chat.js';
 import { initVoice, voicePtt, voiceCycle, voiceReset, voiceRoster, voiceSignal, voiceTalking, voiceMuted, voiceToggleMute, voiceRefresh } from './voice.js';
+import { armAudioGestures, noteAudio, safeExpRamp, safeSet, unlockAudio, withAudioTag } from './audio.js';
 import { SEND_HZ, INTERP_DELAY } from './config.js';
 import { cleanName, NAME_MAX } from './shared/names.js';
 import { createPhysics, mapSolids, rayHitboxes } from './shared/physics.js';
@@ -286,23 +287,60 @@ function raySphere(o, d, c, r) {
 const center = (e, y = 1.0) => new V3(e.pos.x, e.pos.y + y * stanceScale(e.crouch), e.pos.z);
 
 // ---------------- Áudio sintetizado ----------------
+// O contexto mora em audio.js (um só, compartilhado com a voz). Aqui ficam os timbres.
 let actx = null, master = null, noiseBuf = null, menuMuted = false;
-function initAudio() {
-  if (actx) { actx.resume(); return; }
+// Volume gravado como 0 ou NaN não silencia: isso é lixo, não escolha. O mudo é o botão.
+function audibleGain() {
   try {
-    actx = new (window.AudioContext || window.webkitAudioContext)();
-    master = actx.createGain(); master.gain.value = menuMuted ? 0 : 0.4; master.connect(actx.destination);
+    const raw = localStorage.getItem('docao.vol');
+    if (raw != null && raw !== '') {
+      const n = parseFloat(raw);
+      if (Number.isFinite(n) && n > 0) return Math.min(1, n);
+    }
+  } catch (e) { /* sem storage */ }
+  return 0.4;
+}
+function applyMaster() {
+  if (!master) return;
+  const v = menuMuted ? 0 : audibleGain();
+  master.gain.value = Number.isFinite(v) && v >= 0 ? v : 0.4;
+}
+function initAudio() {
+  const c = unlockAudio();
+  if (!c) return;
+  if (actx) {
+    try { if (actx.state === 'suspended' || actx.state === 'interrupted') actx.resume(); } catch (e) { /* gesto seguinte */ }
+    applyMaster();
+    return;
+  }
+  try {
+    actx = c;
+    master = actx.createGain();
+    applyMaster();
+    master.connect(actx.destination);
     noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     saberSfx.bind(actx, master); bindGrenadeVoice(actx, master); sniperSfx.bind(actx, master);
-  } catch (e) { actx = null; }
+  } catch (e) { actx = null; master = null; }
 }
 function noise(dur, freq, vol, type = 'lowpass', delay = 0) {
-  if (!actx) return; const t = actx.currentTime + delay;
-  const s = actx.createBufferSource(); s.buffer = noiseBuf;
-  const f = actx.createBiquadFilter(); f.type = type; f.frequency.value = freq;
-  const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.02);
+  if (!actx || !master || !noiseBuf) return;
+  const volN = Number(vol), durN = Number(dur), freqN = Number(freq), delayN = Number(delay);
+  if (!(volN > 0) || !(durN > 0) || !(freqN > 0)) return;
+  try {
+    const t = actx.currentTime + (Number.isFinite(delayN) ? Math.max(0, delayN) : 0);
+    const end = t + Math.max(durN, 0.001);
+    const s = actx.createBufferSource(); s.buffer = noiseBuf;
+    const f = actx.createBiquadFilter();
+    const kinds = ['lowpass', 'highpass', 'bandpass', 'lowshelf', 'highshelf', 'peaking', 'notch', 'allpass'];
+    f.type = kinds.includes(type) ? type : 'lowpass';
+    safeSet(f.frequency, Math.min(freqN, actx.sampleRate * 0.45), t);
+    const g = actx.createGain();
+    safeSet(g.gain, volN, t);
+    safeExpRamp(g.gain, 0.001, end);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(end + 0.02);
+    noteAudio('noise');
+  } catch (e) { /* um ruído falho não cala o resto */ }
 }
 function sleighBell(f, dur, delay) {
   tone('sine', f, f, dur, 0.026, delay);
@@ -311,47 +349,77 @@ function sleighBell(f, dur, delay) {
 }
 // Primeira frase de Jingle Bells (melodia de 1857, domínio público) em sininhos. Sem amostra.
 function sleighTune() {
-  const q = 0.2;
-  const seq = [
-    [659, 0.16, 0], [659, 0.16, q], [659, 0.3, q * 2],
-    [659, 0.16, q * 3.4], [659, 0.16, q * 4.4], [659, 0.3, q * 5.4],
-    [659, 0.16, q * 7], [784, 0.16, q * 8], [523, 0.16, q * 9], [587, 0.16, q * 10],
-    [659, 0.42, q * 11.2],
-    [784, 0.18, 3.35], [659, 0.26, 3.9],
-  ];
-  for (const [f, d, when] of seq) sleighBell(f, d, when);
+  if (!actx) return;
+  try {
+    const q = 0.2;
+    const seq = [
+      [659, 0.16, 0], [659, 0.16, q], [659, 0.3, q * 2],
+      [659, 0.16, q * 3.4], [659, 0.16, q * 4.4], [659, 0.3, q * 5.4],
+      [659, 0.16, q * 7], [784, 0.16, q * 8], [523, 0.16, q * 9], [587, 0.16, q * 10],
+      [659, 0.42, q * 11.2],
+      [784, 0.18, 3.35], [659, 0.26, 3.9],
+    ];
+    for (const [f, d, when] of seq) sleighBell(f, d, when);
+  } catch (e) { /* sininho falho não corta o HO HO HO */ }
 }
 function hohoho() {
-  for (let i = 0; i < 3; i++) {
-    const d = 0.45 + i * 0.38;
-    tone('sine', 148, 90, 0.2, 0.036, d);
-    tone('triangle', 200, 108, 0.14, 0.014, d);
-    noise(0.1, 220, 0.02, 'lowpass', d);
-  }
+  if (!actx) return;
+  try {
+    for (let i = 0; i < 3; i++) {
+      const d = 0.45 + i * 0.38;
+      tone('sine', 148, 90, 0.2, 0.036, d);
+      tone('triangle', 200, 108, 0.14, 0.014, d);
+      noise(0.1, 220, 0.02, 'lowpass', d);
+    }
+  } catch (e) { /* uma sílaba falha não cala as outras */ }
 }
 function tone(type, f0, f1, dur, vol, delay = 0) {
-  if (!actx) return; const t = actx.currentTime + delay;
-  const o = actx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t + dur);
-  const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
+  if (!actx || !master) return;
+  const volN = Number(vol), durN = Number(dur), f0n = Number(f0), f1n = Number(f1), delayN = Number(delay);
+  if (!(volN > 0) || !(durN > 0) || !Number.isFinite(f0n)) return;
+  try {
+    const t = actx.currentTime + (Number.isFinite(delayN) ? Math.max(0, delayN) : 0);
+    const end = t + Math.max(durN, 0.001);
+    const o = actx.createOscillator();
+    const kinds = ['sine', 'square', 'sawtooth', 'triangle'];
+    o.type = kinds.includes(type) ? type : 'sine';
+    safeSet(o.frequency, Math.max(Math.abs(f0n), 1), t);
+    safeExpRamp(o.frequency, Math.max(Math.abs(Number.isFinite(f1n) ? f1n : f0n), 1), end);
+    const g = actx.createGain();
+    safeSet(g.gain, volN, t);
+    safeExpRamp(g.gain, 0.001, end);
+    o.connect(g); g.connect(master); o.start(t); o.stop(end + 0.02);
+    noteAudio('osc');
+  } catch (e) { /* um tom falho não cala o resto */ }
+}
+function menuBlip() {
+  if (!actx || menuMuted) return;
+  withAudioTag('menu', () => tone('sine', 720, 980, 0.04, 0.045));
 }
 // Camada de blaster por cima do tiro da arma que passou na Papada. Oscilador descendo + ring mod + ressonador. Sem sample.
 function blasterLayer(vol = 1, tier = 1) {
-  if (!actx || vol < 0.02) return;
-  const t0 = actx.currentTime, k = 0.65 + tier * 0.28;
-  const o = actx.createOscillator(); o.type = 'sawtooth';
-  o.frequency.setValueAtTime(980 * k + 420, t0);
-  o.frequency.exponentialRampToValueAtTime(120, t0 + 0.1 + tier * 0.02);
-  const mod = actx.createOscillator(); mod.type = 'square'; mod.frequency.value = 60 + tier * 45;
-  const ring = actx.createGain(); ring.gain.value = 0; mod.connect(ring.gain); o.connect(ring);
-  const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 640 + tier * 240; bp.Q.value = 5 + tier * 2;
-  const g = actx.createGain(); g.gain.setValueAtTime(0.15 * vol * k, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15 + tier * 0.02);
-  ring.connect(bp); bp.connect(g); g.connect(master);
-  o.start(t0); mod.start(t0); o.stop(t0 + 0.22); mod.stop(t0 + 0.22);
+  if (!actx || !master || !(vol > 0.02)) return;
+  try {
+    const t0 = actx.currentTime, k = 0.65 + tier * 0.28;
+    const o = actx.createOscillator(); o.type = 'sawtooth';
+    safeSet(o.frequency, 980 * k + 420, t0);
+    safeExpRamp(o.frequency, 120, t0 + 0.1 + tier * 0.02);
+    const mod = actx.createOscillator(); mod.type = 'square'; mod.frequency.value = 60 + tier * 45;
+    const ring = actx.createGain(); ring.gain.value = 0; mod.connect(ring.gain); o.connect(ring);
+    const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 640 + tier * 240; bp.Q.value = 5 + tier * 2;
+    const g = actx.createGain();
+    safeSet(g.gain, Math.max(0.15 * vol * k, 0.001), t0);
+    safeExpRamp(g.gain, 0.001, t0 + 0.15 + tier * 0.02);
+    ring.connect(bp); bp.connect(g); g.connect(master);
+    o.start(t0); mod.start(t0); o.stop(t0 + 0.22); mod.stop(t0 + 0.22);
+    noteAudio('osc');
+  } catch (e) { /* blaster falho não cala o tiro de baixo */ }
 }
 function gunShot(w, vol, dist, pan, tier = 0) {
-  if (w && sfx[w.key]) sfx[w.key](vol, dist, pan);
-  if (tier > 0) blasterLayer(vol == null ? 1 : vol, tier);
+  withAudioTag('shot', () => {
+    if (w && sfx[w.key]) sfx[w.key](vol, dist, pan);
+    if (tier > 0) blasterLayer(vol == null ? 1 : vol, tier);
+  });
 }
 const shotTier = (e, w) => (survOn() && e && e.pap ? (e.pap[w] | 0) : 0);
 const sfx = {
@@ -404,6 +472,7 @@ const sfx = {
   chomp: (v = 1) => { noise(0.06, 2400, 0.32 * v, 'bandpass'); noise(0.06, 1900, 0.26 * v, 'bandpass', 0.1); tone('sine', 520, 880, 0.1, 0.16 * v, 0.04); tone('triangle', 880, 1320, 0.12, 0.14 * v, 0.16); }, // nhac nhac + plim
   pickup: () => { tone('sine', 660, 660, 0.08, 0.2); tone('sine', 880, 880, 0.08, 0.2, 0.08); tone('sine', 1320, 1320, 0.12, 0.2, 0.16); },
   jump: () => tone('sine', 300, 600, 0.1, 0.06),
+  step: (v = 1) => withAudioTag('step', () => { noise(0.04, 180, 0.18 * (v || 1), 'lowpass'); tone('sine', 120, 60, 0.05, 0.06 * (v || 1)); }),
   boom: (v = 1) => { noise(1.1, 700, 1.4 * v); tone('sine', 110, 28, 0.8, 0.7 * v); noise(0.5, 3500, 0.25 * v, 'highpass', 0.12); noise(0.9, 6000, 0.12 * v, 'highpass', 0.3); tone('triangle', 900, 1600, 0.08, 0.12 * v, 0.05); },
   incoming: (v = 1) => { tone('sine', 980, 160, 1.05, 0.16 * v); noise(0.9, 1400, 0.1 * v, 'bandpass'); },
   toss: (v = 1) => { noise(0.18, 1800, 0.25 * v, 'bandpass'); tone('sine', 500, 260, 0.15, 0.08 * v); },
@@ -452,11 +521,32 @@ function flairCue(id, delay = 0, v = 1) {
 function playCueList(list, dur, v = 1) { if (reducedAnims()) return; for (const [id, at] of list) flairCue(id, at * dur, v); }
 // giro da minigun: oscilador contínuo; spin 0..1 sobe/desce o tom e o volume (atualizado todo quadro no loop)
 const mgWhirr = { o: null, o2: null, f: null, g: null, last: '', set(spin, firing) {
-  if (!actx || (!this.g && !spin)) return; const key = spin.toFixed(2) + (firing ? 1 : 0); if (key === this.last) return; this.last = key;
-  if (!this.g) { this.o = actx.createOscillator(); this.o.type = 'sawtooth'; this.o2 = actx.createOscillator(); this.o2.type = 'triangle'; this.f = actx.createBiquadFilter(); this.f.type = 'bandpass'; this.f.Q.value = 1.2; this.g = actx.createGain(); this.g.gain.value = 0; this.o.connect(this.f); this.o2.connect(this.f); this.f.connect(this.g); this.g.connect(master); this.o.start(); this.o2.start(); }
-  const t = actx.currentTime, hz = 70 + 270 * spin + (firing ? 30 : 0);
-  this.o.frequency.setTargetAtTime(hz, t, 0.05); this.o2.frequency.setTargetAtTime(hz * 2.01, t, 0.05); this.f.frequency.setTargetAtTime(400 + 1400 * spin, t, 0.05); this.g.gain.setTargetAtTime(0.07 * spin, t, 0.06);
+  if (!actx || !master || (!this.g && !spin)) return;
+  try {
+    const key = spin.toFixed(2) + (firing ? 1 : 0); if (key === this.last) return; this.last = key;
+    if (!this.g) { this.o = actx.createOscillator(); this.o.type = 'sawtooth'; this.o2 = actx.createOscillator(); this.o2.type = 'triangle'; this.f = actx.createBiquadFilter(); this.f.type = 'bandpass'; this.f.Q.value = 1.2; this.g = actx.createGain(); this.g.gain.value = 0; this.o.connect(this.f); this.o2.connect(this.f); this.f.connect(this.g); this.g.connect(master); this.o.start(); this.o2.start(); }
+    const t = actx.currentTime, hz = 70 + 270 * spin + (firing ? 30 : 0);
+    this.o.frequency.setTargetAtTime(hz, t, 0.05); this.o2.frequency.setTargetAtTime(hz * 2.01, t, 0.05); this.f.frequency.setTargetAtTime(400 + 1400 * spin, t, 0.05); this.g.gain.setTargetAtTime(Math.max(0, 0.07 * spin) || 0, t, 0.06);
+  } catch (e) { /* giro falho não trava o quadro */ }
 } };
+armAudioGestures();
+document.addEventListener('pointerdown', (e) => {
+  const t = e.target;
+  if (!t || !t.closest) return;
+  if (!t.closest('#menu button, #menu select, #menu input[type="range"], #pause button')) return;
+  try { initAudio(); if (!menuMuted) menuBlip(); } catch (err) { /* clique do menu segue */ }
+}, true);
+window.__audio.master = () => (master ? master.gain.value : null);
+window.__audio.probe = () => {
+  const boom = [];
+  const run = (name, fn) => { try { fn(); } catch (e) { boom.push(name); } };
+  run('nan', () => tone('sine', NaN, NaN, NaN, NaN));
+  run('zero', () => tone('square', 0, 0, 0, 0));
+  run('noise', () => noise(0, NaN, -1));
+  run('sleigh', () => { sleighTune(); hohoho(); });
+  run('ramp', () => { if (window.__audio.badRamp().threw) throw new Error('ramp'); });
+  return { boom, state: actx && actx.state, master: master ? master.gain.value : null };
+};
 const distVol = (p) => clamp(1 - p.distanceTo(player.pos) / 60, 0.05, 1);
 const sniperSfx = createSniperSfx();
 // Pan simples pro tiro de outra pessoa: o jogo não usa Panner 3D, só volume. As snipers ganham lado também.
@@ -3833,7 +3923,11 @@ function applyPersonality(p, w, dt, moving, inspectK) {
 function updateFP(dt) {
   [fp.kr, fp.kpiv] = fp.knifeRigs[player && player.weapon === GOLD_KNIFE ? 1 : 0];
   const p = player, moving = Math.hypot(p.vel.x, p.vel.z) > 1 && p.onGround;
-  if (moving) fp.bob += dt * 10;
+  if (moving) {
+    const prevBob = fp.bob;
+    fp.bob += dt * 10;
+    if (Math.floor(prevBob / Math.PI) !== Math.floor(fp.bob / Math.PI)) sfx.step();
+  }
   const wKick = WEAPONS[p.weapon];
   const plain = reducedAnims();
   fp.kick = Math.max(0, fp.kick - dt * (plain ? 6 : recoilRecover(wKick.key))); // cada arma volta do coice no seu tempo; a mira (pitch) não usa isso. Reduzidas: a curva antiga (6).
@@ -5218,7 +5312,7 @@ $('menuSound').onclick = () => {
   $('menuSound').setAttribute('aria-label', muted ? 'Ativar áudio' : 'Silenciar áudio');
   $('menuSound').title = muted ? 'Ativar áudio' : 'Silenciar áudio';
   menuMuted = muted;
-  if (master) master.gain.value = muted ? 0 : 0.4;
+  applyMaster();
 };
 
 // Os valores acompanham os controles nativos, inclusive pelo teclado.

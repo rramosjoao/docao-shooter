@@ -1,6 +1,7 @@
 // Cama sonora da HOTMILK à Noite: vento grave, grilo espaçado e um zumbido
 // de lâmpada fluorescente. Bem baixo, por baixo da trilha da Invasão.
 // Não carrega arquivo: usa o AudioContext que o jogo já abre.
+import { safeExpRamp, safeSet } from './audio.js';
 
 export function createNightAmbience() {
   let nodes = null;
@@ -8,10 +9,11 @@ export function createNightAmbience() {
     start(actx, master) {
       this.stop();
       if (!actx || !master) return;
+      try {
       const t = actx.currentTime;
       const bus = actx.createGain();
-      bus.gain.setValueAtTime(0.0001, t);
-      bus.gain.exponentialRampToValueAtTime(0.22, t + 1.4);
+      safeSet(bus.gain, 0.0001, t);
+      safeExpRamp(bus.gain, 0.22, t + 1.4);
       bus.connect(master);
       const windSrc = actx.createBufferSource();
       const buf = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate);
@@ -36,17 +38,20 @@ export function createNightAmbience() {
       cricketGain.gain.value = 0;
       cricket.connect(cricketGain); cricketGain.connect(bus); cricket.start();
       nodes = { bus, windSrc, hum, hum2, cricket, cricketGain, actx, next: t + 1.2 };
+      } catch (e) { this.stop(); }
     },
     tick() {
       if (!nodes) return;
+      try {
       const { actx, cricketGain, next } = nodes;
       const t = actx.currentTime;
       if (t < next) return;
       cricketGain.gain.cancelScheduledValues(t);
-      cricketGain.gain.setValueAtTime(0.0001, t);
-      cricketGain.gain.exponentialRampToValueAtTime(0.045, t + 0.02);
-      cricketGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      safeSet(cricketGain.gain, 0.0001, t);
+      safeExpRamp(cricketGain.gain, 0.045, t + 0.02);
+      safeExpRamp(cricketGain.gain, 0.0001, t + 0.09);
       nodes.next = t + 0.55 + Math.random() * 1.6;
+      } catch (e) { /* grilo falho não trava a noite */ }
     },
     stop() {
       if (!nodes) return;
