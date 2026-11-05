@@ -1,8 +1,19 @@
 node_modules/
 package-lock.json
 .vercel
+dist/
+.cache/
+*.log
+.DS_Store
 
 # servidor online
 server/node_modules/
 server/dist/
 server/.wrangler/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example

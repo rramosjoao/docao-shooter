@@ -1,0 +1,364 @@
+/* Bancada e classes. Madeira da caixa, creme e dourado. Carrega depois do hud-death. */
+
+#temperBtn{
+  margin:8px 0 0;padding:8px 14px;min-height:44px;cursor:pointer;
+  background:#e8bc67;color:#3e281a;border:2px solid #3e281a;border-radius:4px;
+  font:800 14px/1 "Trebuchet MS",Arial,sans-serif
+}
+#temperBtn:focus-visible,#bench button:focus-visible,.clsrow:focus-visible,.classchip:focus-visible{
+  outline:3px solid #edc982;outline-offset:2px
+}
+
+#bench{color:#fff0d1;font-family:"Trebuchet MS",Arial,sans-serif}
+.bench-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+#benchBack{min-height:44px;padding:8px 12px;cursor:pointer;background:#3e281a;color:#fff0d1;border:1px solid #e8bc67;border-radius:4px;font:800 14px/1 "Trebuchet MS",Arial,sans-serif}
+.bench-name{display:flex;gap:6px;align-items:center;color:#ffe3a5;font-weight:700}
+.bench-name input{min-height:44px;padding:6px 8px;background:#3e281a;color:#fff0d1;border:1px solid #e8bc67;border-radius:4px;font:700 16px/1.2 Georgia,serif;width:9em}
+.classchip{
+  min-height:44px;padding:6px 10px;cursor:pointer;background:#3e281a;color:#fff0d1;
+  border:1px solid #6d5033;border-radius:4px;font:800 13px/1 "Trebuchet MS",Arial,sans-serif
+}
+.classchip.on{border-color:#e8bc67;box-shadow:inset 0 0 0 2px #e8bc67}
+.classchip kbd{color:#e8bc67;margin-right:4px}
+#benchBody{display:grid;grid-template-columns:220px 1fr;gap:14px}
+.bench-tray,.bench-work{background:#3e281a;border:2px solid #6d5033;border-radius:6px;padding:10px}
+.bench-gun{
+  display:flex;gap:8px;align-items:center;width:100%;min-height:44px;margin:4px 0;padding:4px 6px;
+  cursor:pointer;background:#58371f;color:#fff0d1;border:1px solid transparent;border-radius:4px;text-align:left;
+  font:800 13px/1.2 "Trebuchet MS",Arial,sans-serif
+}
+.bench-gun.on{border-color:#e8bc67}
+.bench-omit,.bench-empty,.bench-honest,.bench-blurb{color:#ffe3a5;font-size:13px;line-height:1.35}
+.bench-slots{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.bench-slot{
+  min-height:44px;padding:8px 12px;cursor:pointer;background:#58371f;color:#fff0d1;
+  border:1px solid #6d5033;border-radius:4px;font:800 14px/1 "Trebuchet MS",Arial,sans-serif
+}
+.bench-slot.on{border-color:#e8bc67;color:#e8bc67}
+.bench-piece{
+  display:flex;justify-content:space-between;gap:8px;width:100%;min-height:44px;margin:4px 0;padding:8px 10px;
+  cursor:pointer;background:#58371f;color:#fff0d1;border:1px solid #6d5033;border-radius:4px;text-align:left;
+  font:800 15px/1.2 "Trebuchet MS",Arial,sans-serif
+}
+.bench-piece.look{outline:3px solid #edc982;outline-offset:0}
+.bench-piece.stamped{border-color:#e8bc67}
+.bench-piece small{color:#e8bc67;font-weight:700}
+.bench-cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.bench-cmp div{display:flex;flex-direction:column;gap:3px;background:#58371f;padding:8px;border-radius:4px}
+.bench-cmp small{color:#e8bc67;font-weight:800}
+.bench-cmp span{display:flex;justify-content:space-between;gap:8px}
+.bench-stamp{
+  min-height:48px;margin-top:8px;padding:10px 16px;cursor:pointer;background:#e8bc67;color:#3e281a;
+  border:2px solid #3e281a;border-radius:4px;font:800 16px/1 "Trebuchet MS",Arial,sans-serif
+}
+.bench-stamp:disabled{cursor:default;opacity:.7}
+.bench-live{min-height:1.3em;color:#ffe3a5}
+
+/* Tela cheia das classes: fundo opaco, no padrão da ficha aprovada. */
+#hud #deathpick.cls-screen,
+#bLoad.cls-screen,
+#iLoad.cls-screen,
+#pauseClass.cls-screen{
+  position:fixed;inset:0;left:0;right:0;top:0;bottom:0;transform:none;
+  width:auto;max-width:none;height:auto;max-height:none;
+  margin:0;opacity:1;overflow:auto;z-index:80;pointer-events:auto;
+  display:flex;flex-direction:column;align-items:stretch;
+  padding:12px 22px 16px;text-align:left;color:#fff6e8;
+  background:#1c130e;border:0;border-radius:0;box-shadow:none;
+  text-shadow:none;font-family:"Trebuchet MS",Arial,sans-serif
+}
+.cls-top{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-height:52px;flex:none}
+.cls-headline{
+  position:absolute;left:50%;top:0;transform:translateX(-50%);
+  width:min(760px,72vw);text-align:center;pointer-events:none
+}
+.cls-headline h2{
+  margin:0;color:#fff6e8;
+  font:900 clamp(22px,2.3vw,32px)/1.15 "Arial Black",Impact,sans-serif;
+  -webkit-text-stroke:0;text-shadow:none;letter-spacing:.2px
+}
+.cls-headline p{margin:3px 0 0;color:#e8bc67;font:700 13px/1.3 "Trebuchet MS",Arial,sans-serif}
+.cls-clock{
+  position:relative;top:auto;left:auto;transform:none;z-index:1;
+  width:min(280px,36vw);height:28px;flex:none;border-radius:4px;overflow:hidden;
+  background:#3e281a;border:2px solid #e8bc67;box-shadow:0 2px 0 #291e18
+}
+.cls-clock span{
+  position:relative;z-index:1;display:flex;align-items:center;justify-content:center;height:100%;
+  color:#fff6e8;text-shadow:0 1px 2px #291e18;font:800 14px/1 "Trebuchet MS",Arial,sans-serif
+}
+.cls-clock i{position:absolute;left:0;top:0;bottom:0;width:0;background:#e8bc67}
+.cls-back{
+  position:relative;z-index:1;width:auto;margin:0;padding:8px 12px;min-height:36px;
+  background:#3e281a;color:#fff6e8;border:1px solid #e8bc67;border-radius:4px;box-shadow:none;
+  font:800 14px/1 "Trebuchet MS",Arial,sans-serif;cursor:pointer
+}
+.cls-back:hover{background:#58371f}
+.cls-back:active{transform:none}
+.cls-pig{
+  width:74px;height:58px;margin:4px auto 8px;flex:none;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 64'><ellipse cx='14' cy='30' rx='10' ry='8' fill='%23f4b7b0'/><ellipse cx='66' cy='30' rx='10' ry='8' fill='%23f4b7b0'/><ellipse cx='40' cy='34' rx='30' ry='24' fill='%23f4b7b0'/><ellipse cx='31' cy='30' rx='3.4' ry='4.2' fill='%232b1c16'/><ellipse cx='49' cy='30' rx='3.4' ry='4.2' fill='%232b1c16'/><ellipse cx='40' cy='44' rx='12' ry='8' fill='%23e89a96'/><ellipse cx='35.5' cy='44' rx='2' ry='2.6' fill='%236b3a38'/><ellipse cx='44.5' cy='44' rx='2' ry='2.6' fill='%236b3a38'/></svg>") center/contain no-repeat
+}
+.cls-sheet{
+  display:grid;
+  grid-template-columns:minmax(210px,260px) minmax(300px,1fr) minmax(300px,420px);
+  grid-template-areas:"list gun arms";
+  gap:12px;
+  width:min(1240px,100%);margin:0 auto;flex:1;min-height:0;
+  background:#6a4328;border:3px solid #8d5a32;border-radius:8px;padding:12px;
+  box-shadow:3px 4px 0 #120c09
+}
+.cls-list{grid-area:list;display:flex;flex-direction:column;gap:6px;align-self:start}
+.cls-gun,.cls-main{grid-area:gun}
+.cls-arms{
+  grid-area:arms;align-self:stretch;min-height:0;overflow:auto;
+  display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;align-content:start;
+  padding-left:10px;border-left:2px solid #8d5a32;
+  scrollbar-width:thin;scrollbar-color:#e8bc67 transparent
+}
+.cls-arms-title{
+  grid-column:1 / -1;margin:0;color:#ffe3a5;
+  font:800 12px/1.2 "Trebuchet MS",Arial,sans-serif;letter-spacing:.6px;text-transform:uppercase
+}
+.cls-arms-empty{grid-column:1 / -1;margin:0;color:#ffe3a5}
+.cls-arms .wcat{margin:0;min-width:0}
+.cls-arms .label2{
+  margin:0 0 4px;color:#e8bc67;
+  font:800 11px/1 "Trebuchet MS",Arial,sans-serif;letter-spacing:.8px;text-transform:uppercase
+}
+.cls-arms .wgrid,.cls-arms .wgrid.small{display:flex;flex-direction:column;gap:3px}
+.cls-screen .cls-arms button.primchip,
+#hud #deathpick.cls-screen .cls-arms button.primchip{
+  display:flex;flex-direction:row;align-items:center;gap:6px;
+  width:100%;min-width:0;min-height:28px;margin:0;padding:2px 6px;
+  background:#3e281a;color:#fff0d1;border:1px solid transparent;border-radius:4px;
+  box-shadow:none;outline:none;text-align:left;cursor:pointer;
+  font:800 12px/1.15 "Trebuchet MS",Arial,sans-serif
+}
+.cls-screen .cls-arms button.primchip:hover,
+#hud #deathpick.cls-screen .cls-arms button.primchip:hover{background:#58371f}
+.cls-screen .cls-arms button.primchip.active,
+.cls-screen .cls-arms button.primchip.active:hover,
+#hud #deathpick.cls-screen .cls-arms button.primchip.active,
+#hud #deathpick.cls-screen .cls-arms button.primchip.active:hover{
+  background:#3e281a;color:#fff6e8;border-color:#e8bc67;box-shadow:inset 0 0 0 1px #e8bc67;outline:none
+}
+.cls-screen .cls-arms button.primchip .wtxt,
+#hud #deathpick.cls-screen .cls-arms button.primchip .wtxt{
+  min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.cls-screen .cls-arms button.primchip .wthumb,
+#hud #deathpick.cls-screen .cls-arms button.primchip .wthumb{
+  width:36px;height:22px;flex:none;border-radius:2px;
+  background-color:#24160f;background-size:contain;background-repeat:no-repeat;background-position:center;
+  box-shadow:none
+}
+.cls-screen .cls-arms button.primchip:focus-visible,
+#hud #deathpick.cls-screen .cls-arms button.primchip:focus-visible{
+  outline:3px solid #edc982;outline-offset:1px
+}
+.clsrow{
+  display:flex;align-items:center;gap:8px;width:100%;min-height:52px;padding:6px 8px;
+  cursor:pointer;background:#3e281a;color:#fff0d1;border:2px solid transparent;border-radius:6px;
+  text-align:left;font:800 15px/1.15 "Trebuchet MS",Arial,sans-serif
+}
+button.clsrow{width:100%;margin:0;box-shadow:none}
+button.clsrow:active{transform:none}
+.clsrow.on{border-color:#e8bc67;box-shadow:inset 0 0 0 1px #e8bc67}
+.clsrow kbd{
+  flex:none;width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  background:#2a1a12;border-radius:4px;color:#f3e2c2;font:800 16px/1 Georgia,serif;text-align:center
+}
+.clsmeta{display:flex;flex-direction:column;min-width:0;flex:1}
+.clsmeta b,.clsmeta small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clsmeta small{color:#ffe3a5;font-weight:700}
+.clslast{
+  flex:none;color:#3e281a;background:#e8bc67;border-radius:3px;padding:2px 6px;
+  font:800 10px/1.2 "Trebuchet MS",Arial,sans-serif;font-style:normal
+}
+.cls-gun,.cls-main{min-width:0}
+.cls-main{position:relative;display:flex;flex-direction:column;align-items:stretch;min-width:0}
+.cls-main .cls-gun{min-width:0}
+.gs-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.gs-head b{font:800 22px/1.1 Georgia,serif;color:#fff6e8}
+.gs-head small{color:#ffe3a5;font-weight:700;text-align:right}
+.gs-stage{
+  display:grid;
+  grid-template-columns:minmax(108px,148px) minmax(140px,1fr) minmax(108px,148px);
+  grid-template-areas:". optic ." "stock gun barrel" ". mag .";
+  gap:8px 10px;align-items:center;justify-items:center;
+  min-height:168px;margin:8px 0;background:transparent
+}
+.gs-stage .wthumb.is-big{
+  grid-area:gun;display:block;width:100%;height:132px;margin:0;
+  background-color:transparent;background-size:contain;background-repeat:no-repeat;background-position:center
+}
+.gs-slot{
+  position:static;max-width:100%;min-width:0;padding:4px 8px;text-align:center;
+  background:#3e281a;border:1px solid #e8bc67;border-radius:4px;
+  color:#fff6e8;font:800 12px/1.15 "Trebuchet MS",Arial,sans-serif;
+  word-break:normal;overflow-wrap:normal
+}
+.gs-slot small{display:block;color:#e8bc67;font-size:10px;letter-spacing:.4px;text-transform:uppercase}
+.gs-slot b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gs-optic{grid-area:optic}
+.gs-barrel{grid-area:barrel}
+.gs-mag{grid-area:mag}
+.gs-stock{grid-area:stock}
+.gs-empty{grid-column:1 / -1;margin:0;padding:8px;color:#ffe3a5}
+.gbars{display:flex;flex-direction:column;gap:4px;margin:8px 0 0}
+.gbar{display:grid;grid-template-columns:84px minmax(0,1fr) auto;gap:8px;align-items:center;font:700 12px/1 "Trebuchet MS",Arial,sans-serif;color:#fff6e8}
+.gtrack{position:relative;height:8px;background:#3e281a;border-radius:4px;overflow:visible}
+.gtrack i{display:block;height:100%;background:#e8bc67;border-radius:4px}
+.gtrack em{position:absolute;top:-2px;width:2px;height:12px;background:#fff}
+.gbar b{text-align:right;color:#ffe3a5;white-space:nowrap}
+.gs-side{display:flex;gap:8px;margin-top:8px}
+.gs-side-card{display:flex;gap:8px;align-items:center;min-height:52px;background:#3e281a;border:1px solid #6d5033;border-radius:4px;padding:4px 8px;flex:1;min-width:0}
+.gs-side-card span{display:flex;flex-direction:column;min-width:0}
+.gs-side-card small{color:#e8bc67}
+.gs-side-card b,.gs-side-card em{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gs-side-card em{color:#ffe3a5;font-style:normal;font-size:12px}
+.gs-hint{margin:8px 0 0;padding:0;color:#ffe3a5;font-size:12px;line-height:1.35}
+#hud #deathpick.cls-screen #respawnBtn{
+  position:static;align-self:flex-end;z-index:1;float:none;
+  display:block;width:min(320px,100%);min-width:240px;min-height:58px;
+  margin:10px 0 0 auto;padding:8px 14px;
+  background:#c4372f;color:#fff6e8;-webkit-text-fill-color:#fff6e8;
+  border:2px solid #2a1410;border-radius:4px;box-shadow:0 3px 0 #6a201c;
+  text-align:center;letter-spacing:0;animation:none;opacity:1;cursor:pointer;
+  font:900 18px/1.1 "Arial Black",Impact,sans-serif
+}
+#hud #deathpick.cls-screen #respawnBtn b{display:block;white-space:nowrap;font:900 18px/1.1 "Arial Black",Impact,sans-serif}
+#hud #deathpick.cls-screen #respawnBtn small{display:block;margin-top:3px;white-space:nowrap;color:#ffe3a5;font:700 11px/1.2 "Trebuchet MS",Arial,sans-serif}
+#hud #deathpick.cls-screen #respawnBtn:hover,
+#hud #deathpick.cls-screen #respawnBtn.ready,
+#hud #deathpick.cls-screen #respawnBtn.ready:hover{background:#d4473a;color:#fff6e8;-webkit-text-fill-color:#fff6e8;animation:none}
+#hud #deathpick.cls-screen #respawnBtn:disabled,
+#hud #deathpick.cls-screen #respawnBtn:disabled:hover{background:#c4372f;color:#fff6e8;-webkit-text-fill-color:#fff6e8;cursor:not-allowed;animation:none;transform:none}
+#pause #pauseClassBtn{
+  width:100%;min-height:48px;margin:0 0 4px;padding:10px 8px;border-radius:6px;
+  background:#a52e26;color:#fff0cc;border:2px solid #34402e;
+  box-shadow:inset 0 2px #e76a45,0 3px #6a2d20;
+  font:900 16px/1.1 "Arial Black",Impact,sans-serif;letter-spacing:.4px
+}
+#pause #pauseClassBtn:hover{background:#be3b2d}
+#pauseClass #pauseGuns{max-height:none;overflow:visible}
+#lobbyClasses{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.cls-list .wthumb,#deathList .wthumb,#pauseGuns.cls-list .wthumb,#bLoadList .wthumb,#iLoadList .wthumb{
+  width:72px;height:40px;background-color:transparent;background-size:contain;background-position:center;box-shadow:none
+}
+.wthumb{display:inline-block;width:64px;height:40px;flex:none;background:transparent center/contain no-repeat;border-radius:3px}
+
+/* O CSS antigo da morte (#deathList em grade, polegar de 28px, botão genérico vermelho)
+   perde para estes seletores. Morte, Bomba e waves ficam iguais à pausa. */
+#hud #deathpick.cls-screen #deathList.cls-list,
+#bLoad.cls-screen .cls-list,
+#iLoad.cls-screen .cls-list,
+#pauseClass.cls-screen .cls-list{
+  display:flex;flex-direction:column;flex-wrap:nowrap;justify-content:flex-start;
+  grid-template-columns:none;gap:6px;max-width:none;width:auto
+}
+#hud #deathpick.cls-screen button.clsrow,
+#hud #deathpick.cls-screen button.clsrow:hover,
+#hud #deathpick.cls-screen button.clsrow:focus,
+#hud #deathpick.cls-screen button.clsrow:active,
+#bLoad.cls-screen button.clsrow,
+#bLoad.cls-screen button.clsrow:hover,
+#bLoad.cls-screen button.clsrow:focus,
+#bLoad.cls-screen button.clsrow:active,
+#iLoad.cls-screen button.clsrow,
+#iLoad.cls-screen button.clsrow:hover,
+#iLoad.cls-screen button.clsrow:focus,
+#iLoad.cls-screen button.clsrow:active,
+#pauseClass.cls-screen button.clsrow,
+#pauseClass.cls-screen button.clsrow:hover,
+#pauseClass.cls-screen button.clsrow:focus,
+#pauseClass.cls-screen button.clsrow:active{
+  display:flex;flex-direction:row;align-items:center;gap:8px;
+  width:100%;min-width:0;min-height:52px;margin:0;padding:6px 8px;
+  background:#3e281a;color:#fff0d1;border:2px solid transparent;border-radius:6px;
+  box-shadow:none;outline:none;transform:none;text-align:left;cursor:pointer;
+  font:800 15px/1.15 "Trebuchet MS",Arial,sans-serif
+}
+#hud #deathpick.cls-screen button.clsrow.on,
+#hud #deathpick.cls-screen button.clsrow.on:hover,
+#hud #deathpick.cls-screen button.clsrow.on:focus,
+#bLoad.cls-screen button.clsrow.on,
+#bLoad.cls-screen button.clsrow.on:hover,
+#iLoad.cls-screen button.clsrow.on,
+#iLoad.cls-screen button.clsrow.on:hover,
+#pauseClass.cls-screen button.clsrow.on,
+#pauseClass.cls-screen button.clsrow.on:hover{
+  background:#3e281a;color:#fff0d1;border-color:#e8bc67;box-shadow:inset 0 0 0 1px #e8bc67
+}
+#hud #deathpick.cls-screen .clsrow kbd,
+#bLoad.cls-screen .clsrow kbd,
+#iLoad.cls-screen .clsrow kbd,
+#pauseClass.cls-screen .clsrow kbd{
+  flex:none;width:28px;height:28px;margin:0;padding:0;display:flex;align-items:center;justify-content:center;
+  background:#2a1a12;color:#f3e2c2;border-radius:4px;font:800 16px/1 Georgia,serif
+}
+#hud #deathpick.cls-screen .cls-list .wthumb,
+#hud #deathpick.cls-screen .gs-side .wthumb,
+#bLoad.cls-screen .cls-list .wthumb,
+#bLoad.cls-screen .gs-side .wthumb,
+#iLoad.cls-screen .cls-list .wthumb,
+#iLoad.cls-screen .gs-side .wthumb,
+#pauseClass.cls-screen .cls-list .wthumb,
+#pauseClass.cls-screen .gs-side .wthumb{
+  width:72px;height:40px;flex:none;border-radius:3px;
+  background-color:transparent;background-size:contain;background-repeat:no-repeat;background-position:center;
+  box-shadow:none
+}
+#hud #deathpick.cls-screen .gs-stage .wthumb.is-big,
+#bLoad.cls-screen .gs-stage .wthumb.is-big,
+#iLoad.cls-screen .gs-stage .wthumb.is-big,
+#pauseClass.cls-screen .gs-stage .wthumb.is-big{
+  grid-area:gun;display:block;width:100%;height:148px;min-height:132px;max-width:none;margin:0;flex:none;
+  background-color:#24160f;background-size:contain;background-repeat:no-repeat;background-position:center;
+  border-radius:6px;box-shadow:inset 0 0 0 1px #120c09
+}
+
+#pause.overlay{z-index:90}
+#pauseClass.cls-screen{z-index:100}
+body.dead #stamp,body.dead #killfeed,body.dead #centermsg,body.dead #streakBar,body.dead #streakCount,
+body.dead #topbar,body.dead #score,body.dead #tl,body.dead #socialHud,body.dead #bottomleft,body.dead #bottomright,
+body.dead #medals,body.dead #points,body.dead #crosshair,body.dead #domhud,body.dead #bombhud,body.dead #inspect,
+body.cls-on #stamp,body.cls-on #killfeed,body.cls-on #centermsg,body.cls-on #streakBar,body.cls-on #streakCount,
+body.cls-on #topbar,body.cls-on #score,body.cls-on #tl,body.cls-on #socialHud,body.cls-on #bottomleft,body.cls-on #bottomright,
+body.cls-on #medals,body.cls-on #points,body.cls-on #crosshair,body.cls-on #domhud,body.cls-on #bombhud,
+body.cls-on #bombBanner,body.cls-on #bPrompt,body.cls-on #invhud,body.cls-on #invBanner,body.cls-on #invBoss,
+body.cls-on #invPowers,body.cls-on #inspect,body.bombpick #bombBanner,body.invpick #invBanner{
+  display:none!important
+}
+
+@media (max-width:720px){
+  #benchBody{grid-template-columns:1fr}
+  .bench-stamp{position:sticky;bottom:0}
+  #hud #deathpick.cls-screen,#bLoad.cls-screen,#iLoad.cls-screen,#pauseClass.cls-screen{padding:8px 8px 12px}
+  .cls-top{flex-direction:column;align-items:stretch;min-height:0}
+  .cls-headline{position:static;transform:none;width:auto}
+  .cls-headline h2{font-size:22px}
+  .cls-clock{width:100%}
+  .cls-pig{width:56px;height:44px;margin:4px auto}
+  .cls-sheet{grid-template-columns:1fr;grid-template-areas:"list" "gun" "arms";max-height:none}
+  .cls-arms{max-height:none;padding-left:0;border-left:0;padding-top:8px;border-top:2px solid #8d5a32}
+  #hud #deathpick.cls-screen #deathList.cls-list,
+  #bLoad.cls-screen .cls-list,
+  #iLoad.cls-screen .cls-list,
+  #pauseClass.cls-screen .cls-list{flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  #hud #deathpick.cls-screen button.clsrow,
+  #hud #deathpick.cls-screen button.clsrow:hover,
+  #bLoad.cls-screen button.clsrow,
+  #iLoad.cls-screen button.clsrow,
+  #pauseClass.cls-screen button.clsrow{width:auto;min-width:168px;flex:none}
+  .clsmeta b,.clsmeta small,.gs-slot b{white-space:nowrap}
+  .gs-stage{grid-template-columns:minmax(84px,1fr) minmax(120px,1.3fr) minmax(84px,1fr);min-height:140px}
+  #hud #deathpick.cls-screen .gs-stage .wthumb.is-big,
+  #bLoad.cls-screen .gs-stage .wthumb.is-big,
+  #iLoad.cls-screen .gs-stage .wthumb.is-big,
+  #pauseClass.cls-screen .gs-stage .wthumb.is-big{height:110px;min-height:96px}
+  .gbar{grid-template-columns:72px minmax(0,1fr) auto}
+  #hud #deathpick.cls-screen #respawnBtn{width:100%;min-width:0;margin:8px 0 0}
+  #hud #deathpick.cls-screen #respawnBtn small{white-space:normal}
+}

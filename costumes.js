@@ -2,7 +2,7 @@
 // (userData.anchor = 'head' para prender na cabeça) ou null quando só altera o rig.
 // A identidade do Docão (cabeça, focinho, orelhas, bochechas, olhos, contorno) nunca é removida.
 import * as THREE from 'three';
-import { PARTS, SHIRT_DETAILS, toon, toonWarm, basic, outline, canvasTex, headR, headPoint, HEAD, TORSO_PTS, torsoR, gloveMat, addSparkles } from './docao.js';
+import { PARTS, SHIRT_DETAILS, toon, toonWarm, basic, outline, canvasTex, headR, headPoint, HEAD, TORSO_PTS, torsoR, gloveMat, gloveSparkles, addSparkles, drawLogo, headNormal } from './docao.js';
 
 const V3 = THREE.Vector3, V2 = THREE.Vector2, TAU = Math.PI * 2;
 const M = (geo, mat, parent, th = 0.01) => { const m = new THREE.Mesh(geo, mat); if (parent) parent.add(m); if (th) outline(m, th); m.castShadow = true; return m; };
@@ -81,9 +81,9 @@ Object.assign(PARTS, {
   glove(o, rig) { // luva (ex.: uma luva branca brilhante)
     const sides = o.hand === 'both' ? [0, 1] : [(o.hand || 'right') === 'right' ? 0 : 1];
     for (const i of sides) {
-      const { fist, thumb } = rig.fists[i]; const gm = gloveMat(o.color);
+      const { fist, thumb } = rig.fists[i]; const gm = gloveMat(o.color, o);
       fist.material = gm; thumb.material = gm; fist.scale.multiplyScalar(1.04);
-      if (o.sparkle !== false) addSparkles(fist, 16, 0.158);
+      gloveSparkles(fist, o, 0.158);
       const cuff = M(new THREE.TorusGeometry(0.12, 0.03, 8, 18), gm, rig.arms[i], 0.008); cuff.rotation.x = Math.PI / 2; cuff.position.y = -0.45;
     }
     return null;
@@ -92,7 +92,7 @@ Object.assign(PARTS, {
     const m = toon(o.color || '#111114');
     for (const leg of rig.legs) {
       const sh = M(new THREE.SphereGeometry(0.17, 18, 12), m, leg, 0.01); sh.position.set(0, -0.35, 0.07); sh.scale.set(1, 0.58, 1.45);
-      const sole = M(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 18), toon('#2a2a2a'), leg, 0); sole.position.set(0, -0.43, 0.07); sole.scale.z = 1.45;
+      const sole = M(new THREE.CylinderGeometry(0.17, 0.17, o.sole ? 0.045 : 0.03, 18), toon(o.sole || '#2a2a2a'), leg, 0); sole.position.set(0, -0.43, 0.07); sole.scale.z = 1.45;
       const strap = M(new THREE.BoxGeometry(0.2, 0.025, 0.05), toon(o.strap || '#2a2a30'), leg, 0); strap.position.set(0, -0.29, 0.2);
     }
     return null;
@@ -312,6 +312,605 @@ Object.assign(PARTS, {
     const g = new THREE.Group(); const m = toonWarm(o.color || '#c9a66b', 0.12);
     for (const [y, r] of [[1.1, 0.3], [1.17, 0.27]]) { const t = M(new THREE.TorusGeometry(r, 0.07, 10, 32), m, g, 0.008); t.rotation.x = Math.PI / 2; t.position.y = y; t.scale.y = 0.88; }
     const tail = M(new THREE.BoxGeometry(0.2, 0.42, 0.04), m, g, 0.008); tail.position.set(0.28, 0.9, -0.28); tail.rotation.set(0.25, -0.6, -0.15);
+    return g;
+  },
+});
+
+// ============================================================
+//  Skins novas: Boi Caprichoso, Docão Felipe, Docão Matheus
+// ============================================================
+// cabelo que acompanha o formato da cabeça, com linha do cabelo por ângulo (θ = 0 é a testa)
+function hairCap(hairline, off = 0.03, bulge = 0.04, cols = 48, rows = 12) {
+  const pos = [], idx = [];
+  for (let j = 0; j <= rows; j++) {
+    const u = j / rows;
+    for (let i = 0; i <= cols; i++) {
+      const th = -Math.PI + (i / cols) * TAU; const y0 = hairline(th);
+      const y = y0 + (HEAD.y1 - y0) * Math.pow(u, 0.8); const r = headR(y) + off + bulge * Math.sin(Math.PI * Math.min(1, u * 1.3)) * (j === rows ? 0 : 1);
+      pos.push(r * Math.sin(th), y + bulge * 0.6 * u, r * HEAD.zs * Math.cos(th));
+    }
+  }
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { const a = j * (cols + 1) + i, b = a + cols + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals(); return geo;
+}
+// mecha cônica ancorada na superfície do cabelo
+function tuft(g, m, th, y, out, len, rad, tilt = 0, twist = 0) {
+  const p = headPoint(th, y, out), n = headNormal(th, y);
+  const c = M(new THREE.ConeGeometry(rad, len, 10), m, g, 0.008);
+  c.position.copy(p).addScaledVector(n, len * 0.3);
+  const dir = n.clone().add(new V3(0, 0.9 + tilt, 0)).normalize(); dir.applyAxisAngle(new V3(0, 1, 0), twist);
+  c.quaternion.setFromUnitVectors(new V3(0, 1, 0), dir); c.scale.z = 0.7; return c;
+}
+// tubo afinando até a ponta (chifres)
+function taperTube(curve, r0, r1, seg = 20, rad = 10) {
+  const geo = new THREE.TubeGeometry(curve, seg, 1, rad, false); const p = geo.attributes.position;
+  for (let i = 0; i <= seg; i++) {
+    const c = curve.getPointAt(i / seg); const r = r0 + (r1 - r0) * Math.pow(i / seg, 0.9);
+    for (let k = 0; k <= rad; k++) { const v = i * (rad + 1) + k; p.setXYZ(v, c.x + (p.getX(v) - c.x) * r, c.y + (p.getY(v) - c.y) * r, c.z + (p.getZ(v) - c.z) * r); }
+  }
+  geo.computeVertexNormals(); return geo;
+}
+function starPath(x, cx, cy, rx, ry, rot = 0, inner = 0.45) {
+  x.beginPath();
+  for (let i = 0; i < 10; i++) { const a = rot + i * Math.PI / 5, k = i % 2 ? inner : 1; const px = cx + Math.sin(a) * rx * k, py = cy - Math.cos(a) * ry * k; i ? x.lineTo(px, py) : x.moveTo(px, py); }
+  x.closePath();
+}
+
+Object.assign(SHIRT_DETAILS, {
+  star(x, d, PT) { // estrela grande no peito (+ estrelinhas espalhadas)
+    const c = d.color || '#ffffff', y = d.y || 0.8, sz = d.size || 0.17;
+    const px = (PT(0.1, y)[0] - PT(0, y)[0]) / (0.1 * torsoR(y)), py = (PT(0, y - 0.05)[1] - PT(0, y + 0.05)[1]) / 0.1;
+    const [cx, cy] = PT(d.x || 0, y);
+    if (d.outline) { starPath(x, cx, cy, sz * px * 1.18, sz * py * 1.18); x.fillStyle = d.outline; x.fill(); }
+    starPath(x, cx, cy, sz * px, sz * py); x.fillStyle = c; x.fill();
+    for (const [th, yy, s] of d.small || []) { const [sx, sy] = PT(th, yy); starPath(x, sx, sy, s * px, s * py, th); x.fillStyle = c; x.fill(); }
+  },
+  zigzag(x, d, PT, W) { // barra em ziguezague (franja festiva)
+    const c = d.color || '#ffffff', y = PT(0, d.y || 0.47)[1], h = d.h || 22;
+    x.fillStyle = c; x.fillRect(0, y, W, h * 0.6);
+    x.beginPath(); x.moveTo(0, y); for (let k = 0; k <= W; k += 32) { x.lineTo(k + 16, y - h); x.lineTo(k + 32, y); } x.closePath(); x.fill();
+  },
+  backNumber(x, d, PT, W) { // nome + número de camisa nas costas (th = ±π fica na emenda: desenha nas duas pontas)
+    const c = d.color || '#f4f4f4';
+    x.save(); x.fillStyle = c; x.textAlign = 'center'; x.textBaseline = 'middle';
+    if (d.outline) { x.strokeStyle = d.outline; x.lineJoin = 'round'; }
+    for (const th of [Math.PI, -Math.PI]) {
+      const [nx, ny] = PT(th, d.nameY || 1.02), [cx, cy] = PT(th, d.numY || 0.66);
+      x.font = `900 ${d.nameSize || 34}px Arial Black, Arial, sans-serif`;
+      if (d.outline) { x.lineWidth = 6; x.strokeText(d.name || '', nx, ny); }
+      x.fillText(d.name || '', nx, ny);
+      x.font = `900 ${d.numSize || 96}px Arial Black, Arial, sans-serif`;
+      if (d.outline) { x.lineWidth = 8; x.strokeText(String(d.number ?? ''), cx, cy); }
+      x.fillText(String(d.number ?? ''), cx, cy);
+    }
+    x.restore();
+  },
+  jersey(x, d, PT) { // camisa de futebol branca: risquinhas verticais finas, gola V preta, trevo (esq.) e escudo (dir.)
+    x.save();
+    const cols = d.stripes || ['#2a2a2e', '#c9a23a', '#2a2a2e', '#b8202a'];
+    for (let i = 0; i < 28; i++) { const th = -Math.PI + (i + 0.5) * Math.PI * 2 / 28; const a = PT(th, 1.2), b = PT(th, 0.0); x.strokeStyle = cols[i % cols.length]; x.globalAlpha = 0.75; x.lineWidth = 3; x.beginPath(); x.moveTo(...a); x.lineTo(...b); x.stroke(); }
+    x.globalAlpha = 1; x.fillStyle = d.trim || '#111114';
+    x.beginPath(); x.moveTo(...PT(-0.42, 1.25)); x.lineTo(...PT(0, 0.9)); x.lineTo(...PT(0.42, 1.25)); x.lineTo(...PT(0.28, 1.25)); x.lineTo(...PT(0, 0.98)); x.lineTo(...PT(-0.28, 1.25)); x.closePath(); x.fill();
+    // trevo de 3 folhas (lado direito de quem veste = esquerda de quem olha)
+    const [tx, ty] = PT(-0.32, 0.8); x.fillStyle = '#111114';
+    for (const [dx, dy, r] of [[-14, 4, 11], [0, -6, 12], [14, 4, 11]]) { x.beginPath(); x.ellipse(tx + dx, ty + dy, r * 0.7, r, dx / 30, 0, Math.PI * 2); x.fill(); }
+    x.fillRect(tx - 22, ty + 14, 44, 4); x.fillRect(tx - 22, ty + 20, 44, 3);
+    // escudo
+    const [cx, cy] = PT(0.32, 0.8);
+    x.beginPath(); x.moveTo(cx - 18, cy - 20); x.lineTo(cx + 18, cy - 20); x.lineTo(cx + 18, cy + 4); x.quadraticCurveTo(cx, cy + 26, cx - 18, cy + 4); x.closePath(); x.fillStyle = '#111114'; x.fill();
+    x.fillStyle = '#f4f4f4'; x.fillRect(cx - 12, cy - 15, 24, 18); x.fillStyle = '#111114'; x.beginPath(); x.arc(cx, cy - 6, 6, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#d4af37'; x.fillRect(cx - 12, cy - 28, 24, 4);
+    x.restore();
+  },
+  diagStripes(x, d, PT) { // listras diagonais esportivas nas laterais e nos ombros
+    const c = d.color || '#1fb89a';
+    x.save(); x.strokeStyle = c; x.lineCap = 'round';
+    for (const s of [-1, 1]) for (const [th, y0, n] of [[0.95, 0.62, 7], [1.55, 0.5, 9], [2.2, 0.62, 6]]) for (let k = 0; k < n; k++) {
+      const a = PT(s * (th - 0.25 + k * 0.07), y0 + k * 0.045), b = PT(s * (th - 0.05 + k * 0.07), y0 + 0.16 + k * 0.045);
+      x.lineWidth = 7 + (k % 3) * 3; x.beginPath(); x.moveTo(...a); x.lineTo(...b); x.stroke();
+    }
+    x.restore();
+  },
+  polo(x, d, PT) { // camisa polo: filete da gola e um botão
+    const c = d.color || '#24160e', btn = d.button || '#e6d3b0';
+    x.strokeStyle = c; x.lineWidth = 9; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(...PT(0, 1.08)); x.lineTo(...PT(0, 0.88)); x.stroke();
+    const [bx, by] = PT(0, 0.9);
+    x.fillStyle = btn; x.beginPath(); x.arc(bx, by, 8, 0, TAU); x.fill();
+    x.strokeStyle = c; x.lineWidth = 3; x.stroke();
+  },
+  hoodie(x, d, PT, W) { // moletom: zíper prateado, bolso canguru e barra canelada
+    const c = d.color || '#0e0e10', zip = d.zip || '#a8acb2';
+    x.strokeStyle = c; x.lineWidth = 5;
+    for (const s of [-1, 1]) { x.beginPath(); x.moveTo(...PT(s * 0.06, 0.48)); x.lineTo(...PT(s * 0.5, 0.48)); x.lineTo(...PT(s * 0.4, 0.68)); x.lineTo(...PT(s * 0.06, 0.68)); x.stroke(); }
+    x.strokeStyle = zip; x.lineWidth = 7; x.beginPath(); x.moveTo(...PT(0, 1.12)); x.lineTo(...PT(0, 0.42)); x.stroke();
+    x.fillStyle = zip; const t = PT(0, 0.95); x.fillRect(t[0] - 6, t[1], 12, 22);
+    const b = PT(0, 0.44); x.fillStyle = c; x.fillRect(0, b[1] - 10, W, 20);
+  },
+});
+
+Object.assign(PARTS, {
+  // ---------- Boi Caprichoso ----------
+  boiHorns(o, rig) { // chifrinhos de boi curvados (brancos), entre as orelhas e a testa
+    const g = new THREE.Group(); const m = toonWarm(o.color || '#fbfbf6', 0.12, {}, '#cfe0ff'), tip = toon(o.tip || '#dfe6f2');
+    for (const s of [-1, 1]) {
+      const b = headPoint(s * 0.72, 1.93, -0.02), n = headNormal(s * 0.72, 1.93);
+      const pts = [b, b.clone().addScaledVector(n, 0.13).add(new V3(s * 0.05, 0.03, 0)), b.clone().addScaledVector(n, 0.2).add(new V3(s * 0.08, 0.14, 0.02)), b.clone().addScaledVector(n, 0.17).add(new V3(s * 0.03, 0.27, 0.06))];
+      const curve = new THREE.CatmullRomCurve3(pts);
+      M(taperTube(curve, 0.075, 0.012), m, g, 0.01);
+      const ring = M(new THREE.TorusGeometry(0.07, 0.022, 8, 18), toon(o.band || '#1b4fbf'), g, 0.006); ring.position.copy(curve.getPointAt(0.12)); ring.lookAt(ring.position.clone().add(curve.getTangentAt(0.12)));
+      void tip;
+    }
+    return onHead(g);
+  },
+  ribbonSkirt(o, rig) { // saiote de fitas festivas na cintura (azul, branco e um toque de cor)
+    const g = new THREE.Group(); const cols = o.colors || ['#1b4fbf', '#ffffff', '#0b2f86', '#ffffff', '#3d8bff'];
+    const r = 0.44, n = 26;
+    const band = M(new THREE.TorusGeometry(r, 0.045, 8, 44), toon(o.band || '#ffffff'), g, 0.008); band.rotation.x = Math.PI / 2; band.position.y = 0.57; band.scale.y = 0.86;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU; const len = 0.26 + ((i * 7) % 5) * 0.012;
+      const rb = M(new THREE.BoxGeometry(0.085, len, 0.018), toon(cols[i % cols.length], { side: THREE.DoubleSide }), g, 0.005);
+      rb.position.set(Math.sin(a) * (r + 0.02), 0.56 - len / 2, Math.cos(a) * (r + 0.02) * 0.86); rb.rotation.y = a; rb.rotation.x = 0.16; rb.rotation.order = 'YXZ';
+    }
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * TAU + 0.3; const st = M(new THREE.SphereGeometry(0.028, 8, 6), basic('#ffffff'), g, 0); st.position.set(Math.sin(a) * (r + 0.05), 0.57, Math.cos(a) * (r + 0.05) * 0.86); }
+    if (rig.tail) rig.tail.position.z -= 0.08;
+    return g;
+  },
+  // ---------- Docão Felipe ----------
+  messyHair(o, rig) { // cabelo volumoso e bagunçado, castanho-escuro
+    hideTuft(rig); const g = new THREE.Group(); const m = toonWarm(o.color || '#3a2416', 0.12, { side: THREE.DoubleSide });
+    const line = (th) => { const a = Math.abs(th); return a < 0.7 ? 1.98 - a * 0.05 : a < 1.7 ? 1.945 - (a - 0.7) * 0.2 : 1.745 - (a - 1.7) * 0.1; };
+    M(hairCap(line, 0.035, 0.1), m, g, 0.014);
+    // mechas espetadas em volta e no topo
+    const ring = [[0, 1.99, 0.16, 0.1], [0.3, 1.985, 0.17, 0.09], [-0.3, 1.985, 0.15, 0.09], [0.6, 1.96, 0.16, 0.09], [-0.6, 1.96, 0.17, 0.09], [0.95, 1.9, 0.15, 0.085], [-0.95, 1.9, 0.15, 0.085],
+      [1.35, 1.86, 0.15, 0.085], [-1.35, 1.86, 0.15, 0.085], [1.8, 1.82, 0.14, 0.08], [-1.8, 1.82, 0.14, 0.08], [2.3, 1.8, 0.14, 0.08], [-2.3, 1.8, 0.14, 0.08], [2.8, 1.82, 0.14, 0.08], [-2.8, 1.82, 0.14, 0.08], [Math.PI, 1.84, 0.14, 0.08]];
+    ring.forEach(([th, y, len, rad], i) => tuft(g, m, th, y + 0.03, 0.09, len, rad, -0.5 + (i % 3) * 0.25, (i % 2 ? 0.4 : -0.4)));
+    for (let i = 0; i < 14; i++) { const th = 1.45 + (i / 13) * (TAU - 2.9); const a = th > Math.PI ? th - TAU : th; tuft(g, m, a, line(a) + 0.03, 0.05, 0.14, 0.075, -1.2, i % 2 ? 0.3 : -0.3); } // nuca desfiada
+    for (const [th, y, len] of [[0.2, 2.03, 0.2], [-0.4, 2.02, 0.18], [1.2, 1.99, 0.18], [-1.2, 2.0, 0.17], [2.6, 1.98, 0.17], [-2.4, 1.99, 0.18], [0.8, 2.02, 0.17]]) tuft(g, m, th, y, 0.08, len, 0.085, 0.6);
+    // franja caindo de lado na testa
+    for (const [th, rz, len] of [[-0.05, -0.9, 0.24], [0.2, -1.05, 0.22], [-0.3, -0.7, 0.2], [0.45, -1.2, 0.18]]) {
+      const p = headPoint(th, 1.985, 0.07); const c = M(new THREE.ConeGeometry(0.075, len, 10), m, g, 0.008); c.position.copy(p); c.rotation.set(0.9, 0, rz); c.scale.z = 0.6;
+    }
+    return onHead(g);
+  },
+  squareGlasses(o, rig) { // óculos de armação grossa, retangular e preta (prende na cabeça, como os outros óculos)
+    const g = new THREE.Group(); const m = toon(o.color || '#121214'), lensM = new THREE.MeshBasicMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.12, depthWrite: false });
+    const W = 0.36, H = 0.3, T = 0.05, R = 0.06;
+    const rr = (s, w, h, r) => { s.moveTo(-w / 2 + r, -h / 2); s.lineTo(w / 2 - r, -h / 2); s.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r); s.lineTo(w / 2, h / 2 - r); s.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2); s.lineTo(-w / 2 + r, h / 2); s.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); s.lineTo(-w / 2, -h / 2 + r); s.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2); };
+    const sh = new THREE.Shape(); rr(sh, W, H, R); const hole = new THREE.Path(); rr(hole, W - T * 2, H - T * 2, R * 0.5); sh.holes.push(hole);
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.035, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 1, curveSegments: 6 });
+    const ends = [];
+    rig.eyes.forEach((e, i) => {
+      const s = i === 0 ? -1 : 1; const f = new THREE.Group(); f.position.copy(e.position).addScaledVector(e.userData.n, 0.07); f.lookAt(f.position.clone().add(e.userData.n)); g.add(f);
+      M(geo, m, f, 0.008).position.z = -0.02;
+      const lens = new THREE.Mesh(new THREE.PlaneGeometry(W - T * 2, H - T * 2), lensM); lens.position.z = 0.0; f.add(lens);
+      ends.push({ f, s });
+    });
+    const a = ends[0].f.position, b = ends[1].f.position; const mid = a.clone().add(b).multiplyScalar(0.5);
+    const br = M(new THREE.BoxGeometry(Math.max(0.04, a.distanceTo(b) - W * 0.9), 0.045, 0.04), m, g, 0.006); br.position.copy(mid); br.position.y += 0.06; br.position.z += 0.01;
+    for (const { f, s } of ends) { // hastes até as orelhas
+      const p0 = new V3(s * W / 2, 0.04, -0.01); f.localToWorld(p0); g.worldToLocal(p0);
+      const p1 = headPoint(s * 1.45, 1.76, 0.015);
+      const len = p0.distanceTo(p1); const arm = M(new THREE.BoxGeometry(0.035, 0.045, len), m, g, 0.006); arm.position.copy(p0).add(p1).multiplyScalar(0.5); arm.lookAt(p1);
+    }
+    return onHead(g);
+  },
+  sleeveStripes(o, rig) { // listras diagonais nas mangas (também em 1ª pessoa)
+    const m = toon(o.color || '#1fb89a');
+    for (const [i, piv] of rig.arms.entries()) for (const y of [-0.02, -0.08, -0.14]) { const t = M(new THREE.TorusGeometry(0.163, 0.014, 6, 24), m, piv, 0); t.rotation.set(Math.PI / 2, 0.45 * (i ? 1 : -1), 0); t.position.y = y; }
+    return null;
+  },
+  watch(o, rig) { // relógio no pulso esquerdo (pulseira colorida + mostrador)
+    const i = o.hand === 'right' ? 0 : 1; const piv = rig.arms[i];
+    const band = M(new THREE.TorusGeometry(0.135, 0.035, 8, 20), toon(o.color || '#2f8a3c'), piv, 0.006); band.rotation.x = Math.PI / 2; band.position.y = -0.38;
+    const face = M(new THREE.CylinderGeometry(0.07, 0.07, 0.035, 18), toon(o.face || '#e8e4d8'), piv, 0.006); face.rotation.z = Math.PI / 2; face.position.set((i ? 1 : -1) * 0.16, -0.38, 0);
+    return null;
+  },
+  shortsStripes(o, rig) { // faixas laterais no shorts
+    const g = new THREE.Group(); const m = toon(o.color || '#1fb89a');
+    for (const s of [-1, 1]) for (const dz of [-0.035, 0.035]) { const b = M(new THREE.BoxGeometry(0.02, 0.22, 0.03), m, g, 0); b.position.set(s * 0.413, 0.47, dz); }
+    return g;
+  },
+  // ---------- Docão Matheus ----------
+  quiffHair(o, rig) { // cabelo curto: laterais baixinhas e topete na frente
+    hideTuft(rig); const g = new THREE.Group(); const m = toonWarm(o.color || '#2e1c12', 0.12, { side: THREE.DoubleSide }), side = toonWarm(o.side || '#3a281c', 0.1, { side: THREE.DoubleSide });
+    const top = (th) => { const a = Math.abs(th); return a < 0.8 ? 1.985 : a < 1.8 ? 1.985 - (a - 0.8) * 0.15 : 1.835 - (a - 1.8) * 0.08; };
+    const sides = (th) => { const a = Math.abs(th); return a < 0.9 ? 1.99 : a < 1.7 ? 1.97 - (a - 0.9) * 0.3 : 1.73 - (a - 1.7) * 0.07; };
+    M(hairCap(sides, 0.018, 0.0), side, g, 0.01);
+    M(hairCap(top, 0.04, 0.05), m, g, 0.013);
+    // topete: mechas pra cima e pra trás na frente
+    for (const [th, len, rad, tw] of [[0.0, 0.27, 0.12, 0.0], [0.28, 0.24, 0.11, 0.3], [-0.28, 0.22, 0.11, -0.3], [0.55, 0.18, 0.1, 0.4], [-0.55, 0.17, 0.1, -0.4], [0.14, 0.25, 0.1, 0.15]]) {
+      const p = headPoint(th, 1.99, 0.06); const c = M(new THREE.ConeGeometry(rad, len, 12), m, g, 0.008);
+      c.position.copy(p).add(new V3(0, 0.07, -0.02)); c.rotation.set(-0.55, tw, -th * 0.5); c.scale.z = 0.8;
+    }
+    return onHead(g);
+  },
+  beard(o, rig) { // bigode ralo embaixo do focinho (a barba por fazer é pintada no rosto, salvo o.stubble === false)
+    const g = new THREE.Group(); const m = toonWarm(o.color || '#3a2618', 0.05);
+    for (const s of [-1, 1]) {
+      const p = headPoint(s * 0.2, 1.32, 0.035); const c = M(new THREE.CapsuleGeometry(0.024, 0.12, 4, 8), m, g, 0.003);
+      c.position.copy(p).add(new V3(0, 0, 0.065)); c.rotation.set(0, 0, s * 1.25); c.scale.z = 0.5;
+    }
+    if (o.soul) { // mosquinha sob a boca; só quando a skin pede (os outros bigodes não ganham)
+      const p = headPoint(0, 1.16, 0.02);
+      const patch = M(new THREE.CapsuleGeometry(0.014, 0.03, 3, 6), m, g, 0.003);
+      patch.position.copy(p).add(new V3(0, -0.012, 0.02)); patch.scale.set(0.7, 1, 0.4);
+    }
+    if (o.goatee) { // cavanhaque curto em ponta no queixo + bigode mais grosso (JanorDoc)
+      for (const s of [-1, 1]) { const q = headPoint(s * 0.24, 1.3, 0.04); const c = M(new THREE.CapsuleGeometry(0.04, 0.14, 4, 8), m, g, 0.004); c.position.copy(q).add(new V3(0, -0.02, 0.06)); c.rotation.set(0, 0, s * 1.0); c.scale.z = 0.6; }
+      const q = headPoint(0, 1.08, 0.03); const gt = M(new THREE.ConeGeometry(0.09, 0.16, 12), m, g, 0.005); gt.position.copy(q).add(new V3(0, -0.04, 0.0)); gt.rotation.x = Math.PI + 0.3; gt.scale.z = 0.5;
+    }
+    return onHead(g);
+  },
+  hoodStrings(o, rig) { // cordões brancos do capuz
+    const g = new THREE.Group(); const m = toon(o.color || '#f4f4f4');
+    for (const [s, len] of [[-1, 0.26], [1, 0.22]]) {
+      const top = 1.08, x = s * 0.1; const z = (y) => torsoR(y) * 0.85 + 0.025;
+      const curve = new THREE.CatmullRomCurve3([new V3(x, top, z(top) - 0.04), new V3(x * 1.05, top - len * 0.5, z(top - len * 0.5)), new V3(x * 1.1, top - len, z(top - len))]);
+      M(new THREE.TubeGeometry(curve, 10, 0.014, 6, false), m, g, 0.004);
+      const tip = M(new THREE.CylinderGeometry(0.02, 0.018, 0.05, 8), toon('#d8d8d8'), g, 0.004); tip.position.copy(curve.getPointAt(1)).add(new V3(0, -0.02, 0));
+    }
+    return g;
+  },
+  lanyard(o, rig) { // cordão vermelho no pescoço com crachá branco do logo C!
+    const g = new THREE.Group(); const m = toon(o.color || '#d81e2a');
+    const z = (y) => torsoR(y) * 0.85 + 0.03; const by = 0.74;
+    for (const s of [-1, 1]) {
+      const curve = new THREE.CatmullRomCurve3([new V3(0, 1.15, -0.27), new V3(s * 0.24, 1.15, -0.08), new V3(s * 0.25, 1.1, 0.2), new V3(s * 0.16, 0.98, z(0.98)), new V3(s * 0.04, by + 0.13, z(by + 0.13))]);
+      M(new THREE.TubeGeometry(curve, 24, 0.017, 6, false), m, g, 0.004);
+    }
+    const badge = new THREE.Group(); badge.position.set(0, by, z(by) + 0.01); badge.rotation.x = -0.12; g.add(badge);
+    M(new THREE.BoxGeometry(0.17, 0.21, 0.02), toon('#fbfbfb'), badge, 0.006);
+    M(new THREE.BoxGeometry(0.05, 0.03, 0.025), toon('#9aa0a6'), badge, 0).position.y = 0.115;
+    const tex = canvasTex(128, 160, (x, W, H) => { x.fillStyle = '#fbfbfb'; x.fillRect(0, 0, W, H); x.fillStyle = '#d81e2a'; x.fillRect(0, H - 24, W, 24); drawLogo(x, W / 2, H * 0.44, 74, o.logo || '#d81e2a'); });
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.19), new THREE.MeshBasicMaterial({ map: tex })); face.position.z = 0.0115; badge.add(face);
+    return g;
+  },
+  longPants(o, rig) { // calça comprida cobrindo as pernas
+    const m = toon(o.color || '#141416');
+    for (const leg of rig.legs) M(new THREE.CapsuleGeometry(0.15, 0.16, 4, 14), m, leg, 0.01).position.y = -0.15;
+    return null;
+  },
+  // Faixa presidencial: banda diagonal no peito (ombro direito → quadril esquerdo), verde/amarela/azul, com o brasão no centro.
+  faixa(o, rig) {
+    const g = new THREE.Group();
+    const GREEN = (o.colors && o.colors[0]) || '#009c3b';
+    const YELLOW = (o.colors && o.colors[1]) || '#ffdf00';
+    const BLUE = (o.colors && o.colors[2]) || '#002776';
+    const hug = (x, y, z, lift = 0.03) => {
+      const yy = Math.max(0.42, Math.min(1.12, y));
+      const R = torsoR(yy);
+      const sx = x, sz = z / 0.85, d = Math.hypot(sx, sz);
+      if (d < R + lift) { const k = (R + lift) / (d || 1); return new V3(sx * k, y, sz * k * 0.85); }
+      return new V3(x, y, z);
+    };
+    // ombro direito do Docão é −x (a mão direita é arms[0])
+    const curve = new THREE.CatmullRomCurve3([
+      hug(-0.22, 0.98, -0.46, 0.02),
+      new V3(-0.55, 1.08, 0.02),
+      hug(-0.28, 0.96, 0.28, 0.035),
+      hug(-0.12, 0.82, 0.36, 0.04),
+      hug(0.04, 0.70, 0.40, 0.04),
+      hug(0.20, 0.56, 0.34, 0.035),
+      hug(0.32, 0.44, 0.16, 0.03),
+      new V3(0.30, 0.30, 0.28),
+      new V3(0.22, 0.16, 0.34),
+    ], false, 'centripetal');
+    const frames = [];
+    let prevB = null;
+    const SAMPLES = 32;
+    for (let i = 0; i <= SAMPLES; i++) {
+      const t = i / SAMPLES;
+      const p = curve.getPointAt(t);
+      const tan = curve.getTangentAt(t).normalize();
+      const radial = new V3(p.x, p.y > 1.05 ? 0.4 : 0, p.z);
+      if (radial.lengthSq() < 1e-5) radial.set(0, 0, 1);
+      radial.normalize();
+      let B = new V3().crossVectors(tan, radial);
+      if (B.lengthSq() < 1e-6) B = new V3().crossVectors(tan, new V3(0, 1, 0));
+      B.normalize();
+      if (prevB && B.dot(prevB) < 0) B.negate();
+      let N = new V3().crossVectors(B, tan).normalize();
+      if (N.dot(radial) < 0) { N.negate(); B.negate(); }
+      if (prevB && B.dot(prevB) < 0) { B.negate(); N.negate(); }
+      prevB = B.clone();
+      frames.push({ p, tan, B, N });
+    }
+    const stripe = (offset, half, color, lift) => {
+      const pos = [], idx = [];
+      frames.forEach((f, i) => {
+        const c = f.p.clone().addScaledVector(f.B, offset).addScaledVector(f.N, lift);
+        const a = c.clone().addScaledVector(f.B, -half), b = c.clone().addScaledVector(f.B, half);
+        pos.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        if (i) { const k = (i - 1) * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+      });
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setIndex(idx); geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, toon(color, { side: THREE.DoubleSide }));
+      g.add(mesh); outline(mesh, 0.006); mesh.castShadow = true;
+    };
+    // borda escura + três faixas. O lado +B fica mais alto no peito: verde em cima, amarelo no meio, azul embaixo.
+    stripe(0, 0.112, '#1a120c', 0.012);
+    stripe(0.07, 0.034, GREEN, 0.022);
+    stripe(0, 0.034, YELLOW, 0.024);
+    stripe(-0.07, 0.034, BLUE, 0.022);
+    // brasão no meio do peito, virado pra fora, estrela pra cima
+    let best = frames[0], score = 99;
+    for (const f of frames) { const s = Math.abs(f.p.y - 0.72) + Math.abs(f.p.x) * 0.25; if (f.p.z > 0.15 && s < score) { score = s; best = f; } }
+    const up = new V3(0, 1, 0);
+    let xAxis = new V3().crossVectors(up, best.N).normalize();
+    if (xAxis.lengthSq() < 0.2) xAxis = new V3(1, 0, 0);
+    const yAxis = new V3().crossVectors(best.N, xAxis).normalize();
+    const badge = new THREE.Group();
+    badge.position.copy(best.p).addScaledVector(best.N, 0.05);
+    badge.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, best.N));
+    g.add(badge);
+    const starShape = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.045 : 0.105;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      i ? starShape.lineTo(x, y) : starShape.moveTo(x, y);
+    }
+    starShape.closePath();
+    const gold = toon('#e2b33a'), goldDark = toon('#8a6414'), leaf = toon('#1f7a34'), leafDark = toon('#145226');
+    M(new THREE.ExtrudeGeometry(starShape, { depth: 0.018, bevelEnabled: false }), gold, badge, 0.006).position.z = -0.01;
+    const globe = M(new THREE.SphereGeometry(0.052, 18, 14), toon(BLUE), badge, 0.005); globe.position.z = 0.02;
+    const band = M(new THREE.TorusGeometry(0.05, 0.011, 6, 24), toon('#f7f4ea'), badge, 0.003);
+    band.rotation.x = Math.PI / 2; band.scale.y = 0.42; band.position.z = 0.02;
+    // Cruzeiro do Sul, bem simples, no globo azul
+    for (const [x, y] of [[0.0, 0.028], [0.012, 0.012], [-0.01, 0.006], [0.006, -0.008], [-0.016, 0.022]]) {
+      const st = M(new THREE.SphereGeometry(0.007, 8, 6), toon('#f7f7f2'), badge, 0);
+      st.position.set(x, y, 0.062);
+    }
+    const top = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.008 : 0.02;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      i ? top.lineTo(x, y) : top.moveTo(x, y);
+    }
+    top.closePath();
+    const topStar = M(new THREE.ExtrudeGeometry(top, { depth: 0.01, bevelEnabled: false }), gold, badge, 0.003);
+    topStar.position.set(0, 0.1, 0.01);
+    // espada atrás da estrela (só a lâmina, pra ler de longe)
+    const sword = M(new THREE.BoxGeometry(0.012, 0.2, 0.008), toon('#d9dde4'), badge, 0.003);
+    sword.position.set(0, 0.01, -0.012);
+    M(new THREE.BoxGeometry(0.04, 0.012, 0.01), goldDark, badge, 0.003).position.set(0, -0.07, -0.01);
+    // ramos: café à esquerda, fumo à direita (leitura do brasão, bem reduzida)
+    for (const s of [-1, 1]) {
+      const sprig = new THREE.Group(); sprig.position.set(s * 0.09, -0.01, 0.01); sprig.rotation.z = s * 0.7; badge.add(sprig);
+      M(new THREE.CylinderGeometry(0.006, 0.008, 0.11, 6), toon('#6b4a2a'), sprig, 0.003).rotation.z = 0.4;
+      for (const [yy, sc] of [[0.02, 1], [0.045, 0.85], [-0.01, 0.7]]) {
+        const lf = M(new THREE.SphereGeometry(0.022, 10, 8), yy > 0 ? leaf : leafDark, sprig, 0.003);
+        lf.scale.set(0.45, 1, 0.28); lf.position.set(s * -0.012, yy, 0.01); lf.rotation.z = s * 0.8;
+        lf.scale.multiplyScalar(sc);
+      }
+    }
+    return g;
+  },
+  // ---------- Docão Barriguinha (derrota do Docão Minado: camisa arregaçada, barriga de fora) ----------
+  // A barriga é a mesma construção do Barrigão (esfera na frente do tronco), no material de pele que o Docão já usa. Sem malha nova.
+  bellyOut(o, rig) {
+    const g = new THREE.Group();
+    const belly = M(new THREE.SphereGeometry(0.32, 28, 18), rig.skinM, g, 0.012);
+    belly.scale.set(1.15, 0.82, 0.95); belly.position.set(0, 0.58, 0.4);
+    const navel = M(new THREE.TorusGeometry(0.032, 0.01, 8, 16), toon('#c45a18'), g, 0);
+    navel.position.set(0, 0.55, 0.7); navel.rotation.x = Math.PI / 2 - 0.25;
+    const y = 0.84, r = torsoR(y) + 0.04;
+    const roll = M(new THREE.TorusGeometry(r, 0.07, 12, 32), toon(o.roll || '#c44b36'), g, 0.008);
+    roll.rotation.x = Math.PI / 2; roll.position.set(0, y, 0.06); roll.scale.set(1, 0.9, 1);
+    const cream = M(new THREE.TorusGeometry(r + 0.01, 0.02, 8, 28), toon('#f6e4bd'), g, 0);
+    cream.rotation.x = Math.PI / 2; cream.position.set(0, y + 0.01, 0.08); cream.scale.set(1, 0.9, 1);
+    const band = M(new THREE.TorusGeometry(r * 0.98, 0.022, 8, 28), toon(o.rollDark || '#8e2c1e'), g, 0);
+    band.rotation.x = Math.PI / 2; band.position.set(0, y + 0.055, 0.04); band.scale.set(1, 0.9, 1);
+    return g;
+  },
+  // ---------- Docão Bigzão (cabelo ondulado + colar de pérola; óculos reusa squareGlasses) ----------
+  wavyHair(o, rig) { // cabelo médio ondulado: casca lisa (igual aos outros cabelos) + ondas grossas deitadas, sem tufo
+    hideTuft(rig); const g = new THREE.Group();
+    const m = toonWarm(o.color || '#a56b3c', 0.16, { side: THREE.DoubleSide }, '#c4844a');
+    const hi = toonWarm(o.highlight || '#d7a15a', 0.22, { side: THREE.DoubleSide }, '#f0c48a');
+    const line = (th) => {
+      const a = Math.abs(th);
+      let y = a < 0.45 ? 1.95 : a < 1.15 ? 1.95 - (a - 0.45) * 0.18 : a < 2.1 ? 1.824 - (a - 1.15) * 0.14 : 1.68;
+      if (th < 0 && a < 0.85) y -= 0.03;
+      return y;
+    };
+    M(hairCap(line, 0.038, 0.08), m, g, 0.011);
+    const wave = (pts, rad, mat) => M(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 14, rad, 8, false), mat, g, 0.005);
+    // ondas deitadas no topo, da direita pra esquerda (não são mechas em pé)
+    wave([headPoint(0.95, 1.96, 0.06), headPoint(0.35, 2.01, 0.09), headPoint(-0.3, 1.99, 0.08), headPoint(-0.95, 1.93, 0.05)], 0.058, hi);
+    wave([headPoint(1.05, 1.9, 0.05), headPoint(0.25, 1.95, 0.075), headPoint(-0.5, 1.92, 0.065), headPoint(-1.1, 1.86, 0.04)], 0.05, m);
+    wave([headPoint(0.8, 1.86, 0.045), headPoint(0.05, 1.9, 0.06), headPoint(-0.7, 1.86, 0.045)], 0.042, hi);
+    return onHead(g);
+  },
+  pearl(o) { // cordão fino prateado com uma pérola redonda no peito (não é a corrente grossa)
+    const g = new THREE.Group();
+    const silver = toonWarm(o.color || '#d5dbe3', 0.45, {}, '#ffffff');
+    const gem = toonWarm(o.pearl || '#f7f3ea', 0.3, {}, '#fffdf8');
+    const chain = M(new THREE.TorusGeometry(0.23, 0.012, 8, 40), silver, g, 0.004);
+    chain.rotation.x = -(Math.PI / 2 - 0.78); chain.position.set(0, 1.06, 0.24); chain.scale.z = 0.9;
+    const pend = new THREE.Group(); pend.position.set(0, 0.94, 0.52); pend.rotation.x = -0.15; g.add(pend);
+    M(new THREE.SphereGeometry(0.058, 18, 14), gem, pend, 0.006);
+    const shine = M(new THREE.SphereGeometry(0.016, 8, 6), basic('#ffffff'), pend, 0); shine.position.set(0.014, 0.018, 0.04);
+    const bail = M(new THREE.TorusGeometry(0.018, 0.006, 6, 10), silver, pend, 0); bail.position.y = 0.062;
+    return g;
+  },
+  // ---------- DocOny: raquete de beach tennis nas costas (cintura fica pros itens de cinto) ----------
+  beachRacket(o) {
+    const root = new THREE.Group();
+    const g = new THREE.Group();
+    const red = toon(o.face || '#e10600'), black = toon(o.rim || '#141416'), green = toon(o.accent || '#2fce4a');
+    const shape = new THREE.Shape();
+    shape.moveTo(0, -0.2);
+    shape.bezierCurveTo(0.24, -0.14, 0.32, 0.06, 0.3, 0.22);
+    shape.bezierCurveTo(0.26, 0.44, 0.1, 0.52, 0, 0.52);
+    shape.bezierCurveTo(-0.1, 0.52, -0.26, 0.44, -0.3, 0.22);
+    shape.bezierCurveTo(-0.32, 0.06, -0.24, -0.14, 0, -0.2);
+    const face = M(new THREE.ExtrudeGeometry(shape, { depth: 0.045, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 1, curveSegments: 8 }), red, g, 0.008);
+    face.position.z = -0.022;
+    let rimPts = shape.getPoints(24).map((p) => new V3(p.x, p.y, 0));
+    if (rimPts.length > 2 && rimPts[0].distanceTo(rimPts[rimPts.length - 1]) < 1e-3) rimPts = rimPts.slice(0, -1);
+    M(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rimPts, true), 64, 0.022, 7, true), black, g, 0.004);
+    const holeM = basic(o.holes || '#f4f1ea');
+    for (const [x, y] of [[0, 0.28], [-0.1, 0.16], [0.1, 0.16], [-0.16, 0.02], [0, 0.02], [0.16, 0.02], [-0.1, -0.1], [0.1, -0.1]]) {
+      const h = M(new THREE.CylinderGeometry(0.02, 0.02, 0.02, 8), holeM, g, 0);
+      h.rotation.x = Math.PI / 2; h.position.set(x, y, 0.028);
+    }
+    const chevL = M(new THREE.BoxGeometry(0.2, 0.032, 0.016), green, g, 0.003); chevL.position.set(-0.06, 0.1, 0.04); chevL.rotation.z = 0.65;
+    const chevR = M(new THREE.BoxGeometry(0.2, 0.032, 0.016), green, g, 0.003); chevR.position.set(0.06, 0.1, 0.04); chevR.rotation.z = -0.65;
+    const tip = M(new THREE.BoxGeometry(0.1, 0.028, 0.016), green, g, 0.003); tip.position.set(0.16, 0.4, 0.02); tip.rotation.z = 0.45;
+    M(new THREE.CylinderGeometry(0.04, 0.028, 0.09, 10), black, g, 0.004).position.y = -0.26;
+    M(new THREE.CylinderGeometry(0.024, 0.026, 0.28, 10), toon(o.handle || '#1c1e22'), g, 0.004).position.y = -0.44;
+    M(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 10), toon('#2a2c30'), g, 0).position.y = -0.46;
+    const butt = M(new THREE.SphereGeometry(0.03, 10, 8), black, g, 0.003); butt.scale.y = 0.65; butt.position.y = -0.58;
+    // ombro esquerdo (−x), atrás do tronco: a face sobe ao lado da cabeça, o cabo desce nas costas
+    g.position.set(-0.34, 1.18, -0.42); g.rotation.set(0.18, 0.45, -0.55); root.add(g);
+    const zb = (y) => -(torsoR(y) * 0.85 + 0.05);
+    const strap = new THREE.CatmullRomCurve3([
+      new V3(-0.28, 0.72, zb(0.72) - 0.06),
+      new V3(-0.46, 0.98, zb(0.98)),
+      new V3(-0.5, 1.12, -0.06),
+      new V3(-0.28, 0.98, torsoR(0.98) * 0.55),
+    ]);
+    M(new THREE.TubeGeometry(strap, 16, 0.016, 6, false), toon('#1a1c20'), root, 0.003);
+    return root;
+  },
+});
+// ---------- Docão Coelho (cabeça de coelho + dreads) ----------
+Object.assign(PARTS, {
+  rabbitHead(o, rig) { // capuz de pelúcia de coelho: abertura pro rosto, orelhonas em pé, dentinhos e bigodes
+    hideTuft(rig); if (rig.ears) rig.ears.forEach((e) => (e.visible = false)); // só no Coelho: orelhas de porco somem sob o capuz
+    const g = new THREE.Group(); const c = o.color || '#f1ece4';
+    const fur = toonWarm(c, 0.2, { side: THREE.DoubleSide }), inner = toonWarm(o.inner || '#f3a6b8', 0.2, { side: THREE.DoubleSide });
+    const shell = M(new THREE.SphereGeometry(0.655, 44, 30, 0, TAU, 1.05, Math.PI - 1.05), fur, g, 0.012);
+    shell.rotation.x = Math.PI / 2 - 0.38; shell.scale.set(1.03, 1, 0.97);
+    // bochechas fofas dos lados do rosto
+    for (const s of [-1, 1]) { const ch = M(new THREE.SphereGeometry(0.17, 18, 12), fur, g, 0.01); ch.position.set(s * 0.43, -0.2, 0.3); ch.scale.set(0.8, 1, 0.75); }
+    // orelhonas
+    for (const s of [-1, 1]) {
+      const ear = new THREE.Group(); ear.position.set(s * 0.2, 0.55, -0.12); ear.rotation.set(-0.18, 0, -s * 0.16); g.add(ear);
+      const e = M(new THREE.CapsuleGeometry(0.12, 0.62, 6, 16), fur, ear, 0.012); e.position.y = 0.4; e.scale.z = 0.42;
+      const ei = M(new THREE.CapsuleGeometry(0.075, 0.5, 6, 14), inner, ear, 0); ei.position.set(0, 0.4, 0.035); ei.scale.z = 0.25;
+      if (s > 0) { ear.rotation.z = -0.5; } // uma orelha meio caída, charme de coelho
+    }
+    // focinho de coelho: narizinho rosa por cima do focinho do Docão, dentinhos e bigodes
+    const head = new THREE.Group(); // coordenadas da cabeça do Docão (o grupo g fica em y=1.52)
+    head.position.set(0, -1.52, 0.02); g.add(head);
+    const sp = headPoint(0, 1.47);
+    const nose = M(new THREE.SphereGeometry(0.06, 14, 10), toon(o.nose || '#f07a96'), head, 0.006); nose.position.set(0, 1.58, sp.z + 0.15); nose.scale.set(1.3, 0.8, 0.7);
+    const tw = basic('#fbfbf6');
+    for (const s of [-1, 1]) {
+      const t = M(new THREE.BoxGeometry(0.07, 0.1, 0.03), tw, head, 0.005); t.position.set(s * 0.038, 1.27, sp.z + 0.06); t.rotation.x = -0.15;
+      for (const k of [-1, 0, 1]) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.003, 0.34, 4), basic('#2a2a2e'), undefined); head.add(w);
+        w.position.set(s * 0.36, 1.47 + k * 0.045, sp.z - 0.02); w.rotation.set(0, 0, Math.PI / 2 + s * k * 0.18);
+      }
+    }
+    g.position.set(0, 1.52, -0.02); return onHead(g);
+  },
+  dreads(o, rig) { // dreadlocks grossos saindo de baixo do capuz, caindo pelas costas e ombros, com contas coloridas
+    hideTuft(rig); const g = new THREE.Group(); const m = toonWarm(o.color || '#3a2414', 0.12);
+    const beads = (o.beads || ['#d81e2a', '#f2c230', '#2a9a3a']).map((b) => toon(b));
+    let k = 0;
+    for (const row of [{ y: 1.66, out: 0.16 }, { y: 1.5, out: 0.2 }]) {
+      for (let a = -2.1; a <= 2.1 + 1e-6; a += 0.3) {
+        const th = Math.PI + a + (row.y < 1.6 ? 0.15 : 0); const p = headPoint(th, row.y, row.out); const n = headNormal(th, row.y);
+        const len = 0.55 + ((k * 37) % 7) * 0.05; const sway = ((k % 3) - 1) * 0.05;
+        const pts = [p, p.clone().addScaledVector(n, 0.08).add(new V3(sway, -len * 0.35, 0)), p.clone().addScaledVector(n, 0.1).add(new V3(sway * 2, -len * 0.7, 0)), p.clone().addScaledVector(n, 0.08).add(new V3(sway, -len, 0))];
+        const curve = new THREE.CatmullRomCurve3(pts);
+        M(new THREE.TubeGeometry(curve, 14, 0.048, 8, false), m, g, 0.008);
+        const cap = M(new THREE.SphereGeometry(0.048, 10, 8), m, g, 0); cap.position.copy(pts[3]);
+        if (k % 2 === 0) { const b = M(new THREE.CylinderGeometry(0.062, 0.062, 0.06, 12), beads[k % beads.length], g, 0.004); b.position.copy(curve.getPointAt(0.55)); }
+        k++;
+      }
+    }
+    return onHead(g);
+  },
+});
+// ---------- Docão Boi (cabeça de boi comum, nada de Caprichoso) ----------
+Object.assign(PARTS, {
+  bullHead(o, rig) { // capuz de boi: pelagem marrom, chifres curvos creme, orelhas de lado, focinho largo escuro com narinas
+    hideTuft(rig); if (rig.ears) rig.ears.forEach((e) => (e.visible = false)); // só no Boi: orelhas de porco somem sob o capuz
+    const g = new THREE.Group();
+    const fur = toonWarm(o.color || '#6b3e22', 0.15, { side: THREE.DoubleSide });
+    const dark = toonWarm(o.dark || '#2b1a10', 0.1, { side: THREE.DoubleSide });
+    const hornM = toonWarm(o.horn || '#efe2c4', 0.2), tipM = toon(o.hornTip || '#3a3026');
+    const shell = M(new THREE.SphereGeometry(0.655, 44, 30, 0, TAU, 1.05, Math.PI - 1.05), fur, g, 0.012);
+    shell.rotation.x = Math.PI / 2 - 0.38; shell.scale.set(1.06, 1, 0.97);
+    // topete escuro na testa
+    const tuft = M(new THREE.SphereGeometry(0.2, 18, 12), dark, g, 0.008); tuft.position.set(0, 0.5, 0.22); tuft.scale.set(1.3, 0.55, 0.8);
+    // chifres: base grossa saindo de lado, curvando pra cima e pra frente
+    for (const s of [-1, 1]) {
+      const curve = new THREE.CatmullRomCurve3([new V3(s * 0.5, 0.38, 0.0), new V3(s * 0.78, 0.46, 0.04), new V3(s * 0.94, 0.66, 0.1), new V3(s * 0.96, 0.86, 0.16)]);
+      const n = 16, pts = curve.getPoints(n);
+      for (let i = 0; i < n; i++) {
+        const a = pts[i], b = pts[i + 1], r = 0.1 * (1 - i / n) + 0.02;
+        const seg = M(new THREE.CylinderGeometry(r * 0.92, r, a.distanceTo(b) * 1.15, 12), i > n - 4 ? tipM : hornM, g, 0.006);
+        seg.position.copy(a).lerp(b, 0.5); seg.quaternion.setFromUnitVectors(new V3(0, 1, 0), b.clone().sub(a).normalize());
+      }
+      // orelha de boi: de lado, abaixo do chifre
+      const ear = new THREE.Group(); ear.position.set(s * 0.6, 0.18, 0.0); ear.rotation.set(0, s * 0.3, -s * 1.25); g.add(ear);
+      const e = M(new THREE.CapsuleGeometry(0.09, 0.2, 6, 14), fur, ear, 0.01); e.position.y = 0.16; e.scale.z = 0.4;
+      const ei = M(new THREE.CapsuleGeometry(0.055, 0.15, 6, 12), toon(o.inner || '#d9a48a'), ear, 0); ei.position.set(0, 0.16, 0.03); ei.scale.z = 0.25;
+    }
+    // focinho de boi largo por cima do focinho do Docão, com narinas
+    const head = new THREE.Group(); head.position.set(0, -1.52, 0.02); g.add(head);
+    const sp = headPoint(0, 1.47);
+    const muzzle = M(new THREE.SphereGeometry(0.2, 22, 16), toonWarm(o.muzzle || '#3a2a22', 0.15), head, 0.01);
+    muzzle.position.set(0, 1.42, sp.z + 0.08); muzzle.scale.set(1.35, 0.85, 0.7);
+    for (const s of [-1, 1]) { const ns = M(new THREE.SphereGeometry(0.04, 12, 8), basic('#120c08'), head, 0); ns.position.set(s * 0.1, 1.45, sp.z + 0.215); ns.scale.set(1, 1.3, 0.5); }
+    g.position.set(0, 1.52, -0.02); return onHead(g);
+  },
+});
+// ---------- Docão Él Big: rabinho some pra não cobrir o BIG 67 das costas ----------
+Object.assign(PARTS, {
+  hideTail(o, rig) { if (rig.tail) rig.tail.visible = false; },
+});
+// ---------- Docão Neymar (muleta + gesso) ----------
+Object.assign(PARTS, {
+  crutch(o, rig) { // muleta axilar procedural: duas hastes de alumínio em A, almofada na axila, manopla na altura da mão e ponteira de borracha no chão
+    const g = new THREE.Group();
+    const metal = toon(o.color || '#c9ccd2'), pad = toon(o.pad || '#1a1c20'), rub = toon(o.tip || '#2a2a2e');
+    const top = 0.98, grip = 0.46, join = 0.26;
+    for (const z of [-0.07, 0.07]) { // hastes duplas que se juntam embaixo
+      const a = new V3(0, top, z), b = new V3(0, join, 0);
+      const len = a.distanceTo(b); const rod = M(new THREE.CylinderGeometry(0.018, 0.018, len, 10), metal, g, 0.005);
+      rod.position.copy(a).add(b).multiplyScalar(0.5); rod.quaternion.setFromUnitVectors(new V3(0, 1, 0), a.clone().sub(b).normalize());
+    }
+    const shaft = M(new THREE.CylinderGeometry(0.02, 0.02, join - 0.04, 10), metal, g, 0.005); shaft.position.y = (join + 0.04) / 2;
+    const padM = M(new THREE.CapsuleGeometry(0.04, 0.16, 4, 10), pad, g, 0.006); padM.rotation.x = Math.PI / 2; padM.position.y = top + 0.03;
+    const gr = M(new THREE.CylinderGeometry(0.026, 0.026, 0.17, 10), pad, g, 0.005); gr.rotation.x = Math.PI / 2; gr.position.y = grip;
+    M(new THREE.CylinderGeometry(0.032, 0.036, 0.06, 12), rub, g, 0.005).position.y = 0.03;
+    const side = o.hand === 'left' ? 1 : -1; // −x = mão direita do Docão (arms[0])
+    g.position.set(side * 0.64, 0, 0.04); g.rotation.z = side * -0.08; // axila → chão, pezinho levemente pra fora
+    return g;
+  },
+  legCast(o, rig) { // gesso branco na canela (perna do lado da muleta)
+    const leg = rig.legs[o.leg === 'left' ? 1 : 0]; const m = toon(o.color || '#f4f2ec');
+    const c = M(new THREE.CylinderGeometry(0.155, 0.17, 0.3, 16), m, leg, 0.008); c.position.y = -0.2;
+    for (const y of [-0.1, -0.2, -0.3]) { const r = M(new THREE.TorusGeometry(0.163, 0.012, 6, 18), toon(o.wrap || '#e2ded4'), leg, 0); r.rotation.x = Math.PI / 2; r.position.y = y; }
+    return null;
+  },
+  babyMavi(o, rig) { // bebê Mavi no colo: porquinha embrulhada em manta rosa, apoiada no antebraço oposto à muleta
+    const g = new THREE.Group();
+    const skin = toon(o.skin || '#ffb3a8'), snoutM = toon(o.snout || '#ff8f86'), blanket = toon(o.blanket || '#f7a8c8'), trimM = toon(o.trim || '#ffffff'), dark = basic('#2a1a14');
+    const body = M(new THREE.CapsuleGeometry(0.12, 0.2, 6, 14), blanket, g, 0.008); body.rotation.z = Math.PI / 2;
+    const fold = M(new THREE.TorusGeometry(0.115, 0.025, 8, 18), trimM, g, 0.004); fold.rotation.y = Math.PI / 2; fold.position.x = -0.1;
+    const head = new THREE.Group(); head.position.set(-0.2, 0.06, 0.02); g.add(head);
+    M(new THREE.SphereGeometry(0.12, 18, 14), skin, head, 0.008);
+    const sn = M(new THREE.CylinderGeometry(0.045, 0.05, 0.04, 14), snoutM, head, 0.005); sn.rotation.x = Math.PI / 2; sn.position.set(0, -0.02, 0.12);
+    for (const s of [-1, 1]) {
+      const n = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 6), dark); n.position.set(s * 0.016, -0.02, 0.142); head.add(n);
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 8), dark); e.position.set(s * 0.045, 0.035, 0.105); head.add(e);
+      const ear = M(new THREE.ConeGeometry(0.04, 0.07, 10), skin, head, 0.005); ear.position.set(s * 0.075, 0.1, 0); ear.rotation.z = -s * 0.5;
+      const ck = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), basic('#ff7f8a')); ck.position.set(s * 0.075, -0.01, 0.095); head.add(ck);
+    }
+    const bow = new THREE.Group(); bow.position.set(0.03, 0.12, 0.03); head.add(bow); // lacinho da Mavi
+    for (const s of [-1, 1]) { const l = M(new THREE.ConeGeometry(0.03, 0.05, 8), toon(o.bow || '#e0408a'), bow, 0.004); l.rotation.z = s * Math.PI / 2; l.position.x = s * 0.028; }
+    M(new THREE.SphereGeometry(0.016, 8, 8), toon(o.bow || '#e0408a'), bow, 0);
+    const side = o.hand === 'right' ? -1 : 1; // +x = braço esquerdo do Docão (oposto à muleta)
+    g.position.set(side * 0.34, 0.5, 0.3); g.rotation.set(0, side * 0.35, side * -0.15); if (side < 0) g.scale.x = -1;
     return g;
   },
 });

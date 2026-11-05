@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<base href="/modo/zumbi/">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Docão Tênis</title>
+<link rel="stylesheet" href="tenis.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="quadra"></canvas>
+<div id="hud">
+  <header class="top">
+    <a class="back" href="./hub.html">Quermesse</a>
+    <div class="board" id="placar"></div>
+    <button type="button" id="pausa-btn" class="chip">Pausa</button>
+  </header>
+  <p id="fala"></p>
+  <div id="acoes"></div>
+  <p id="nota" hidden></p>
+  <div id="faixa" hidden><span id="verde"></span><i id="agulha"></i></div>
+  <div id="golpes" hidden>
+    <p>Golpe</p>
+    <button type="button" data-golpe="liftado">Liftado</button>
+    <button type="button" data-golpe="reto">Reto</button>
+    <button type="button" data-golpe="cortado">Cortado</button>
+    <button type="button" data-golpe="lob">Lob</button>
+    <button type="button" data-golpe="curto">Curto</button>
+  </div>
+  <p id="dica">O mouse marca a queda. A faixa fica verde no instante do clique. Direito é reto. Q corta, E lob, R deixa curto. WASD posiciona. Shift arrisca.</p>
+</div>
+<section id="lobby">
+  <form id="comanda">
+    <p class="eyebrow">Tênis de quadra</p>
+    <h1>Docão Tênis</h1>
+    <fieldset>
+      <legend>Quem joga</legend>
+      <label><input type="radio" name="mesa" value="simples" checked> Simples</label>
+      <label><input type="radio" name="mesa" value="dupla"> Duplas</label>
+    </fieldset>
+    <fieldset>
+      <legend>Partida</legend>
+      <label><input type="radio" name="partida" value="curta"> Um set</label>
+      <label><input type="radio" name="partida" value="longa" checked> Melhor de 3</label>
+    </fieldset>
+    <div id="cadeiras"></div>
+    <button type="submit" class="go">Entrar na quadra</button>
+  </form>
+</section>
+<section id="pausa" hidden>
+  <div class="sheet">
+    <h2>Pausa</h2>
+    <button type="button" id="continua">Continuar</button>
+    <button type="button" id="de-novo">Outra partida</button>
+    <a href="./hub.html">Voltar à quermesse</a>
+  </div>
+</section>
+<script type="module" src="./tenis/main.js"></script>
+</body>
+</html>

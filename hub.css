@@ -1,0 +1,127 @@
+/* Quermesse: mesma fazendinha, papel e madeira da comanda do Shooter. */
+:root{
+  --ink:#34402e;
+  --paper:#f6e4bd;
+  --cream:#fff0cc;
+  --brick:#b73c28;
+  --brick-deep:#722e20;
+  --wood:#70482d;
+  --shadow:#291e18;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:"Trebuchet MS","Segoe UI",Arial,sans-serif;
+  color:var(--ink);
+  background:#24180f;
+}
+.yard{
+  position:fixed;inset:0;
+  background:
+    linear-gradient(100deg,#1a120ccc 0%,#1a120c88 34%,#1a120c33 68%,#1a120c55 100%),
+    url("./assets/menu/fazendinha-entardecer.webp") center/cover no-repeat;
+}
+.fair{
+  position:relative;z-index:1;
+  min-height:100dvh;
+  display:flex;flex-direction:column;justify-content:center;
+  gap:28px;
+  width:min(1080px,100%);
+  padding:36px 5vw 48px;
+}
+.fair-head{
+  width:max-content;max-width:100%;
+  padding:14px 26px 16px;
+  color:var(--cream);
+  background:repeating-linear-gradient(92deg,#8a6240 0 26px,#6b4a30 27px 30px,#7a5638 31px 52px);
+  border:4px solid #3d2b20;border-radius:6px;
+  box-shadow:6px 8px 0 #291e1899,inset 0 0 0 3px #c9a36a55;
+  transform:rotate(-1.4deg);
+}
+.eyebrow{
+  margin:0;
+  font:900 12px/1 "Trebuchet MS",sans-serif;
+  letter-spacing:2px;text-transform:uppercase;color:#f6e4bd;
+}
+h1{
+  margin:8px 0 0;
+  font:900 clamp(46px,6.4vw,78px)/.88 Impact,"Arial Black",sans-serif;
+  letter-spacing:1px;color:var(--cream);
+  text-shadow:2px 3px #3d2b20;
+}
+.lead{margin:8px 0 0;max-width:36ch;font:700 15px/1.35 "Trebuchet MS",sans-serif;color:#f8e7c4}
+.stalls{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:22px;align-items:start;
+  margin:0;padding:0;list-style:none;
+}
+.stall{
+  display:flex;flex-direction:column;align-items:flex-start;
+  min-height:100%;
+  padding:18px 18px 16px;
+  text-decoration:none;color:var(--ink);
+  background:
+    radial-gradient(ellipse at 8% 0,#fff6da66,transparent 55%),
+    var(--paper);
+  border:3px solid var(--ink);border-radius:8px;
+  box-shadow:5px 7px 0 var(--shadow);
+}
+.stall.open{transform:rotate(-.6deg)}
+.stall.open:hover{transform:rotate(.3deg) translateY(-4px);background:#fff3d4}
+.stall.open:active{transform:translateY(2px);box-shadow:2px 3px 0 var(--shadow)}
+.stall.open:focus-visible{outline:3px solid #c33b28;outline-offset:4px}
+.stall-logo{display:block;width:min(100%,340px);height:auto;margin:-4px 0 4px -4px}
+.stall-go img{display:block;width:168px;height:46px;margin:0 auto;object-fit:contain;pointer-events:none}
+.stall-kicker{
+  display:table;margin-bottom:8px;padding:4px 8px;
+  font:900 11px/1.2 "Trebuchet MS",sans-serif;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--cream);background:var(--ink);border-radius:3px 3px 0 0;transform:rotate(-1.5deg);
+}
+.stall-name{
+  font:900 clamp(28px,3vw,40px)/1 Impact,"Arial Black",sans-serif;
+  letter-spacing:.6px;color:#8b3223;text-shadow:1px 2px #d8bd83;
+}
+.stall-copy{margin:8px 0 16px;font:700 15px/1.4 "Trebuchet MS",sans-serif;color:#5c4a34}
+.stall-go{
+  margin-top:auto;align-self:stretch;text-align:center;
+  padding:12px 16px;
+  font:900 22px/1 Impact,"Arial Black",sans-serif;letter-spacing:1px;color:var(--cream);
+  background:var(--brick);border:2px solid var(--brick-deep);border-radius:7px;
+  box-shadow:inset 0 2px #e76a45,0 3px var(--brick-deep);
+}
+.stall.open:hover .stall-go{background:#c64b30}
+.stall.shut{
+  justify-content:center;
+  background:#e7d3a8;
+  border-style:dashed;color:#6d5a40;
+  box-shadow:4px 5px 0 #291e1866;
+  transform:rotate(1.6deg);
+}
+.stall.shut .stall-kicker{background:#8a6a42;color:#f6e4bd}
+.stall.shut .stall-name{color:#6a4e32;text-shadow:none}
+.stall.shut .stall-copy{margin-bottom:0}
+.stall.poster{position:relative;padding:0;overflow:hidden;background:#3d2b20}
+.stall.poster img{display:block;width:100%;height:auto;margin:0}
+.stamp{
+  align-self:flex-end;margin:-6px -4px 12px;
+  padding:8px 10px;
+  font:900 13px/1.1 Impact,"Arial Black",sans-serif;letter-spacing:1px;text-transform:uppercase;
+  color:#9c3b2a;background:#fbecc9;
+  border:2px solid #a43b2c;border-radius:3px;
+  transform:rotate(8deg);
+}
+.stall.poster .stamp{position:absolute;top:12px;right:12px;margin:0;align-self:auto}
+.stall.poster-link{display:block;text-decoration:none;color:inherit}
+.stall.poster-link:hover{transform:translateY(-4px)}
+.stall.poster-link:focus-visible{outline:3px solid #c33b28;outline-offset:4px}
+.poster-go{position:absolute;left:14px;bottom:14px;width:auto;margin:0;padding:6px 10px}
+@media(max-width:800px){
+  .fair{justify-content:flex-start;padding-top:28px;gap:20px}
+  .fair-head{transform:none}
+  .stalls{grid-template-columns:1fr}
+  .stall.open,.stall.shut{transform:none}
+  .stall-logo{width:min(100%,280px)}
+}
+@media(prefers-reduced-motion:reduce){
+  .stall.open{transition:none}
+}
