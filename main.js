@@ -8255,7 +8255,7 @@ function netEvent(ev) {
     const door = (currentMap.survival && currentMap.survival.doors || []).find((d) => d.id === ev[1]);
     surv.open.add(ev[1]); for (const id of ev[4] || []) surv.areas.add(id);
     applyDoorLeaf(ev[1], true); syncSurvivalSpace();
-    const buyer = entOf(ev[2]); if (buyer) buyer.points = ev[3];
+    const buyer = entOf(ev[2]); if (buyer) { buyer.points = ev[3]; buyer.pts = ev[3]; }
     if (buyer === player) refreshSurvPts();
     flashMsg(`${door ? door.name : 'Porta'} aberta`); sfx.pickup();
     return;
@@ -8453,7 +8453,7 @@ function netEvent(ev) {
 }
 function personalEvent(ev) {
   const p = player; if (!p) return;
-  if (ev[0] === 'pts') { p.points = ev[1] | 0; if (ev[2]) survPop(ev[2]); refreshSurvPts(); return; }
+  if (ev[0] === 'pts') { p.points = ev[1] | 0; p.pts = p.points; if (ev[2]) survPop(ev[2]); refreshSurvPts(); return; }
   if (ev[0] === 'doorNo') { const msg = DOOR_FAIL[ev[1]]; if (msg) flashMsg(msg); return; }
   if (ev[0] === 'pos') { p.pos.set(ev[1][0], ev[1][1], ev[1][2]); p.vel.set(0, 0, 0); }
   else if (ev[0] === 'pxw') { pauseSwapLast = performance.now() - (PX_COOLDOWN - (ev[1] | 0)) * 1000; flashMsg(`Espera ${ev[1]} s pra trocar de arma de novo`); } // servidor recusou a troca que derruba
