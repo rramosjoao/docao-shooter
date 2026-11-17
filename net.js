@@ -3,6 +3,7 @@
 //  Sem Three.js: main.js decide o que fazer com cada mensagem (onMessage).
 // ============================================================
 import { SERVER_URL, HTTP_URL } from './config.js';
+import { getToken } from './account.js';
 
 export async function createRoom(opts) {
   const r = await fetch(HTTP_URL + '/api/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts) });
@@ -22,8 +23,9 @@ export class Net {
   }
   connect() {
     const p = this.profile, tok = sessionStorage.getItem(tokKey(this.code)) || '';
-    const qs = new URLSearchParams({ name: p.name, skin: p.skin, primary: String(p.primary), token: tok });
-    let ws; try { ws = new WebSocket(`${SERVER_URL}/ws/${this.code}?${qs}`); } catch (e) { this.h.onStatus('error', 'URL do servidor inválida'); return; }
+    const qs = new URLSearchParams({ name: p.name, skin: p.skin, primary: String(p.primary), secondary: String(p.secondary ?? ''), melee: String(p.melee ?? ''), token: tok });
+    let ws; // conta: o token vai no subprotocolo (fora da URL); convidado: como sempre
+    try { const at = getToken(); ws = at ? new WebSocket(`${SERVER_URL}/ws/${this.code}?${qs}`, ['docao', 'tk.' + at]) : new WebSocket(`${SERVER_URL}/ws/${this.code}?${qs}`); } catch (e) { this.h.onStatus('error', 'URL do servidor inválida'); return; }
     this.ws = ws; this.h.onStatus(this.tries ? 'reconnecting' : 'connecting');
     ws.onopen = () => { this.sendPing(); };
     ws.onmessage = (ev) => {
