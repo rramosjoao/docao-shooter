@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Docão Snooker</title>
+<link rel="stylesheet" href="snooker.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="mesa"></canvas>
+<div id="hud">
+  <header class="top">
+    <a class="back" href="./hub.html">Quermesse</a>
+    <div class="board" id="placar"></div>
+    <button type="button" id="topo" class="chip">Vista de cima</button>
+    <button type="button" id="pausa-btn" class="chip">Pausa</button>
+  </header>
+  <div id="contagem" class="contagem" hidden></div>
+  <p id="fala"></p>
+  <div id="acoes"></div>
+  <div id="efeito">
+    <p>Efeito</p>
+    <button type="button" id="disco" aria-label="Efeito da tacada"><span id="marca"></span></button>
+    <button type="button" id="limpa" class="chip">Sem efeito</button>
+  </div>
+  <div id="forca" hidden><span></span></div>
+  <p id="dica">O mouse gira a mira. Segure e puxe para baixo. Solte: o taco bate e a bola sai.</p>
+</div>
+<section id="lobby">
+  <form id="comanda">
+    <p class="eyebrow">Sinuca de bar</p>
+    <h1>Docão Snooker</h1>
+    <fieldset>
+      <legend>Jogo</legend>
+      <label><input type="radio" name="modo" value="bola8" checked> Bola 8</label>
+      <label><input type="radio" name="modo" value="bolinho"> Bolinho</label>
+    </fieldset>
+    <fieldset id="quem">
+      <legend>Quem joga</legend>
+      <label><input type="radio" name="mesa" value="1v1" checked> Um contra um</label>
+      <label><input type="radio" name="mesa" value="dupla"> Duplas</label>
+    </fieldset>
+    <fieldset>
+      <legend>Até quanto</legend>
+      <label><input type="radio" name="corrida" value="curta"> Curta</label>
+      <label><input type="radio" name="corrida" value="longa" checked> Longa</label>
+    </fieldset>
+    <div id="cadeiras"></div>
+    <button type="submit" class="go">Abrir a mesa</button>
+  </form>
+</section>
+<section id="pausa" hidden>
+  <div class="sheet">
+    <h2>Pausa</h2>
+    <button type="button" id="continua">Continuar</button>
+    <button type="button" id="rever">Rever a última tacada</button>
+    <button type="button" id="de-novo">Reiniciar a partida</button>
+    <a href="./hub.html">Voltar à quermesse</a>
+  </div>
+</section>
+<script type="module" src="./snooker/main.js"></script>
+</body>
+</html>
