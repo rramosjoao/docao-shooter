@@ -3,7 +3,8 @@
 //  Regras:
 //   • 2 times (0 = Vermelho, 1 = Azul). Uma zona ativa por vez, sorteada num nó andável do grafo de navegação
 //     (com chão suficiente em volta e longe da zona anterior).
-//   • Só um time dentro: progresso desse time sobe RATE × nº de jogadores dentro (máx. MAX_COUNT contam).
+//   • Só um time dentro: a zona enche em captureTime(n) = CAP_BASE − n segundos (n = jogadores do time dentro, máx. MAX_COUNT contam):
+//     1 → 25 s, 2 → 24 s, 3 → 23 s … 10 → 16 s.
 //     Se a zona tinha progresso do outro time, primeiro ele é neutralizado (desce na mesma velocidade) e depois vira.
 //   • Os dois times dentro: CONTESTADA — o progresso congela.
 //   • Ninguém dentro: o progresso decai DECAY por segundo até zerar (aí a zona volta a ser neutra).
@@ -15,7 +16,7 @@
 export const TEAM_NAMES = ['Vermelho', 'Azul'];
 export const TEAM_COLORS = ['#ff4d4d', '#4da6ff'];
 export const TEAM_HEX = [0xff4d4d, 0x4da6ff], TEAM_DARK = [0x8a0f0f, 0x0f3f8a];
-export const DOM = { WIN_CAPS: 5, RADIUS: 4, HEIGHT: 2.6, RATE: 1 / 8, MAX_COUNT: 3, DECAY: 0.1, MIN_DIST: 18, TIME_LIMIT_DOM: 420 };
+export const DOM = { WIN_CAPS: 5, RADIUS: 4, HEIGHT: 2.6, CAP_BASE: 26, MAX_COUNT: 10, DECAY: 0.1, MIN_DIST: 18, TIME_LIMIT_DOM: 420 };
 export const MODES = { dm: 'Mata-mata', dom: 'Dominação' };
 
 // nó andável com chão em volta (≥ 6 nós do grafo dentro do raio, mesma altura) e longe da zona anterior
@@ -39,11 +40,13 @@ export function zoneCounts(zone, ents) {
   const c = [0, 0]; for (const e of ents) if (e.alive && (e.team === 0 || e.team === 1) && inZone(zone, e.pos)) c[e.team]++; return c;
 }
 // avança a zona; devolve o time que capturou (0/1) ou -1
+// segundos pra encher a zona (de 0 a 100%) com n jogadores do mesmo time dentro
+export const captureTime = (n) => DOM.CAP_BASE - Math.min(DOM.MAX_COUNT, Math.max(1, n));
 export function stepZone(z, counts, dt) {
   z.counts = counts; const [a, b] = counts; z.contested = a > 0 && b > 0;
   if (z.contested) return -1;
   if (a || b) {
-    const t = a ? 0 : 1, n = Math.min(DOM.MAX_COUNT, a || b), r = DOM.RATE * n * dt;
+    const t = a ? 0 : 1, r = dt / captureTime(a || b);
     if (z.team === -1 || z.team === t) { z.team = t; z.progress += r; if (z.progress >= 1) { z.progress = 1; return t; } }
     else { z.progress -= r; if (z.progress <= 0) { z.team = t; z.progress = Math.min(1, -z.progress); } }
   } else if (z.progress > 0) { z.progress = Math.max(0, z.progress - DOM.DECAY * dt); if (z.progress === 0) z.team = -1; }
