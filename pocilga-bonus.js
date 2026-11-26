@@ -1,12 +1,26 @@
 // Desenho do alvo de bônus e o texto que flutua depois do primeiro acerto.
 // O placar e o raio ficam em shared/pocilga-bonus.js. O som entra pelo sfx do jogo.
 import * as THREE from 'three';
-import { PIT, inspectRun } from './shared/pocilga.js';
-import { BONUS, acceptBonus, freshBonus, scoreShot, traceBonus } from './shared/pocilga-bonus.js';
+import * as pitBonus from './shared/pocilga-bonus.js';
+import { PIT as PIT_SPEC, inspectRun as pitInspect } from './shared/pocilga.js';
+import { acceptBonus, freshBonus } from './shared/pocilga-bonus.js';
 
 let state = freshBonus();
 let armed = null;
 let view = null;
+let kit = {
+  shared: pitBonus,
+  weapon: () => PIT_SPEC.pistol,
+  inspect: (ev) => pitInspect(ev),
+};
+
+export function bindCourseBonus(next) {
+  if (next && next.shared) kit = next;
+  state = freshBonus();
+  armed = null;
+}
+
+const bonusOf = () => kit.shared.BONUS;
 
 const own = (mesh) => { mesh.userData.own = true; return mesh; };
 
@@ -38,10 +52,11 @@ function paintLabel(text, good) {
 export function mountBonusTarget(root) {
   state = freshBonus();
   armed = null;
+  const BONUS = bonusOf();
   const grp = new THREE.Group();
   grp.name = 'pocilga-bonus';
   grp.position.set(BONUS.x, BONUS.y, BONUS.z);
-  grp.rotation.y = Math.PI;
+  grp.rotation.y = BONUS.yaw != null ? BONUS.yaw : Math.PI;
   // Anéis de arco, nas cores do Natal do mapa. O miolo é o disco de 14 cm.
   const layers = [
     [0.70, -0.09, 0x6a4a32],
@@ -68,7 +83,9 @@ export function mountBonusTarget(root) {
   const tex = new THREE.CanvasTexture(canvas);
   if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
   const label = own(new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })));
-  label.position.set(BONUS.x, BONUS.y + BONUS.outer + 0.78, BONUS.z - 0.4);
+  const labelX = BONUS.yaw === Math.PI / 2 ? BONUS.x - 0.5 : BONUS.x;
+  const labelZ = BONUS.yaw === Math.PI / 2 ? BONUS.z : BONUS.z - 0.4;
+  label.position.set(labelX, BONUS.y + BONUS.outer + 0.78, labelZ);
   label.scale.set(2.5, 1.08, 1);
   label.renderOrder = 10;
   label.visible = false;
@@ -95,6 +112,7 @@ export function armBonus(hit) { armed = hit || null; }
 export function bonusAdjust() { return state.locked ? state.delta : 0; }
 
 export function bonusSnap() {
+  const BONUS = bonusOf();
   return {
     locked: !!state.locked, zone: state.zone, delta: state.delta, text: state.text || '',
     x: BONUS.x, y: BONUS.y, z: BONUS.z, inner: BONUS.inner, outer: BONUS.outer,
@@ -102,9 +120,9 @@ export function bonusSnap() {
 }
 
 export function offerBonus(ox, oy, oz, dx, dy, dz, maxT) {
-  const hit = traceBonus(ox, oy, oz, dx, dy, dz, maxT);
+  const hit = kit.shared.traceBonus(ox, oy, oz, dx, dy, dz, maxT);
   if (!hit) return null;
-  return { t: hit.t, id: BONUS.id, shot: hit };
+  return { t: hit.t, id: bonusOf().id, shot: hit };
 }
 
 export function takeBonusShot(weapon, api) {
@@ -112,15 +130,16 @@ export function takeBonusShot(weapon, api) {
   armed = null;
   if (!api || !api.started || api.done) return false;
   if (state.locked) return true;
-  if (!shot || weapon !== PIT.pistol) return false;
+  const weaponId = kit.weapon();
+  if (!shot || weapon !== weaponId) return false;
   const extra = { w: weapon, ox: shot.ox, oy: shot.oy, oz: shot.oz, dx: shot.dx, dy: shot.dy, dz: shot.dz };
-  const hit = scoreShot(extra, PIT.pistol);
+  const hit = kit.shared.scoreShot(extra, weaponId);
   if (!hit) return false;
   const next = acceptBonus(state, hit);
   if (!next.accepted) return true;
   const before = api.events().length;
   api.push(extra);
-  const after = inspectRun(api.events());
+  const after = kit.inspect(api.events());
   if (after.reason === 'diário' || after.reason === 'ordem' || after.bonusZone !== hit.zone) {
     if (api.events().length > before) api.pop();
     return false;

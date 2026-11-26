@@ -43,13 +43,14 @@ export function pitBoardRows(data, { logged = false } = {}) {
   return rows;
 }
 
-export function renderPitRank(data, { nick = '', logged = false, variant = 'menu', loading = false, error = false } = {}) {
+export function renderPitRank(data, { nick = '', logged = false, variant = 'menu', loading = false, error = false, title = 'Pistoleiro da Pocilga' } = {}) {
   const warn = logged ? '' : `<p class="pit-rank-warn">${GUEST_RANK_NOTE}</p>`;
-  const kicker = variant === 'tab' ? '<p class="pit-tab-kicker">Pistoleiro da Pocilga</p>' : '';
+  const name = esc(title || 'Pistoleiro da Pocilga');
+  const kicker = variant === 'tab' ? `<p class="pit-tab-kicker">${name}</p>` : '';
   if (loading) return `${kicker}<p class="pit-rank-empty">Carregando…</p>${warn}`;
   if (error || data == null) return `${kicker}<p class="pit-rank-empty">Não deu pra carregar o ranking agora.</p>${warn}`;
   const rows = pitBoardRows(data, { logged });
-  if (!rows.length) return `${kicker}<p class="pit-rank-empty">Ninguém fechou o Pistoleiro da Pocilga ainda.</p>${warn}`;
+  if (!rows.length) return `${kicker}<p class="pit-rank-empty">Ninguém fechou o ${name} ainda.</p>${warn}`;
   const head = '<tr><th>#</th><th>Apelido</th><th>Tempo</th><th>Estrelas</th></tr>';
   const body = rows.map((r) => {
     const mine = !!(logged && nick && r.nick === nick);

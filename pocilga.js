@@ -4,9 +4,31 @@ import * as THREE from 'three';
 import { makeDocao, setPose } from './docao.js';
 import { makeZombie, animateZombie } from './invasion-gfx.js';
 import { lookToSkin } from './shared/closet.js';
-import { PIT, BOARD, FINISH_LINE, pitTargets, boardAabb, rayAabb, inspectRun, formatPit, suggestion, moverAt, inGate, onFinishLine, onSprint, pitRescue, fillPops, zombiesAwake } from './shared/pocilga.js';
-import { bonusLine } from './shared/pocilga-bonus.js';
-import { mountBonusTarget, clearBonusTarget, tickBonusTarget, offerBonus, armBonus, takeBonusShot, bonusAdjust, bonusSnap } from './pocilga-bonus.js';
+import * as pitMod from './shared/pocilga.js';
+import * as granjaMod from './shared/granja.js';
+import * as pitBonus from './shared/pocilga-bonus.js';
+import * as granjaBonus from './shared/granja-bonus.js';
+import { bonusLine as pitBonusLine } from './shared/pocilga-bonus.js';
+import { mountBonusTarget, clearBonusTarget, tickBonusTarget, offerBonus, armBonus, takeBonusShot, bonusAdjust, bonusSnap, bindCourseBonus } from './pocilga-bonus.js';
+
+let courseMod = pitMod;
+function useCourse(id) { courseMod = id === 'granja' ? granjaMod : pitMod; }
+const PIT = new Proxy(pitMod.PIT, { get: (_t, k) => courseMod.PIT[k] });
+const pitTargets = (...a) => courseMod.pitTargets(...a);
+const boardAabb = (...a) => courseMod.boardAabb(...a);
+const rayAabb = (...a) => courseMod.rayAabb(...a);
+const inspectRun = (...a) => courseMod.inspectRun(...a);
+const formatPit = (...a) => courseMod.formatPit(...a);
+const suggestion = (...a) => courseMod.suggestion(...a);
+const moverAt = (...a) => courseMod.moverAt(...a);
+const inGate = (...a) => courseMod.inGate(...a);
+const onFinishLine = (...a) => courseMod.onFinishLine(...a);
+const onSprint = (...a) => courseMod.onSprint(...a);
+const pitRescue = (...a) => courseMod.pitRescue(...a);
+const fillPops = (...a) => courseMod.fillPops(...a);
+const zombiesAwake = (...a) => courseMod.zombiesAwake(...a);
+const bonusLine = (zone) => (courseMod === granjaMod ? granjaBonus.bonusLine(zone) : pitBonusLine(zone));
+const BOARD = new Proxy(pitMod.BOARD, { get: (_t, k) => courseMod.BOARD[k] });
 import { loadPitRank, submitPit, getAccount, getToken } from './account.js';
 import { formatRankClock, GUEST_RANK_NOTE, rankRejectNote } from './pocilga-rank.js';
 
@@ -26,17 +48,19 @@ let bannerUntil = 0, bannerText = '', warned = false, gen = 0, lineAt = 0;
 let shout = '', shoutUntil = 0;
 
 function $(id) { return document.getElementById(id); }
+function bestKey() { return PIT.localKey || LOCAL_KEY; }
 function readBest() {
-  try { const o = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null'); return o && o.final >= 0 ? o : null; } catch (e) { return null; }
+  try { const o = JSON.parse(localStorage.getItem(bestKey()) || 'null'); return o && o.final >= 0 ? o : null; } catch (e) { return null; }
 }
 function writeBest(result) {
   if (!result || !result.finished) return readBest();
   const prev = readBest();
   if (prev && !(result.final < prev.final)) return prev;
   const row = { final: result.final, raw: result.raw, penalty: result.penalty, civs: result.civs, stars: result.stars, at: Date.now() };
-  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(row)); } catch (e) { /* sem storage */ }
+  try { localStorage.setItem(bestKey(), JSON.stringify(row)); } catch (e) { /* sem storage */ }
   return row;
 }
+const talkLines = () => (PIT.lines && PIT.lines.length ? PIT.lines : LINES);
 
 // Pintura chapada do Barriguinha clássico: pele #ee9c22, focinho #ec5c0c, camisa #d8261c com C!.
 function paintBarriguinha(g) {
@@ -154,14 +178,22 @@ function faceYaw(face) {
 
 function own(mesh) { mesh.userData.own = true; return mesh; }
 
+const geoCache = new Map();
+function sharedGeo(key, build) {
+  let geo = geoCache.get(key);
+  if (!geo) { geo = build(); geo.userData.shared = true; geoCache.set(key, geo); }
+  return geo;
+}
 function makeBoard(t, ground) {
   const grp = new THREE.Group();
   grp.position.set(t.x, ground, t.z);
   const enemy = t.kind === 'enemy';
-  const stake = own(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.42, 0.12), new THREE.MeshLambertMaterial({ color: enemy ? 0x3a1814 : 0x2f6f86 })));
+  const scale = t.scale || 1;
+  const w = BOARD.w * scale, h = BOARD.h * scale;
+  const stake = own(new THREE.Mesh(sharedGeo('stake', () => new THREE.BoxGeometry(0.12, 0.42, 0.12)), new THREE.MeshLambertMaterial({ color: enemy ? 0x3a1814 : 0x2f6f86 })));
   stake.position.y = 0.21;
   grp.add(stake);
-  if (t.move) {
+  if (t.move && t.move.min != null && t.move.max != null && (t.move.axis === 'x' || t.move.axis === 'z' || t.move.axis === 'y')) {
     const m = t.move;
     const len = Math.abs(m.max - m.min) + BOARD.w;
     const rail = own(new THREE.Mesh(
@@ -178,33 +210,39 @@ function makeBoard(t, ground) {
   pivot.rotation.y = faceYaw(t.face);
   grp.add(pivot);
   const frame = own(new THREE.Mesh(
-    new THREE.BoxGeometry(BOARD.w + 0.08, BOARD.h + 0.08, BOARD.d),
+    sharedGeo(`frame:${scale}`, () => new THREE.BoxGeometry(w + 0.08, h + 0.08, BOARD.d)),
     new THREE.MeshLambertMaterial({ color: enemy ? 0x8d1a12 : 0x1f7a58 }),
   ));
-  frame.position.y = BOARD.h / 2;
+  frame.position.y = h / 2;
   pivot.add(frame);
-  const face = own(new THREE.Mesh(new THREE.PlaneGeometry(BOARD.w * 0.9, BOARD.h * 0.9), new THREE.MeshLambertMaterial({ map: faceTexture(t.kind) })));
-  face.position.set(0, BOARD.h / 2, BOARD.d / 2 + 0.02);
+  const face = own(new THREE.Mesh(
+    sharedGeo(`face:${scale}`, () => new THREE.PlaneGeometry(w * 0.9, h * 0.9)),
+    new THREE.MeshLambertMaterial({ map: faceTexture(t.kind) }),
+  ));
+  face.position.set(0, h / 2, BOARD.d / 2 + 0.02);
   pivot.add(face);
   if (enemy) {
     const gun = own(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.78), new THREE.MeshLambertMaterial({ color: 0x1c140e })));
-    gun.position.set(0.22, BOARD.h * 0.5, BOARD.d / 2 + 0.42);
+    gun.position.set(0.22 * scale, h * 0.5, BOARD.d / 2 + 0.42);
     pivot.add(gun);
-    const barrel = own(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.28), new THREE.MeshLambertMaterial({ color: 0x3a3a3a })));
-    barrel.position.set(0.22, BOARD.h * 0.56, BOARD.d / 2 + 0.78);
+    const barrel = own(new THREE.Mesh(sharedGeo('barrel', () => new THREE.BoxGeometry(0.08, 0.08, 0.28)), new THREE.MeshLambertMaterial({ color: 0x3a3a3a })));
+    barrel.position.set(0.22 * scale, h * 0.56, BOARD.d / 2 + 0.78);
     pivot.add(barrel);
   } else {
     for (const s of [-1, 1]) {
       const arm = own(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.78, 0.12), new THREE.MeshLambertMaterial({ color: 0xf2c9b0 })));
-      arm.position.set(s * 0.52, BOARD.h * 0.34, BOARD.d / 2 + 0.08);
+      arm.position.set(s * 0.52 * scale, h * 0.34, BOARD.d / 2 + 0.08);
       pivot.add(arm);
     }
     const basket = own(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.22), new THREE.MeshLambertMaterial({ color: 0xe8c56b })));
-    basket.position.set(0, BOARD.h * 0.22, BOARD.d / 2 + 0.16);
+    basket.position.set(0, h * 0.22, BOARD.d / 2 + 0.16);
     pivot.add(basket);
   }
   root.add(grp);
-  return { ...t, ground, grp, pivot, frame, phase: 'up', anim: 0 };
+  return {
+    ...t, ground, groupY: ground, scale, spin: 0, grp, pivot, frame, phase: 'up', anim: 0,
+    base: { x: t.x, y: t.y || 0, z: t.z, face: t.face, move: t.move, scale, kind: t.kind },
+  };
 }
 
 function pose(b) {
@@ -246,8 +284,9 @@ function paintTalk(force) {
   el.classList.toggle('hidden', !show);
   if (coach && coach.bubble) coach.bubble.visible = !!show;
   if (!show) return;
-  const i = Math.floor(lineAt / 3.1) % LINES.length;
-  const text = yelling ? shout : LINES[i];
+  const lines = talkLines();
+  const i = Math.floor(lineAt / 3.1) % lines.length;
+  const text = yelling ? shout : lines[i];
   const key = yelling ? `s:${text}` : String(i);
   if (force || el.dataset.i !== key) { el.dataset.i = key; el.textContent = text; }
   if (coach && coach.bubble) {
@@ -466,7 +505,12 @@ function mountNatal() {
 }
 
 function mountFinish() {
-  const L = FINISH_LINE;
+  const L = courseMod.FINISH_LINE;
+  const alongX = L.along === 'x';
+  const wide = alongX ? (L.z1 - L.z0) : (L.x1 - L.x0);
+  const deep = L.depth * 2;
+  const cx = alongX ? L.x : (L.x0 + L.x1) / 2;
+  const cz = alongX ? (L.z0 + L.z1) / 2 : L.z;
   const c = document.createElement('canvas');
   c.width = 128; c.height = 32;
   const g = c.getContext('2d');
@@ -477,9 +521,9 @@ function mountFinish() {
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping;
   tex.repeat.set(10, 1);
-  const stripe = own(new THREE.Mesh(new THREE.PlaneGeometry(L.x1 - L.x0, L.depth * 2), new THREE.MeshBasicMaterial({ map: tex })));
+  const stripe = own(new THREE.Mesh(new THREE.PlaneGeometry(alongX ? deep : wide, alongX ? wide : deep), new THREE.MeshBasicMaterial({ map: tex })));
   stripe.rotation.x = -Math.PI / 2;
-  stripe.position.set((L.x0 + L.x1) / 2, 0.045, L.z);
+  stripe.position.set(cx, 0.045, cz);
   root.add(stripe);
   const sign = document.createElement('canvas');
   sign.width = 512; sign.height = 128;
@@ -489,7 +533,8 @@ function mountFinish() {
   sg.textAlign = 'center'; sg.textBaseline = 'middle'; sg.fillText('CHEGADA', 256, 68);
   const map = new THREE.CanvasTexture(sign);
   const banner = own(new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide })));
-  banner.position.set((L.x0 + L.x1) / 2, 2.15, L.z);
+  banner.position.set(cx, 2.15, cz);
+  if (alongX) banner.rotation.y = Math.PI / 2;
   root.add(banner);
 }
 
@@ -578,7 +623,10 @@ export function pitRay(ox, oy, oz, dx, dy, dz, maxT) {
   }
   for (const b of boards) {
     if (!standing(b)) continue;
-    const t = rayAabb(ox, oy, oz, dx, dy, dz, boardAabb(b, b.ground), maxT);
+    const box = PIT.map === 'granja'
+      ? courseMod.plateAabb(b.x, b.z, b.groupY != null ? b.groupY : b.ground, b.face, b.scale || 1, b.spin || 0)
+      : boardAabb(b, b.ground);
+    const t = rayAabb(ox, oy, oz, dx, dy, dz, box, maxT);
     if (t == null) continue;
     if (!best || t < best.t) best = { t, id: b.id };
   }
@@ -591,7 +639,16 @@ export function pitRay(ox, oy, oz, dx, dy, dz, maxT) {
   return best;
 }
 
-export function pitHit(id, weapon) {
+function shotExtra(shot) {
+  if (!shot) return {};
+  const extra = { ox: shot.ox, oy: shot.oy, oz: shot.oz, dx: shot.dx, dy: shot.dy, dz: shot.dz };
+  if (run && run.scopeAt != null) {
+    const ads = Math.round((run.clock - run.scopeAt) * 1000) / 1000;
+    if (ads > 0) extra.ads = ads;
+  }
+  return extra;
+}
+export function pitHit(id, weapon, shot) {
   if (!run || !run.started || run.done) return false;
   if (id === 'bonus') {
     return takeBonusShot(weapon, {
@@ -606,7 +663,7 @@ export function pitHit(id, weapon) {
   if (zed) {
     if (zed.phase !== 'run' || weapon !== PIT.pistol) return false;
     const before = inspectRun(run.events);
-    pushEvent('hit', { id, w: weapon });
+    pushEvent('hit', { id, w: weapon, ...shotExtra(shot) });
     const after = inspectRun(run.events);
     if (!(after.reason !== 'diário' && after.reason !== 'ordem' && !before.down.includes(id) && after.down.includes(id))) {
       run.events.pop(); return false;
@@ -619,7 +676,7 @@ export function pitHit(id, weapon) {
   const b = boards.find((x) => x.id === id);
   if (!b || !standing(b)) return false;
   const before = inspectRun(run.events);
-  pushEvent('hit', { id, w: weapon });
+  pushEvent('hit', { id, w: weapon, ...shotExtra(shot) });
   const after = inspectRun(run.events);
   const sane = after.reason !== 'diário' && after.reason !== 'ordem';
   const freshEnemy = sane && b.kind === 'enemy' && !before.down.includes(id) && after.down.includes(id);
@@ -633,7 +690,7 @@ export function pitHit(id, weapon) {
 }
 
 export function pitMelee(ox, oy, oz, dx, dy, dz) {
-  if (!run || !run.started || run.done) return false;
+  if (!run || !run.started || run.done || PIT.knife == null) return false;
   let best = null, bestD = 1.9;
   for (const b of boards) {
     if (!standing(b)) continue;
@@ -670,7 +727,8 @@ export const pitActive = () => !!run;
 
 function liveStars(clock, civs, started) {
   if (!started) return 0;
-  const final = clock + civs * PIT.civPenalty + bonusAdjust();
+  const view = run && run.events.length >= 2 ? inspectRun(run.events) : null;
+  const final = clock + civs * PIT.civPenalty + bonusAdjust() + (view && view.qs ? view.qs : 0);
   if (final <= PIT.star3 && civs === 0) return 3;
   if (final <= PIT.star2) return 2;
   return 1;
@@ -684,10 +742,11 @@ function paintHud() {
   const civTotal = pitTargets().filter((t) => t.kind === 'civil').length;
   const down = view ? view.down.length : 0;
   const civs = view ? view.civs : 0;
-  const clockText = !run.started ? '0:00.00' : (run.done && run.result && run.result.final != null ? formatPit(run.result.final) : formatPit(Math.max(0, run.clock + bonusAdjust())));
+  const qs = view && view.qs ? view.qs : 0;
+  const clockText = !run.started ? '0:00.00' : (run.done && run.result && run.result.final != null ? formatPit(run.result.final) : formatPit(Math.max(0, run.clock + bonusAdjust() + qs)));
   if (!run.started) timer.textContent = 'LARGADA';
   else timer.textContent = clockText;
-  let lead = 'O Barriguinha explica. Camisa vermelha cai. Azul é civil.';
+  let lead = PIT.leadIdle || 'O Barriguinha explica. Camisa vermelha cai. Azul é civil.';
   if (run.done) lead = 'Missão cumprida. R tenta de novo.';
   else if (run.started && onSprint(deps.player().pos.x, deps.player().pos.y, deps.player().pos.z)) lead = 'CRUZE A LINHA';
   else if (run.started) {
@@ -695,7 +754,7 @@ function paintHud() {
     lead = left ? (left === 1 ? 'Falta 1 Barriguinha' : `Faltam ${left} Barriguinhas`) : 'Barriguinhas no chão';
   }
   if (leader) { leader.textContent = lead; leader.dataset.h = ''; }
-  if (score) score.textContent = run.started ? `Inimigos ${down}/${enemies} · civis ${civs}/${civTotal}` : 'Pistolinha · Barriguinha vermelho, civil azul';
+  if (score) score.textContent = run.started ? `Inimigos ${down}/${enemies} · civis ${civs}/${civTotal}` : (PIT.hudIdle || 'Pistolinha · Barriguinha vermelho, civil azul');
   const cod = $('pitCod');
   if (cod) {
     cod.classList.remove('hidden');
@@ -750,7 +809,7 @@ function paintCard(result, extra) {
     <p class="pit-stars" aria-label="${result.stars} estrelas">${starsTxt(result.stars || 0)}</p>
     <p class="pit-split">Inimigos ${hitE}/${enemies} · Civis ${result.civs || 0}/${pitTargets().filter((t) => t.kind === 'civil').length}</p>
     <p class="pit-split">Tempo ${formatPit(result.raw)} · penalidade +${(result.penalty || 0).toFixed(2)} s</p>
-    <p class="pit-split">Alvo: <span style="color:${result.bonusZone === 'center' ? '#7CFF6B' : result.bonusZone === 'ring' ? '#ff4b4b' : 'inherit'}">${bonusLine(result.bonusZone)}</span></p>
+    <p class="pit-split">Alvo: <span style="color:${result.bonusZone === 'center' ? '#7CFF6B' : result.bonusZone === 'ring' ? '#ff4b4b' : 'inherit'}">${bonusLine(result.bonusZone)}</span>${PIT.map === 'granja' ? ` · quickscope ${result.qs ? result.qs.toFixed(2) + ' s' : '—'}` : ''}</p>
     <p class="pit-sug">${result.finished ? `Sugestão do Docão: <b>${esc(sug.label)}</b> · ${esc(sug.hint)}` : 'A chegada não abriu.'}</p>
     <p class="pit-best">Seu melhor ${logged && me ? 'na conta' : 'neste navegador'}: <b>${best ? formatRankClock(best.final) + ' ' + starsTxt(best.stars) : '—'}</b>${me ? ` · ranking ${me.place}º (${esc(formatRankClock(me.best))})` : ''}</p>
     <h3>Mais rápidos</h3>
@@ -782,8 +841,8 @@ async function closeRun() {
   deps.sfx.fanfare();
   showResult(run.result, { remote: null, rank: null });
   const [remote, rank] = await Promise.all([
-    submitPit(run.events).catch(() => ({ ok: false, error: 'Sem conexão com o ranking' })),
-    loadPitRank().catch(() => null),
+    submitPit(run.events, PIT.map).catch(() => ({ ok: false, error: 'Sem conexão com o ranking' })),
+    loadPitRank(10, PIT.map).catch(() => null),
   ]);
   if (mine !== gen || !run || !run.done || !cardOpen()) return;
   showResult(run.result, { remote, rank });
@@ -828,12 +887,21 @@ function stepZeds(dt) {
   }
 }
 function stepMovers(dt) {
-  run.moverT += dt;
+  let t;
+  if (PIT.map === 'granja') t = run.started ? run.clock : 0;
+  else { run.moverT += dt; t = run.moverT; }
   for (const b of boards) {
     if (!b.move || b.phase === 'fall' || b.phase === 'dead') continue;
-    const at = moverAt(b, run.moverT);
+    const at = moverAt(b.base || b, t);
     b.x = at.x; b.z = at.z;
     b.grp.position.x = at.x; b.grp.position.z = at.z;
+    if (at.y != null && b.base) {
+      b.groupY = b.ground + (at.y - (b.base.y || 0));
+      b.grp.position.y = b.groupY;
+      b.y = b.groupY;
+    }
+    b.spin = at.yaw || 0;
+    if (b.pivot) b.pivot.rotation.y = faceYaw(b.face) + b.spin;
   }
 }
 
@@ -841,10 +909,9 @@ export function tickCourse(dt) {
   if (!run || !deps) return;
   lineAt += dt;
   tickBonusTarget(dt);
-  tickNatal(lineAt);
+  if (PIT.map !== 'granja') tickNatal(lineAt);
   tickBits(dt);
   tickGate(dt);
-  stepMovers(dt);
   stepZeds(dt);
   if (coach) coach.model.group.position.y = PIT.tower.y + Math.sin(lineAt * 1.7) * 0.04;
   for (const b of boards) {
@@ -858,6 +925,10 @@ export function tickCourse(dt) {
   const p = deps.player();
   if (!p) return;
   if (deps.weapon() !== PIT.pistol) deps.armPistol();
+  if (PIT.infiniteReserve && deps.reserveCap) {
+    const cap = deps.reserveCap(PIT.pistol);
+    if (cap > 0 && (p.reserve[PIT.pistol] | 0) < cap) p.reserve[PIT.pistol] = cap;
+  }
   const pos = { x: p.pos.x, y: p.pos.y, z: p.pos.z };
   const back = pitRescue(pos.x, pos.y, pos.z);
   if (back) {
@@ -871,6 +942,10 @@ export function tickCourse(dt) {
     banner('JÁ!', false, 0.7);
   }
   if (run.started) run.clock += dt;
+  if (run.started && deps.scoped && deps.scoped()) {
+    if (run.scopeAt == null) run.scopeAt = run.clock;
+  } else run.scopeAt = null;
+  stepMovers(dt);
   for (const gate of PIT.gates) {
     if (!inGate(pos, gate)) continue;
     if (gate.say && !run.said.has(gate.id)) { run.said.add(gate.id); yell(gate.say); }
@@ -905,11 +980,56 @@ export function tickCourse(dt) {
   paintHud();
 }
 
+function mountFarm() {
+  const postGeo = sharedGeo('post', () => new THREE.BoxGeometry(0.16, 1.15, 0.16));
+  const wood = new THREE.MeshLambertMaterial({ color: 0x6a4a32 });
+  const posts = own(new THREE.InstancedMesh(postGeo, wood, 28));
+  const hayGeo = sharedGeo('hay', () => new THREE.BoxGeometry(1.1, 0.7, 0.7));
+  const hayMat = new THREE.MeshLambertMaterial({ color: 0xd7b15a });
+  const hay = own(new THREE.InstancedMesh(hayGeo, hayMat, 8));
+  const matrix = new THREE.Matrix4();
+  const spots = [[-150, -5.2], [-147, 6.2], [-120, 14], [-80, 13.2], [-40, 13.4], [4, 13.6], [-100, 44], [-70, 44.5]];
+  for (let i = 0; i < spots.length; i++) {
+    matrix.makeTranslation(spots[i][0], 0.35, spots[i][1]);
+    hay.setMatrixAt(i, matrix);
+  }
+  hay.count = spots.length;
+  let n = 0;
+  for (let x = -120; x <= 12; x += 8) {
+    matrix.makeTranslation(x, 0.55, 12.7);
+    posts.setMatrixAt(n++, matrix);
+  }
+  for (let z = 44; z <= 62; z += 3) {
+    matrix.makeTranslation(-138.5, 0.55, z);
+    posts.setMatrixAt(n++, matrix);
+  }
+  posts.count = n;
+  hay.instanceMatrix.needsUpdate = posts.instanceMatrix.needsUpdate = true;
+  const sign = document.createElement('canvas');
+  sign.width = 512; sign.height = 128;
+  const sg = sign.getContext('2d');
+  sg.fillStyle = '#6a3a18'; sg.fillRect(0, 0, 512, 128);
+  sg.fillStyle = '#f4e2b0'; sg.font = '700 64px Fredoka, sans-serif';
+  sg.textAlign = 'center'; sg.textBaseline = 'middle'; sg.fillText('LARGADA', 256, 68);
+  const tex = new THREE.CanvasTexture(sign);
+  if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  const banner = own(new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.85), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })));
+  banner.position.set(-152.3, 3.15, 0);
+  banner.rotation.y = Math.PI / 2;
+  root.add(posts, hay, banner);
+}
+
 export function beginCourse(next) {
   clearCourse();
   deps = next;
+  useCourse(next && next.map);
+  bindCourseBonus({
+    shared: courseMod === granjaMod ? granjaBonus : pitBonus,
+    weapon: () => courseMod.PIT.pistol,
+    inspect: (ev) => courseMod.inspectRun(ev),
+  });
   root = new THREE.Group();
-  root.name = 'pocilga';
+  root.name = PIT.map === 'granja' ? 'granja' : 'pocilga';
   deps.scene.add(root);
   boards = pitTargets().filter((t) => !t.zombie).map((t) => {
     const floor = deps.groundAt(t.x, t.z, (t.y || 0) + 1);
@@ -919,7 +1039,8 @@ export function beginCourse(next) {
   zeds = pitTargets().filter((t) => t.zombie).map((t) => makeZed(t));
   for (const b of boards) pose(b);
   placeCoach();
-  mountNatal();
+  if (PIT.map === 'granja') mountFarm();
+  else mountNatal();
   mountFinish();
   mountBonusTarget(root);
   run = { clock: 0, moverT: 0, started: false, done: false, opened: false, events: [], pops: new Set(), said: new Set(), result: null };
@@ -944,7 +1065,7 @@ export function clearCourse() {
   if (root && deps) deps.scene.remove(root);
   if (root) root.traverse((o) => {
     if (!o.userData || !o.userData.own) return;
-    if (o.geometry) o.geometry.dispose();
+    if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
     const list = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
     for (const m of list) { if (m.map) m.map.dispose(); m.dispose(); }
   });
@@ -993,6 +1114,7 @@ export function courseSnap() {
   const view = run && run.events.length >= 2 ? inspectRun(run.events) : null;
   return {
     on: !!run,
+    map: PIT.map,
     started: !!(run && run.started),
     done: !!(run && run.done),
     clock: run ? run.clock : 0,
@@ -1005,19 +1127,20 @@ export function courseSnap() {
     missed: view ? view.missed : [],
     civs: view ? view.civs : 0,
     pops: run ? [...run.pops] : [],
-    targets: boards.map((b) => ({ id: b.id, kind: b.kind, name: b.name, x: b.x, z: b.z, y: b.y || 0, phase: b.phase, face: b.face || -1, mover: !!b.move, zombie: false })).concat(zeds.map((z) => ({ id: z.id, kind: z.kind, name: z.name, x: z.x, z: z.z, y: z.y || 0, phase: z.phase === 'run' ? 'up' : z.phase === 'dead' ? 'dead' : 'down', face: z.face || '-x', mover: false, zombie: true, shown: !!(z.model && z.model.group.visible) }))),
+    targets: boards.map((b) => ({ id: b.id, kind: b.kind, name: b.name, x: b.x, z: b.z, y: b.groupY != null ? b.groupY : (b.y || 0), phase: b.phase, face: b.face || -1, scale: b.scale || 1, mover: !!b.move, zombie: false })).concat(zeds.map((z) => ({ id: z.id, kind: z.kind, name: z.name, x: z.x, z: z.z, y: z.y || 0, phase: z.phase === 'run' ? 'up' : z.phase === 'dead' ? 'dead' : 'down', face: z.face || '-x', scale: 1, mover: false, zombie: true, shown: !!(z.model && z.model.group.visible) }))),
     card: $('pitOver') ? !$('pitOver').classList.contains('hidden') : false,
     coach: !!coach,
     bonus: bonusSnap(),
   };
 }
 
-export async function paintPitMenu() {
+export async function paintPitMenu(mapId) {
+  if (!run) useCourse(mapId);
   const host = $('pitMenuRank');
   if (!host) return;
   const best = readBest();
   host.innerHTML = `<p class="pit-best">Seu melhor aqui: <b>${best ? formatPit(best.final) + ' ' + starsTxt(best.stars) : '—'}</b></p><div id="pitRankList">carregando o ranking…</div>`;
-  const data = await loadPitRank().catch(() => null);
+  const data = await loadPitRank(10, PIT.map).catch(() => null);
   const list = $('pitRankList');
   if (!list) return;
   if (!data) { list.textContent = 'Ranking do servidor indisponível agora.'; return; }

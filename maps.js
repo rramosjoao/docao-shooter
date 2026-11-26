@@ -1,5 +1,6 @@
 import { addHotmilkNoite } from './maps-hotmilk-noite.js';
 import { PIT, pitPieces } from './shared/pocilga.js';
+import { GRANJA, granjaPieces } from './shared/granja.js';
 import { morroLeitao } from './favela-map.js';
 import { breezeStandoff } from './breeze-data.js';
 import { dust2 } from './dust2-data.js';
@@ -1627,6 +1628,34 @@ addHotmilkNoite(MAPS, { B, R, building, fin, slab, crate });
     spawns: [[PIT.spawn[0], PIT.spawn[1]]],
     pickups: [],
     showcase: [0, 0, -11.4], view: [0, 1.7, -11.4, PIT.spawnYaw, -0.5],
+  });
+}
+
+// ---------- Pistoleiro da Granja: circuito da Carabina. O nome mora em GRANJA_TITLE. ----------
+{
+  const TONE = {
+    barn: '#8d2a22', wood: '#8d6240', hay: '#d7b15a', fence: '#6a5648',
+    silo: '#c5c8cc', ramp: '#b5793e', dirt: '#a8845a', metal: '#8a9298',
+  };
+  const boxes = granjaPieces().map((p) => ({
+    b: p.b,
+    c: p.ramp ? TONE.ramp : p.floor ? (p.tone === 'hay' ? TONE.hay : p.tone === 'wood' ? '#c4a574' : '#b7b3ac') : (TONE[p.tone] || TONE.wood),
+    ramp: p.ramp,
+    hide: p.hide || undefined,
+  }));
+  MAPS.push({
+    id: GRANJA.map, name: GRANJA.title, course: true,
+    desc: 'Circuito da Carabina da Granja: seções de cinco placas, corredor pra recarregar, campo longo e um curral apertado.',
+    size: [170, 72], wallH: 3.2, wallColor: ['#8d6a3a', '#6a5648'],
+    palette: DAY({
+      sky: '#9fd0ea', fog: ['#d5e2b8', 90, 420],
+      hemi: ['#fff2d0', '#6a8f4a', 0.85], sun: ['#ffe0a8', 1.15],
+      ground: '#8fa85a', tiles: ['#9bb86a', '#7d9a48', 28, 8],
+    }),
+    ...fin(boxes), props: [],
+    spawns: [[GRANJA.spawn[0], GRANJA.spawn[1]]],
+    pickups: [],
+    showcase: [-140, 0, 6], view: [-148, 2.4, 10, GRANJA.spawnYaw, -0.12],
   });
 }
 

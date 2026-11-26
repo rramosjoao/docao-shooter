@@ -47,6 +47,7 @@ import { makeZombie, makeMutant, animateZombie, dieZombie, applyHalloweenPalette
 import { TRAIN, isTraining, dummyX } from './shared/training.js';
 import { PIT } from './shared/pocilga.js';
 import { beginCourse, clearCourse, tickCourse, pitRay, pitHit, pitMelee, pitSpeedMul, pitHolding, pitResultOn, pitFinished, pitEscQuiet, dismissResult, restartCourse, courseSnap, paintPitMenu } from './pocilga.js';
+import { GRANJA_TITLE } from './shared/granja.js';
 import { fillPitTab } from './pocilga-tab.js';
 import { buildWorld, disposeWorld, applyPalette, renderThumb, buildPropMesh, updateWeather } from './world.js';
 import { buildGlbWorld, glbMapReady, prepareGlbMap, glbThumbs, glbSizeLabel } from './glb-maps.js';
@@ -2456,7 +2457,7 @@ function fire(shooter, origin, dir, wIdx, spread, muzzle, mul = 1, hand = 0) {
     if (gHit) { clipTrace(tr, origin, d, gHit); gasAcc.set(gHit.c, (gasAcc.get(gHit.c) || 0) + pelletOnGas(w, gHit.t, scale)); }
     if (!online && pitMode() && shooter && shooter.isPlayer) {
       const ph = pitRay(origin.x, origin.y, origin.z, d.x, d.y, d.z, tr.end);
-      if (ph) { tr.end = ph.t; tr.stop = 'pit'; pitHit(ph.id, wIdx); }
+      if (ph) { tr.end = ph.t; tr.stop = 'pit'; pitHit(ph.id, wIdx, { ox: origin.x, oy: origin.y, oz: origin.z, dx: d.x, dy: d.y, dz: d.z }); }
     }
     const end = origin.clone().addScaledVector(d, tr.end), vis = p < 4 || shooter.isPlayer;
     if (vis) tracer(muzzle, end, !!w.beam);
@@ -6981,14 +6982,19 @@ function markPick(kind, i) {
 }
 // ---------------- Treino (Estande do Docão) ----------------
 // B / N / M: próxima primária / secundária / faca-sabre, na hora e com pente cheio (online o servidor faz o mesmo ao receber 'pr')
+function courseWeapon() {
+  return currentMap && currentMap.id === 'granja' ? GUN_MESH.carabina : PISTOL;
+}
 function armPit() {
   const p = player; if (!p) return;
-  p.slots = [PISTOL, PISTOL, KNIFE];
-  p.primary = PISTOL; p.secondary = PISTOL; p.melee = KNIFE;
-  p.nextPrimary = PISTOL; p.nextSecondary = PISTOL; p.nextMelee = KNIFE;
-  p.mag[PISTOL] = WEAPONS[PISTOL].mag; p.reserve[PISTOL] = WEAPONS[PISTOL].reserve;
+  const w = courseWeapon();
+  const knife = w === PISTOL ? KNIFE : w;
+  p.slots = [w, w, knife];
+  p.primary = w; p.secondary = w; p.melee = knife;
+  p.nextPrimary = w; p.nextSecondary = w; p.nextMelee = knife;
+  p.mag[w] = WEAPONS[w].mag; p.reserve[w] = WEAPONS[w].reserve;
   p.reloadEnd = 0; p.switchEnd = 0; p.burstLeft = 0;
-  if (p.weapon !== PISTOL) setWeapon(p, PISTOL);
+  if (p.weapon !== w) setWeapon(p, w);
 }
 function trainSwap(code) {
   const cyc = (list, cur) => { const L = pool(list); if (!L.length) return cur; const i = L.includes(cur) ? L.indexOf(cur) : 0; return L[(i + 1) % L.length]; };
@@ -7543,10 +7549,35 @@ function fetchMap(id, onReady) {
 function storedMap() { let v = null; try { v = localStorage.getItem(mapKey()); } catch (e) { /* */ } if (v === 'random' || mapPool().some((m) => m.id === v)) return v; if (bombMenu() || compMenu()) return BOMB_MAP; if (menuSurvival() || isSurvivalMode($('modeSel').value)) return mapPool().some((m) => m.id === SURVIVAL.DEFAULT_MAP) ? SURVIVAL.DEFAULT_MAP : (mapPool()[0] ? mapPool()[0].id : INV.DEFAULT_MAP); if (invMenu()) return INV.DEFAULT_MAP; return MAPS[0].id; }
 let selectedMap = storedMap();
 const pitMenu = () => $('modeSel').value === PIT.mode;
+function pitMapId() {
+  let v = 'pocilga';
+  try { v = localStorage.getItem('docao.pitMap') || 'pocilga'; } catch (e) { /* */ }
+  return v === 'granja' ? 'granja' : 'pocilga';
+}
+function paintPitBlurb(id) {
+  const el = $('pitBlurb'); if (!el) return;
+  if (!paintPitBlurb.pocilga) paintPitBlurb.pocilga = el.innerHTML;
+  if (id !== 'granja') { el.innerHTML = paintPitBlurb.pocilga; return; }
+  el.innerHTML = `<b>${GRANJA_TITLE}</b> é o circuito da <b>Carabina da Granja</b>. Cada seção tem cinco Barriguinhas, e entre elas um corredor pra recarregar andando. Tem campo longo, curral apertado e placas que se mexem. Civil azul soma 3 s. 3 estrelas até 0:50 sem civil, 2 até 1:04. Esc fecha o cartaz e R recomeça.`;
+}
+function setPitMap(id) {
+  const next = id === 'granja' ? 'granja' : 'pocilga';
+  try { localStorage.setItem('docao.pitMap', next); } catch (e) { /* */ }
+  selectedMap = next;
+  paintPitBlurb(next);
+  const box = $('pitMaps');
+  if (box) box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.pitMap === next));
+  if (!currentMap || currentMap.id !== next) loadMap(next);
+  refreshMapUI();
+  paintPitMenu(next);
+}
 function syncMapForMode() {
   if (pitMenu()) {
-    selectedMap = PIT.map;
-    if (!currentMap || currentMap.id !== PIT.map) loadMap(PIT.map);
+    selectedMap = pitMapId();
+    paintPitBlurb(selectedMap);
+    const box = $('pitMaps');
+    if (box) box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.pitMap === selectedMap));
+    if (!currentMap || currentMap.id !== selectedMap) loadMap(selectedMap);
     $('mapModal').classList.add('hidden');
     buildMapGrid();
     return;
@@ -7583,7 +7614,7 @@ function refreshMapUI() {
   const card = $('mapBtn');
   const story = historiaMenu();
   const pit = pitMenu();
-  card.classList.remove('locked'); card.title = story ? 'HOTMILK à Noite, mapa fixo do Modo história' : pit ? 'Pistoleiro da Pocilga, mapa fixo do circuito' : 'Escolher mapa';
+  card.classList.remove('locked'); card.title = story ? 'HOTMILK à Noite, mapa fixo do Modo história' : pit ? 'O mapa do Pistoleiro se escolhe nos botões do circuito' : 'Escolher mapa';
   card.disabled = story || pit;
   const ch = card.querySelector('.mchange'); if (ch) ch.textContent = story || pit ? 'FIXO' : '↻ TROCAR';
   if (x1Menu()) {
@@ -7679,7 +7710,7 @@ function startGame(mapId) {
   const gfNotice = pickedRaw === GF_MODE && !GF_LIVE ? GF_STUB_NOTICE : '';
   const picked = gfNotice ? 'dm' : pickedRaw;
   const wantSurv = menuSurvival() || isHistoria(picked);
-  const id = isHistoria(picked) ? HISTORIA.map : picked === TRAIN.mode ? TRAIN.map : picked === PIT.mode ? PIT.map : picked === HIDE.mode ? HIDE.MAP : picked === X1.mode ? resolveX1Map(mapId) : (typeof mapId === 'string' ? mapId : pickMapForMatch());
+  const id = isHistoria(picked) ? HISTORIA.map : picked === TRAIN.mode ? TRAIN.map : picked === PIT.mode ? pitMapId() : picked === HIDE.mode ? HIDE.MAP : picked === X1.mode ? resolveX1Map(mapId) : (typeof mapId === 'string' ? mapId : pickMapForMatch());
   if (!mapReady(id)) { // Breeze: baixa e começa sozinho quando terminar (se ainda estiver no menu)
     if (startGame.waiting) return; startGame.waiting = true;
     fetchMap(id, () => { startGame.waiting = false; if (state === 'menu') startGame(id); });
@@ -7740,6 +7771,7 @@ function startGame(mapId) {
   }
   if (pitMode()) beginCourse({
     scene, player: () => player, groundAt, weapon: () => player && player.weapon,
+    map: currentMap && currentMap.id, scoped: () => scoped(), reserveCap: (w) => WEAPONS[w].reserve,
     armPistol: () => armPit(),
     lock: lockPointer, unlock: () => { if (document.pointerLockElement) document.exitPointerLock(); },
     menu: toMenu,
@@ -7750,7 +7782,7 @@ function startGame(mapId) {
       bonusBad: () => { tone('sawtooth', 196, 78, 0.2, 0.15); tone('square', 98, 52, 0.22, 0.09, 0.06); },
     },
   });
-  flashMsg(gfNotice || (armsMode() ? `Corrida Armada · time ${TEAM_NAMES[player.team]} · 2 abates por etapa · V rouba etapa` : compOn() ? `Competitivo ${normSide(+$('compSide').value)}v${normSide(+$('compSide').value)} · time ${TEAM_NAMES[player.team]} · B compra na preparação` : mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : hideMode() ? `Docão Escondido (protótipo) · time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : survOn() ? `Survival · ${currentMap.name} · pistola e faca · ${SURV.useLabel} usa a loja · E abre porta` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · N noclip · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : pitMode() ? 'Pistoleiro da Pocilga · só a Pistolinha' : `Mapa: ${currentMap.name} · bots ${diffWord}`)); if (gfNotice) msgTimer = 4.5; refreshModeHud();
+  flashMsg(gfNotice || (armsMode() ? `Corrida Armada · time ${TEAM_NAMES[player.team]} · 2 abates por etapa · V rouba etapa` : compOn() ? `Competitivo ${normSide(+$('compSide').value)}v${normSide(+$('compSide').value)} · time ${TEAM_NAMES[player.team]} · B compra na preparação` : mode === 'bomb' ? `Bomba · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : hideMode() ? `Docão Escondido (protótipo) · time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : survOn() ? `Survival · ${currentMap.name} · pistola e faca · ${SURV.useLabel} usa a loja · E abre porta` : invMode() ? `Invasão 🎃 · horda ${diffWord} · ${currentMap.name} · ${INV.WAVES} waves · ${KEYS.useLabel} usa poder · ${KEYS.cycleLabel} troca` : x1Mode() ? `X1 · ${currentMap.name} · primeiro a ${X1.KILLS} · ${WEAPONS[x1Gun].short}` : exploreMode() ? `Exploração · ${currentMap.name} · N noclip · , . ou [ ] trocam a primária` : teamMode() ? `Dominação · você é do time ${TEAM_NAMES[player.team]} · bots ${diffWord}` : training() ? 'Estande do Docão · B/N/M trocam a arma' : pitMode() ? `${currentMap.name} · ${currentMap.id === 'granja' ? 'só a Carabina' : 'só a Pistolinha'}` : `Mapa: ${currentMap.name} · bots ${diffWord}`)); if (gfNotice) msgTimer = 4.5; refreshModeHud();
   for (const ev of bombEv) onBombEvent(ev);
   for (const ev of hideEv) onHideEvent(ev);
   for (const ev of gfEv) onGfEvent(ev);
@@ -7904,7 +7936,7 @@ function activatePauseFocus() {
 }
 function fillPauseBrief() {
   const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
-  const modeLabel = gfLive() ? 'Gunfight' : armsMode() ? 'Corrida Armada' : compOn() ? 'Competitivo' : mode === 'bomb' ? 'Bomba' : survOn() ? 'Survival' : invMode() ? 'Invasão' : x1Mode() ? 'X1' : exploreMode() ? 'Exploração' : mode === 'dom' ? 'Dominação' : training() ? 'Estande' : pitMode() ? PIT.title : 'Mata-mata';
+  const modeLabel = gfLive() ? 'Gunfight' : armsMode() ? 'Corrida Armada' : compOn() ? 'Competitivo' : mode === 'bomb' ? 'Bomba' : survOn() ? 'Survival' : invMode() ? 'Invasão' : x1Mode() ? 'X1' : exploreMode() ? 'Exploração' : mode === 'dom' ? 'Dominação' : training() ? 'Estande' : pitMode() ? (currentMap && currentMap.name) : 'Mata-mata';
   set('pauseMode', modeLabel);
   set('pauseMap', currentMap ? currentMap.name : '—');
   set('pauseTime', $('timer') ? $('timer').textContent : '—');
@@ -8161,7 +8193,7 @@ document.addEventListener('keydown', (e) => {
       if (exploreMode() && player.alive && !emote.on && !e.repeat && (e.code === 'Comma' || e.code === 'Period' || e.code === 'BracketLeft' || e.code === 'BracketRight')) cycleExplorePrimary(e.code === 'Period' || e.code === 'BracketRight' ? 1 : -1);
     }
     if (!emote.on && !gfLive() && e.code === 'KeyQ' && !e.repeat && !(player && player.down)) { if (player.pokeballs > 0) { cancelUtilPress(); player.utilSel = ''; startCharge(); } else selectUtil('nade'); }
-    if (e.code === 'Tab') { $('tabboard').classList.remove('hidden'); if (pitMode() && !e.repeat) fillPitTab(); }
+    if (e.code === 'Tab') { $('tabboard').classList.remove('hidden'); if (pitMode() && !e.repeat) fillPitTab(currentMap && currentMap.id); }
     if (e.code === 'Escape' || e.code === 'KeyP') pause();
     if (e.code === 'Backquote') { e.preventDefault(); softPause(); }
   } else if (state === 'paused' && softPauseOn && e.code === 'Backquote') { e.preventDefault(); resume(); }
@@ -8416,7 +8448,7 @@ const MENU_RULES = {
   dm: 'Todos contra todos · vence quem fizer 20 abates ou liderar em 5 minutos',
   dom: 'Times · capture a zona · o primeiro a completar as capturas vence',
   treino: 'Estande do Docão: alvos que não atacam e voltam em 2 s. B/N/M trocam a arma, munição infinita, sem tempo.',
-  pocilga: 'PISTOLEIRO DA POCILGA · Circuito solo, só a Pistolinha Leitão. O Barriguinha na torre explica e grita no caminho. A disparada volta pelos fundos da sala da largada. Barriguinha de camisa vermelha, de fuzil, cai; civil azul, sem arma e de mão baixa, soma 3 segundos e tira as 3 estrelas. Barriguinha esquecido trava a chegada. Os dois Podres correm no corredor de cima. 3 estrelas até 0:52 sem civil, 2 estrelas até 1:06, 1 estrela ao terminar. Na chegada o jogo não pausa: Esc fecha o cartaz e R volta pra largada.',
+  pocilga: 'PISTOLEIRO · Dois circuitos. Pocilga: só a Pistolinha, o mesmo percurso de sempre. Granja: só a Carabina, seções de cinco placas, corredor pra recarregar, campo longo e curral apertado. Barriguinha na placa cai; civil azul soma 3 s e tira as 3 estrelas. Placa esquecida trava a chegada. Esc fecha o cartaz e R volta pra largada.',
   bomb: `💣 COMO JOGAR · Bomba (protótipo, estilo Valorant)\n🔥 Ataque: leve o Botijão até o site A ou B e segure ${BOMB.KEY_LABEL} por ${BOMB.PLANT} s pra plantar. Ele explode em ${BOMB.FUSE} s.\n🛡️ Defesa: impeça a plantação ou segure ${BOMB.KEY_LABEL} por ${BOMB.DEFUSE} s perto do Botijão pra desarmar.\n🔁 ${BOMB.PREP} s de preparação por rodada (dá pra trocar de arma com 1–9) · renascimento normal · primeiro a ${BOMB.WIN} rodadas · troca de lado depois da ${BOMB.HALF}ª.`,
   comp: `COMPETITIVO · 3 a 5 por time, só em mapa de plantar o botijão.\nA grana compra arma, colete, Copo Bomba, fumaça e flashbang na preparação (B). Matar e ganhar a rodada pagam. Colete e capacete diminuem o dano e não aparecem na skin.\nSem bazuca, lança-milho, ray gun e saco de presentes. 4, 5 e 6 escolhem Copo Bomba, fumaça e flashbang (a rodinha também). Elas ficam na mão direita até soltar o clique. O esquerdo carrega a força. O direito joga na força mínima. Q escolhe o Copo Bomba.\nG joga a arma principal pra frente. X joga o botijão pra frente. Quem morre deixa a arma no chão: recolher troca com a sua, skin inclusive. A que está com você continua na rodada seguinte. Só some a que ficou no chão, sem ninguém.\nRodada de pistola no começo e sempre que troca quem planta. Primeiro a 13. 12 a 12 vai a dois, trocando o lado a cada rodada.`,
   inv: 'Invasão 🎃 · co-op contra 20 waves de Docões zumbis. 2 vidas cada, poderes caem dos zumbis (G usa, X troca) e a Névoa Assombrada fecha o mapa.',
@@ -9064,7 +9096,7 @@ function refreshMenuMode() {
   const surv = inv && isSurvival($('survSel') && $('survSel').value);
   const comp = v === COMP.mode;
   $('menuTrain').classList.toggle('hidden', v !== TRAIN.mode);
-  if ($('menuPit')) { $('menuPit').classList.toggle('hidden', v !== PIT.mode); if (v === PIT.mode) paintPitMenu(); }
+  if ($('menuPit')) { $('menuPit').classList.toggle('hidden', v !== PIT.mode); if (v === PIT.mode) paintPitMenu(pitMapId()); }
   $('menuTeam').classList.toggle('hidden', v !== 'dom' && !isArmsRace(v) && v !== 'bomb' && v !== COMP.mode && v !== HIDE.mode && v !== GF_MODE);
   const box = (id) => { const el = $(id); return el ? el.closest('label') : null; };
   if (box('botCount')) box('botCount').classList.toggle('hidden', v === 'explore' || v === TRAIN.mode || v === PIT.mode || inv || story || v === X1.mode || comp);
@@ -9120,6 +9152,12 @@ $('botDiff').onchange = () => saveBotDiff($('botDiff').value);
 $('roomDiff').onchange = () => saveBotDiff($('roomDiff').value);
 try { const d = localStorage.getItem('docao.botDiff'); if (d) saveBotDiff(d); } catch (e) { /* */ }
 $('modeSel').onchange = () => { try { localStorage.setItem('docao.mode', $('modeSel').value); } catch (e) { /* */ } refreshMenuMode(); syncMapForMode(); };
+const pitMapsEl = $('pitMaps');
+if (pitMapsEl) pitMapsEl.onclick = (e) => {
+  const b = e.target.closest('button[data-pit-map]');
+  if (!b) return;
+  setPitMap(b.dataset.pitMap);
+};
 try { const m = localStorage.getItem('docao.mode'); if (m === 'survival') { $('modeSel').value = INV.mode; $('survSel').value = 'survival'; } else if (m !== COMP.mode && (isHide(m) || m === 'dom' || isArmsRace(m) || m === 'dm' || m === 'explore' || m === TRAIN.mode || m === PIT.mode || m === INV.mode || isHistoria(m) || m === 'bomb' || m === X1.mode || m === GF_MODE)) $('modeSel').value = m; } catch (e) { /* */ }
 try { const f = localStorage.getItem('docao.gfFormat'); if (f) applyGfFormat(f); } catch (e) { /* */ }
 for (const id of ['gfSide', 'roomGf', 'lobbyGf']) { const el = $(id); if (el) el.onchange = () => { applyGfFormat(el.value); const n = normFormat(el.value); if ($('roomMode') && $('roomMode').value === GF_MODE && $('roomMax')) $('roomMax').value = String(n * 2); if ($('roomMap') && $('roomMode') && $('roomMode').value === GF_MODE) fillMapSelect($('roomMap'), $('roomMap').value, GF_MODE); if ($('lobbyGf') && id === 'lobbyGf') sendCfg(); if (id === 'gfSide' && $('modeSel') && $('modeSel').value === GF_MODE) refreshMapUI(); }; }

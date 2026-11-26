@@ -12,7 +12,7 @@ import { SKINS, skinOk } from '../../skins.js';
 import { ELO_START, ELO_MODES, ELO_MODE_IDS, eloSummary, computeCompEloDeltas, computeDmEloDeltas, eloEligible } from '../../shared/elo.js';
 import { coinCreditStmt, chalUpdates, wallet, buyItem, equipSkin, equipKnife, equipSniper, equipGun, grantLoginBox, grantPromo, getPromoState, buyBox, openBox, spinWheel } from './shop.js';
 import { publicPromo } from '../../shared/promo.js';
-import { pitRank, pitSave } from './pocilga.js';
+import { normalizeMap, pitRank, pitSave } from './pocilga.js';
 
 const ITERS = 100000; // teto do WebCrypto do Workers
 const SESSION_TTL = 30 * 24 * 3600; // s
@@ -104,9 +104,9 @@ export async function recordStats(env, items) {
 
 // ---------- HTTP ----------
 const GENERIC = 'Apelido ou senha incorretos';
-async function readJson(req) {
-  const len = parseInt(req.headers.get('Content-Length') || '0'); if (len > 2048) return null;
-  try { const t = await req.text(); if (t.length > 2048) return null; const o = JSON.parse(t); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; } catch (e) { return null; }
+async function readJson(req, max = 2048) {
+  const len = parseInt(req.headers.get('Content-Length') || '0'); if (len > max) return null;
+  try { const t = await req.text(); if (t.length > max) return null; const o = JSON.parse(t); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; } catch (e) { return null; }
 }
 const publicAcc = (a) => ({ nick: a.nick, skin: a.skin && skinOk(a.skin) ? a.skin : null });
 async function myStats(env, id) {
@@ -235,18 +235,22 @@ export async function handleAccountRoute(req, env, url, json) {
     }
     if (p === '/api/pocilga/rank' && m === 'GET') {
       const limit = Math.max(1, Math.min(20, parseInt(url.searchParams.get('limit')) || 10));
+      const map = normalizeMap(url.searchParams.has('map') ? url.searchParams.get('map') : undefined);
+      if (!map) return json({ rows: [], me: null, error: 'mapa' }, 400);
       const a = await accountFromToken(env, tokenFrom(req));
-      try { return json(await pitRank(env, a && a.id, limit)); }
-      catch (e) { return json({ rows: [], me: null, error: 'ranking indisponível' }); }
+      try { return json(await pitRank(env, a && a.id, limit, map)); }
+      catch (e) { return json({ rows: [], me: null, map, error: 'ranking indisponível' }); }
     }
     if (p === '/api/pocilga/run' && m === 'POST') {
       const a = await accountFromToken(env, tokenFrom(req));
       if (!a) return json({ error: 'Entre na conta para entrar no ranking' }, 401);
       if (await rlCount(env, 'pit:' + a.id, 60) >= 8) return json({ error: 'Calma. Espera um instante para mandar de novo.' }, 429);
-      const b = await readJson(req);
+      const b = await readJson(req, 24576);
       if (!b || !Array.isArray(b.events)) return json({ error: 'Pedido inválido' }, 400);
+      const map = normalizeMap(b.map == null || b.map === '' ? undefined : b.map);
+      if (!map) return json({ error: 'Mapa inválido' }, 400);
       await rlHit(env, 'pit:' + a.id, 60);
-      try { const r = await pitSave(env, a.id, b.events); return json(r.body, r.status); }
+      try { const r = await pitSave(env, a.id, b.events, map); return json(r.body, r.status); }
       catch (e) { console.error('pocilga', e && e.message); return json({ error: 'Não deu para guardar o tempo' }, 500); }
     }
     if (p === '/api/auth/register' && m === 'POST') {

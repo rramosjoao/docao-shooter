@@ -485,6 +485,9 @@ body.bombpick #bPrompt{display:none}
 #trainInfo{display:inline-block;margin-top:4px;background:rgba(20,10,8,.62);color:#fff;padding:4px 12px;border-radius:8px;font-size:14px;white-space:nowrap;pointer-events:none}
 #trainInfo b{color:#fff;font-size:16px}#trainInfo b.hd{color:#ffd23a}
 .trainnote{margin:6px 0;padding:6px 10px;border-radius:8px;background:rgba(242,201,76,.18);font-size:13px;line-height:1.35}
+.pit-maps{display:flex;gap:8px;margin:0 0 8px}
+.pit-maps button{font:800 14px Fredoka,sans-serif;padding:6px 14px;border-radius:8px;border:2px solid #8d6240;background:#fff6e4;color:#3a2414;cursor:pointer}
+.pit-maps button.on{background:#8d1a12;color:#fff6e4;border-color:#5c100c}
 body.pit-on #timer{visibility:hidden}
 #pitCod{position:fixed;top:16px;right:16px;z-index:6;pointer-events:none;min-width:168px;padding:8px 12px 10px;background:rgba(28,16,12,.78);color:#fff6e4;border:2px solid #2a1410;border-radius:12px;font:800 14px/1.35 Fredoka,sans-serif;text-align:right}
 #pitCod .pit-cod-time span{display:block;font-size:11px;letter-spacing:.16em;opacity:.8}

@@ -26,7 +26,7 @@ const menuTxt = await page.evaluate(() => ({
   note: document.getElementById('menuPit')?.innerText || '',
   play: document.getElementById('playBtn')?.innerText || '',
 }));
-ok(/Pistoleiro da Pocilga/.test(menuTxt.opt) && /Pistoleiro da Pocilga/.test(menuTxt.note) && /Barriguinha de camisa vermelha/.test(menuTxt.note), `menu com o nome novo (${menuTxt.opt})`);
+ok(/^Pistoleiro$/.test(menuTxt.opt.trim()) && /Pistoleiro da Pocilga/.test(menuTxt.note) && /Barriguinha de camisa vermelha/.test(menuTxt.note) && /Pocilga/.test(menuTxt.note) && /Granja/.test(menuTxt.note), `menu Pistoleiro com a Pocilga (${menuTxt.opt})`);
 await page.screenshot({ path: `${SHOTS}/pocilga-menu-nome.png` });
 await page.click('#playBtn');
 await page.waitForFunction(() => window.__docao && window.__docao.state === 'playing' && window.__docao.pit && window.__docao.pit.on, null, { timeout: 20000 });

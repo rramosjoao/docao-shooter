@@ -169,14 +169,17 @@ export async function spinWheel(ids) {
   emit();
   return { ok: true, dupe: !!r.data.dupe, item: r.data.item, coins: account.coins, gain: r.data.gain | 0, spent, knife: account.knife, sniper: account.sniper, guns: account.guns };
 }
-export async function loadPitRank(limit = 10) {
+export async function loadPitRank(limit = 10, map) {
   const n = Math.max(1, Math.min(20, limit | 0 || 10));
-  const r = await api(`/api/pocilga/rank?limit=${n}`, { auth: !!token });
+  const q = map ? `&map=${encodeURIComponent(map)}` : '';
+  const r = await api(`/api/pocilga/rank?limit=${n}${q}`, { auth: !!token });
   return r.ok ? r.data : null;
 }
-export async function submitPit(events) {
+export async function submitPit(events, map) {
   if (!token || !account) return { ok: false, guest: true };
-  const r = await api('/api/pocilga/run', { method: 'POST', body: { events }, auth: true });
+  const body = { events };
+  if (map) body.map = map;
+  const r = await api('/api/pocilga/run', { method: 'POST', body, auth: true });
   if (r.status === 401) return { ok: false, error: 'Sessão expirada. Entre de novo.' };
   return { ok: r.ok, status: r.status, ...(r.data || {}) };
 }
