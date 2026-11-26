@@ -96,12 +96,12 @@ await G(() => { window.__docao.setPrimary(2); const g = window.__docao, p = g.pl
 await until(() => window.__docao.player.alive && window.__docao.player.weapon === 2, 20000);
 await G(() => { const p = window.__docao.player; p.vel.set(0, 0, 0); p.pitch = 0.05; p.yaw = 0.3; p.invulnUntil = 0; p.mag[2] = 5; });
 await page.click('#game'); await wait(300); await G(() => { const p = window.__docao.player; p.pitch = 0.05; p.yaw = 0.3; });
-await page.mouse.move(640, 360); await page.keyboard.down('ShiftLeft'); await wait(500);
+await page.mouse.move(640, 360); await page.mouse.down({ button: 'right' }); await wait(500);
 const sc = await G(() => window.__docao.scoped);
 console.log('antes do tiro:', JSON.stringify(await G(() => { const g = window.__docao, p = g.player; return { st: g.state, lock: !!document.pointerLockElement, alive: p.alive, w: p.weapon, mag: p.mag[p.weapon], nf: p.nextFire - g.time, sw: p.switchEnd - g.time, rl: p.reloadEnd - g.time, sc: g.scoped, ads: g.ads }; })));
 await page.mouse.down(); await wait(80); await page.mouse.up(); await wait(150);
 const shot = await G(() => ({ s: window.__lastShot, pitch: window.__docao.player.pitch, yaw: window.__docao.player.yaw }));
-await page.keyboard.up('ShiftLeft');
+await page.mouse.up({ button: 'right' });
 const fwd = [-Math.sin(0.3) * Math.cos(0.05), Math.sin(0.05), -Math.cos(0.3) * Math.cos(0.05)];
 const dot = shot.s ? shot.s.dir.reduce((a, v, i) => a + v * fwd[i], 0) : 0;
 console.log('tiro:', JSON.stringify(shot));
@@ -110,21 +110,23 @@ ok(dot > 0.99999, `raio sai exatamente pelo centro da mira (cos = ${dot.toFixed(
 ok(Math.abs(shot.pitch - 0.05) < 1e-6 && Math.abs(shot.yaw - 0.3) < 1e-6, 'sem coice deslocando a mira depois do tiro');
 await until(() => window.__docao.time >= window.__docao.player.nextFire + 0.05 && window.__docao.ads < 0.05, 20000); await page.mouse.down(); await wait(80); await page.mouse.up(); await wait(100);
 await until(() => window.__lastShot && window.__lastShot.spread > 0, 5000);
-ok(await G(() => window.__lastShot.spread > 0 && window.__lastShot.spread <= 0.03), `sem luneta: dispersão pequena (${await G(() => window.__lastShot.spread)})`);
+ok(await G(() => window.__lastShot.spread >= 0.1), `Torresmo sem luneta: dispersão larga (${await G(() => window.__lastShot.spread)})`);
 // ---- tela de morte clicável
 await G(() => { window.__docao.player.invulnUntil = 0; window.__docao.kill(window.__docao.player); }); await until(() => !document.getElementById('deathpick').classList.contains('hidden'), 6000); // câmera do bacon (1,1 s de jogo) antes dos cartões
 const dstate = await G(() => ({ lock: !!document.pointerLockElement, state: window.__docao.state, pick: !document.getElementById('deathpick').classList.contains('hidden') }));
 ok(!dstate.lock && dstate.state === 'playing' && dstate.pick, 'ao morrer: mouse solto, sem pausar, cartões de arma visíveis');
 await page.screenshot({ path: `${SHOTS}/17-tela-morte-clicavel.png` });
-await page.click('#deathList .primchip[data-i="1"]'); await page.click('#deathSec .primchip');
-ok(await G(() => window.__docao.selectedPrimary === 1 && window.__docao.spawnHold === 'secondary'), 'clique escolhe a Calibre 12 e "renascer com a pistola na mão"');
+await G(() => window.__docao.tuneClass(1, { primary: 1, secondary: 4, melee: 7, hand: 'secondary' }));
+await page.click('#deathList button.clsrow[data-i="1"]');
+ok(await G(() => window.__docao.selectedPrimary === 1 && window.__docao.spawnHold === 'secondary'), 'clique escolhe a classe com Calibre 12 e a pistola na mão');
 await until(() => window.__docao.player.alive, 20000); await wait(300);
 ok(await G(() => window.__docao.player.primary === 1 && window.__docao.player.weapon === 4), 'renasceu com Calibre 12 de primária e a pistola na mão');
 await page.click('#game'); await wait(300);
 ok(await G(() => !!document.pointerLockElement), 'clique trava o mouse de novo');
 await G(() => { window.__docao.player.invulnUntil = 0; window.__docao.kill(window.__docao.player); }); await until(() => !document.getElementById('deathpick').classList.contains('hidden'), 6000); // câmera do bacon (1,1 s de jogo) antes dos cartões
-await page.keyboard.press('Digit3'); ok(await G(() => window.__docao.selectedPrimary === 2), 'atalho de teclado (3) continua valendo');
-await page.click('#deathBack'); await wait(300); ok(await G(() => !!document.pointerLockElement), 'botão VOLTAR AO JOGO trava o mouse');
+await G(() => window.__docao.tuneClass(2, { primary: 2 }));
+await page.keyboard.press('Digit3'); ok(await G(() => window.__docao.selectedPrimary === 2), 'atalho 3 escolhe a classe do Torresmo');
+await page.waitForFunction(() => !document.getElementById('respawnBtn').disabled, null, { timeout: 8000 }); await page.click('#respawnBtn'); await wait(300); ok(await G(() => !!document.pointerLockElement), 'botão RENASCER trava o mouse');
 // ---- placar no mata-mata também
 await G(() => window.__docao.endGame()); await page.click('#menuBtn'); await wait(500);
 await page.selectOption('#modeSel', 'dm'); await page.click('#playBtn'); await wait(1500);
